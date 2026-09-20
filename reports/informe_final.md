@@ -538,12 +538,11 @@ Los antecedentes son `propuesta_proyecto1_final.md`, `concept_drift_findings.md`
 cita como evidencia consistente con drift, no como prueba causal, y sus
 limitaciones de preprocessing quedan declaradas.
 
-La auditoría crítica del plan y de la implementación está en
-`docs/auditoria_critica.md`. Documenta un defecto corregido y cinco decisiones
-de diseño que acotan el alcance de las conclusiones.
+Las siete decisiones en que este sistema se aparta del plan de implementación
+están en `docs/decisiones_de_diseno.md`, cada una con la medición que la sustenta.
 
 El protocolo está en `docs/protocolo_experimental.md`, el contrato en
 `docs/contrato_sistema.md` y la reproducción en `docs/reproducibilidad.md`. El
 despliegue está en `deploy/gcp_runbook.md` y `deploy/promocion_rollback.md`. La
-evidencia ejecutable consta de tres notebooks en `notebooks/` y 137 pruebas en
+evidencia ejecutable consta de tres notebooks en `notebooks/` y 142 pruebas en
 `tests/`.

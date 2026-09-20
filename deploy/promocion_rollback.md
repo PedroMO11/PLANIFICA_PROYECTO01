@@ -30,7 +30,7 @@ ella de inmediato sería reaccionar a ruido.
 ## 2. Gates de promoción
 
 Se evalúan sobre **H = [c−7, c)**: el tramo más reciente ya maduro, posterior al
-predictor, al calibrador y a la reserva de política.
+predictor y al calibrador.
 
 ### Gate 0 — Integridad (bloqueante)
 

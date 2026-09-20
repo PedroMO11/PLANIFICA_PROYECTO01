@@ -14,6 +14,8 @@ cd_bench.zip
 /data/processed/
 /runs/
 /models/
+# Log de consola de una corrida. El registro versionable son los manifests.
+runs_*.log
 
 # ------------------------------------------------------------------- entorno
 .venv/

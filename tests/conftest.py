@@ -64,6 +64,21 @@ def feature_columns(prepared_frame) -> tuple[list[str], list[str]]:
 
 @pytest.fixture
 def cost_model():
+    """Economia de referencia de las pruebas.
+
+    ``c_fp=75`` esta en el orden del valor que la calibracion produce sobre datos
+    reales al exigir un 1 % de bloqueo de legitimas. Con montos tipicos hace que
+    revisar sea la accion mas barata en la franja intermedia de ``p``, que es la
+    condicion que ejercitan las pruebas de cupo.
+    """
+    from fraud_adaptive.decision import CostModel
+
+    return CostModel(c_fp=75.0, c_review=1.0, r_h=0.90, f_h=0.02)
+
+
+@pytest.fixture
+def cost_model_barato():
+    """Economia con friccion baja, para comprobar que entonces no se revisa."""
     from fraud_adaptive.decision import CostModel
 
     return CostModel(c_fp=5.0, c_review=1.0, r_h=0.90, f_h=0.02)

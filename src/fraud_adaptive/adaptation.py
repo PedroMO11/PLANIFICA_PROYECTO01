@@ -6,18 +6,20 @@ pieza. Nada se reconstruye al arrancar el servicio.
 
 Orden de construccion (no es intercambiable)
 --------------------------------------------
-1. ``predictor``  [c-W, c-21)   ajusta preprocesamiento y modelo
-2. ``calibrador`` [c-21, c-14)  Platt sobre scores del predictor ya ajustado
-3. ``politica``   [c-14, c-7)   umbrales por costo (solo en el arranque)
-4. ``validacion`` [c-7, c)      gate de promocion
+1. ``predictor``  [c-W, c-14)   ajusta preprocessing y modelo
+2. ``calibrador`` [c-14, c-7)   Platt sobre scores del predictor ya ajustado
+3. ``validacion`` [c-7, c)      gate de promocion
+
+Los umbrales se eligen una vez en desarrollo y quedan congelados, de modo que no
+hace falta reservar una ventana de politica en cada actualizacion.
 
 Cada paso usa scores producidos por el paso anterior sobre datos que ese paso no
 vio. Invertir el orden -por ejemplo calibrar antes de fijar el predictor- haria
 que el calibrador corrigiera un modelo distinto del que se despliega.
 
-C21: si un rol no alcanza el soporte minimo, la version se marca NO VALIDA. No se
+Si un rol no alcanza el soporte minimo, la version se marca NO VALIDA. No se
 amplia la ventana ni se incorporan etiquetas inmaduras para completar, porque eso
-cambiaria en silencio la W que se esta midiendo.
+cambiaria en silencio la ventana que se esta midiendo.
 """
 
 from __future__ import annotations
@@ -52,6 +54,10 @@ class ModelPackage:
     model: FittedModel
     calibrator: PlattCalibrator
     policy: Policy
+    # El modelo de costos viaja con el paquete porque c_FP se calibra en desarrollo
+    # y queda congelado. Leerlo del config en el servicio permitiria que produccion
+    # decidiera con una economia distinta de la que se valido.
+    costs: CostModel = field(default_factory=CostModel)
     valid: bool = True
     invalid_reason: str | None = None
     support: dict[str, Any] = field(default_factory=dict)
@@ -81,6 +87,7 @@ class ModelPackage:
             "model": self.model.describe(),
             "calibrator": self.calibrator.to_dict(),
             "policy": self.policy.to_dict(),
+            "costos": self.costs.to_dict(),
             "support": self.support,
             "diagnostics": self.diagnostics,
             "n_ids_por_rol": {role: len(ids) for role, ids in self.ids_by_role.items()},
@@ -99,12 +106,14 @@ class ModelPackage:
         joblib.dump(self.model.pipeline, directory / "preprocessor.joblib")
         joblib.dump(self.calibrator, directory / "calibrator.joblib")
         write_json(directory / "feature_schema.json", self.model.pipeline.schema())
-        write_json(directory / "policy.json", self.policy.to_dict())
+        write_json(directory / "policy.json",
+                   {**self.policy.to_dict(), "costos": self.costs.to_dict()})
         manifest = self.manifest()
         manifest["package_hash"] = sha256_obj({
             "schema": self.model.pipeline.schema(),
             "calibrator": self.calibrator.to_dict(),
             "policy": self.policy.to_dict(),
+            "costos": self.costs.to_dict(),
             "roles": self.roles.to_dict(),
         })
         write_json(directory / "manifest.json", manifest)
@@ -123,6 +132,7 @@ class ModelPackage:
             "pipeline": joblib.load(directory / "preprocessor.joblib"),
             "calibrator": joblib.load(directory / "calibrator.joblib"),
             "policy": manifest["policy"],
+            "costos": manifest["costos"],
             "manifest": manifest,
         }
 
@@ -140,6 +150,7 @@ def build_package(
     numeric_columns: Sequence[str],
     categorical_columns: Sequence[str],
     policy: Policy,
+    costs: CostModel,
     temporal_config: Any,
     calibration_params: dict[str, Any],
     seed: int = 42,
@@ -168,7 +179,6 @@ def build_package(
     predictor_frame, predictor_labels, predictor_ids = role_slice(roles.predictor)
     calibration_frame, calibration_labels, calibration_ids = role_slice(roles.calibration)
     holdout_frame, holdout_labels, holdout_ids = role_slice(roles.promotion_validation)
-    policy_frame, policy_labels, policy_ids = role_slice(roles.policy)
 
     support: dict[str, Any] = {}
     ok_fit, counts_fit = check_support(predictor_labels, temporal_config.min_support["fit"])
@@ -178,13 +188,11 @@ def build_package(
         "predictor": {**counts_fit, "suficiente": ok_fit, "dias": roles.predictor.days},
         "calibracion": {**counts_cal, "suficiente": ok_cal},
         "validacion_promocion": {**counts_h, "suficiente": ok_h},
-        "politica": {"n": int(len(policy_frame))},
     })
 
     ids_by_role = {
         "predictor": predictor_ids,
         "calibracion": calibration_ids,
-        "politica": policy_ids,
         "validacion_promocion": holdout_ids,
     }
 
@@ -196,6 +204,7 @@ def build_package(
         return ModelPackage(
             version_id=roles.version_id, strategy=strategy, update_time=roles.update_time,
             roles=roles, model=None, calibrator=PlattCalibrator(), policy=policy,
+            costs=costs,
             valid=False, invalid_reason=reason, support=support, ids_by_role=ids_by_role,
         )
 
@@ -227,6 +236,7 @@ def build_package(
         raw_h, calibrated_h = ModelPackage(
             version_id=roles.version_id, strategy=strategy, update_time=roles.update_time,
             roles=roles, model=model, calibrator=calibrator, policy=policy,
+            costs=costs,
         ).score(holdout_frame)
         diagnostics["validacion_promocion"] = {
             "n": int(len(holdout_frame)),
@@ -239,6 +249,7 @@ def build_package(
     package = ModelPackage(
         version_id=roles.version_id, strategy=strategy, update_time=roles.update_time,
         roles=roles, model=model, calibrator=calibrator, policy=policy,
+        costs=costs,
         valid=True, support=support, diagnostics=diagnostics, ids_by_role=ids_by_role,
     )
     assert_package_roles_disjoint(package)
@@ -308,7 +319,7 @@ def promotion_gate(
     for name, package in (("challenger", challenger), ("champion", champion)):
         if package is None:
             continue
-        for role in ("predictor", "calibracion", "politica"):
+        for role in ("predictor", "calibracion"):
             shared = holdout_ids & package.ids_by_role.get(role, set())
             if shared:
                 result.update({

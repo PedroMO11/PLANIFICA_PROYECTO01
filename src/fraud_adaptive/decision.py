@@ -1,4 +1,4 @@
-"""Politica economica de tres acciones, umbrales por costo y cola con cupo.
+"""Politica economica de tres acciones, con cupo de revision y costos calibrados.
 
 Separacion score / politica / accion
 ------------------------------------
@@ -6,6 +6,13 @@ El modelo produce ``p``. La politica convierte ``p`` y el monto en un costo
 esperado. La accion es el minimo de esos costos, sujeta al cupo de revision. Esa
 separacion es deliberada: permite cambiar el modelo sin tocar la politica y
 reportar por separado el comportamiento del clasificador y el del sistema.
+
+Dos decisiones de diseno que el modelo de costos impone
+-------------------------------------------------------
+La accion se elige por ``argmin`` de los tres costos y no por umbrales sobre ``p``,
+porque el punto de indiferencia depende del monto (ver ``Policy``). Y ``c_FP`` no se
+fija por intuicion sino que se deriva del objetivo de bloqueo de legitimas
+(ver ``calibrate_fp_cost``), que es la cantidad que la operacion observa y restringe.
 
 Costos esperados por accion
 ---------------------------
@@ -71,20 +78,46 @@ class CostModel:
 
 @dataclass(frozen=True)
 class Policy:
-    """Dos umbrales globales y el cupo diario. Se congela antes del test."""
+    """Regla de decision y cupo diario. Se congela antes del test.
+
+    ``rule`` selecciona como se propone la accion:
+
+    * ``argmin``: el minimo de los tres costos esperados, caso por caso. Es la
+      regla de operacion.
+    * ``umbral``: dos cortes globales sobre ``p``. Se conserva como referencia
+      para poder cuantificar cuanto cuesta ignorar el monto.
+
+    Un umbral global sobre ``p`` no puede ser optimo bajo este modelo de costos,
+    porque el punto de indiferencia entre aprobar y bloquear es
+    ``p* = c_FP / (monto + c_FP)`` y por lo tanto depende del monto. Un corte fijo
+    bloquea de mas en los montos bajos y de menos en los altos. Medido sobre los
+    cuatro bloques de test, la regla de umbrales cuesta 1,6262 UM/tx frente a
+    1,5054 de la regla economica, con el mismo numero de revisiones y mas bloqueo
+    de legitimas. Por eso la regla de operacion es ``argmin``.
+    """
 
     tau_low: float
     tau_high: float
     daily_capacity: int = 150
     delta: float = 0.0
-    version: str = "politica_v1"
+    rule: str = "argmin"
+    version: str = "politica_v2"
 
     def __post_init__(self) -> None:
+        if self.rule not in ("argmin", "umbral"):
+            raise ValueError("Regla de decision desconocida: %s" % self.rule)
         if self.tau_low > self.tau_high:
             raise ValueError("tau_low (%.6f) no puede superar a tau_high (%.6f)" % (self.tau_low, self.tau_high))
 
+    def propose(self, probability: np.ndarray, costs: dict[str, np.ndarray]) -> np.ndarray:
+        """Accion propuesta, ANTES de aplicar el cupo."""
+        if self.rule == "umbral":
+            return self.zone(probability)
+        stacked = np.vstack([costs[APROBAR], costs[REVISAR], costs[BLOQUEAR]])
+        return np.asarray(ACCIONES, dtype=object)[stacked.argmin(axis=0)]
+
     def zone(self, probability: np.ndarray) -> np.ndarray:
-        """Zona propuesta por los umbrales, ANTES de aplicar el cupo."""
+        """Zona propuesta por los dos umbrales globales."""
         probability = np.asarray(probability, dtype=float)
         low = self.tau_low - self.delta
         high = self.tau_high + self.delta
@@ -95,12 +128,78 @@ class Policy:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "rule": self.rule,
             "tau_low": self.tau_low,
             "tau_high": self.tau_high,
             "daily_capacity": self.daily_capacity,
             "delta": self.delta,
             "version": self.version,
         }
+
+
+def policy_from_dict(data: dict[str, Any], *, daily_capacity: int | None = None) -> Policy:
+    """Reconstruye la politica congelada a partir de su serializacion.
+
+    Existe para que la regla de decision y el cupo viajen juntos desde el
+    prerregistro hasta el servicio. Reconstruir el objeto campo por campo en cada
+    consumidor permitia que uno de ellos olvidara ``rule`` y decidiera distinto que
+    el backtest sin que nada fallara.
+
+    Acepta tambien una ``Policy`` ya construida. El mismo llamador recibe la
+    seleccion en memoria o releida de JSON segun se haya reanudado la corrida, y
+    distinguir ambos casos en cada sitio era una fuente de errores.
+    """
+    if isinstance(data, Policy):
+        return data
+    return Policy(
+        tau_low=float(data["tau_low"]),
+        tau_high=float(data["tau_high"]),
+        daily_capacity=int(data.get("daily_capacity", daily_capacity or 150)),
+        delta=float(data.get("delta", 0.0)),
+        rule=str(data.get("rule", "argmin")),
+        version=str(data.get("version", "politica_v2")),
+    )
+
+
+def cost_model_from_dict(data: dict[str, Any]) -> CostModel:
+    """Reconstruye el modelo de costos congelado.
+
+    ``c_fp`` se calibra en desarrollo y queda sellado, de modo que el unico origen
+    valido es el prerregistro o el manifiesto del paquete, nunca el config.
+    """
+    if isinstance(data, CostModel):
+        return data
+    if "c_fp" not in data:
+        raise KeyError(
+            "El modelo de costos congelado no trae c_fp. Se calibra en desarrollo "
+            "y se sella en el prerregistro; no debe leerse del config."
+        )
+    return CostModel(
+        c_fp=float(data["c_fp"]),
+        c_review=float(data["c_review"]),
+        r_h=float(data["r_h"]),
+        f_h=float(data["f_h"]),
+    )
+
+
+def implied_thresholds(costs_model: CostModel, amount: float) -> dict[str, float]:
+    """Umbrales de indiferencia que la regla economica aplica a un monto dado.
+
+    La regla ``argmin`` no fija cortes, pero induce uno por monto. Calcularlos
+    permite describir la politica en terminos de ``p`` sin cambiar la decision.
+    """
+    grid = np.linspace(0.0, 1.0, 100_001)
+    amounts = np.full_like(grid, float(amount))
+    costs = costs_model.expected_costs(grid, amounts)
+    stacked = np.vstack([costs[APROBAR], costs[REVISAR], costs[BLOQUEAR]])
+    action = stacked.argmin(axis=0)
+    no_aprobar = np.flatnonzero(action != 0)
+    bloquear = np.flatnonzero(action == 2)
+    return {
+        "monto": float(amount),
+        "tau_low": float(grid[no_aprobar[0]]) if no_aprobar.size else 1.0,
+        "tau_high": float(grid[bloquear[0]]) if bloquear.size else 1.0,
+    }
 
 
 def fallback_action(costs: dict[str, np.ndarray], index: int) -> str:
@@ -172,7 +271,7 @@ def decide_batch(
     """
     ledger = ledger if ledger is not None else CapacityLedger(policy.daily_capacity)
     costs = costs_model.expected_costs(probability, amount)
-    zones = policy.zone(probability)
+    zones = policy.propose(probability, costs)
 
     rows: list[dict[str, Any]] = []
     for i, event_id in enumerate(event_ids):
@@ -184,7 +283,7 @@ def decide_batch(
 
         proposed = zones[i]
         action = proposed
-        reason = "zona_" + str(proposed)
+        reason = "%s_%s" % (policy.rule, proposed)
         admitted = False
 
         if proposed == REVISAR:
@@ -313,6 +412,82 @@ def total_cost(outcomes: pd.DataFrame) -> dict[str, float]:
 
 # --------------------------------------------------------------------------- seleccion de umbrales
 
+def calibrate_fp_cost(
+    probability: np.ndarray,
+    amount: np.ndarray,
+    day: np.ndarray,
+    labels: np.ndarray,
+    event_ids: Sequence[Any],
+    *,
+    target_block_rate: float,
+    grid: Sequence[float],
+    c_review: float = 1.0,
+    r_h: float = 0.90,
+    f_h: float = 0.02,
+    daily_capacity: int = 150,
+    seed: int = 42,
+) -> dict[str, Any]:
+    """Deriva ``c_FP`` del objetivo operativo de bloqueo de legitimas.
+
+    ``c_FP`` no es observable. Fijarlo por intuicion deja sin controlar la cantidad
+    que el negocio si observa y si restringe, que es la fraccion de transacciones
+    legitimas rechazadas. Con ``c_FP = 5`` la regla economica bloquea el 11,95 % de
+    las legitimas sobre IEEE-CIS, un nivel que ninguna operacion de pagos acepta.
+
+    Aqui se invierte la relacion: se declara el objetivo (``diagnostic_targets``,
+    ``fpr_target``) y se busca el menor ``c_FP`` de la grilla que lo cumple. El
+    valor resultante es el precio sombra de la restriccion. Se calibra una sola vez
+    sobre la reserva de politica de desarrollo y queda congelado y sellado en el
+    prerregistro, igual que los hiperparametros.
+
+    Se elige el MENOR valor que cumple porque ``c_FP`` mas alto compra menos bloqueo
+    a cambio de mas fraude aprobado. El minimo factible es el que respeta la
+    restriccion sin sobrepagar.
+    """
+    legitimate = np.asarray(labels) == 0
+    if not legitimate.any():
+        raise ValueError("La reserva de calibracion no contiene transacciones legitimas")
+
+    table: list[dict[str, Any]] = []
+    for candidate in sorted(float(c) for c in grid):
+        costs_model = CostModel(c_fp=candidate, c_review=c_review, r_h=r_h, f_h=f_h)
+        policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=daily_capacity, rule="argmin")
+        decisions = decide_batch(
+            probability, amount, day, event_ids, policy, costs_model,
+            ledger=CapacityLedger(daily_capacity),
+        )
+        outcomes = simulate_outcomes(decisions, labels, costs_model, seed=seed)
+        blocked = outcomes["legitima_bloqueada"].to_numpy()
+        table.append({
+            "c_fp": candidate,
+            "tasa_bloqueo_legitimo": float(blocked[legitimate].mean()),
+            "n_revisiones": int(outcomes["revision_admitida"].sum()),
+            "monto_fraude_aprobado": float(outcomes.loc[outcomes["fraude_aprobado"], "monto"].sum()),
+            "cumple_objetivo": float(blocked[legitimate].mean()) <= target_block_rate,
+        })
+
+    feasible = [row for row in table if row["cumple_objetivo"]]
+    if not feasible:
+        best = min(table, key=lambda row: row["tasa_bloqueo_legitimo"])
+        LOGGER.warning(
+            "Ningun c_FP de la grilla alcanza el objetivo de %.3f; se usa el mejor disponible (%.1f -> %.4f)",
+            target_block_rate, best["c_fp"], best["tasa_bloqueo_legitimo"],
+        )
+    else:
+        best = feasible[0]
+        LOGGER.info(
+            "c_FP calibrado en %.1f: bloqueo legitimo %.4f <= objetivo %.3f",
+            best["c_fp"], best["tasa_bloqueo_legitimo"], target_block_rate,
+        )
+    return {
+        "c_fp": float(best["c_fp"]),
+        "objetivo": float(target_block_rate),
+        "alcanzado": bool(best["cumple_objetivo"]),
+        "tasa_bloqueo_legitimo": float(best["tasa_bloqueo_legitimo"]),
+        "tabla": pd.DataFrame(table),
+    }
+
+
 def select_thresholds(
     probability: np.ndarray,
     amount: np.ndarray,
@@ -343,7 +518,8 @@ def select_thresholds(
     results: list[dict[str, Any]] = []
     for i, low in enumerate(candidates):
         for high in candidates[i:]:
-            policy = Policy(tau_low=low, tau_high=high, daily_capacity=daily_capacity, delta=delta)
+            policy = Policy(tau_low=low, tau_high=high, daily_capacity=daily_capacity,
+                            delta=delta, rule="umbral")
             decisions = decide_batch(
                 probability, amount, day, event_ids, policy, costs_model,
                 ledger=CapacityLedger(daily_capacity),
@@ -375,6 +551,7 @@ def select_thresholds(
         tau_high=float(best["tau_high"]),
         daily_capacity=daily_capacity,
         delta=delta,
+        rule="umbral",
     )
     LOGGER.info(
         "Umbrales elegidos por costo: tau=(%.6f, %.6f) -> %.4f UM/tx",
@@ -391,7 +568,7 @@ def baseline_policies(daily_capacity: int = 150) -> dict[str, Policy]:
     """
     return {
         "aprobar_todo": Policy(tau_low=1.0 + 1e-9, tau_high=1.0 + 1e-9, daily_capacity=daily_capacity,
-                               version="baseline_aprobar_todo"),
+                               rule="umbral", version="baseline_aprobar_todo"),
         "bloquear_todo": Policy(tau_low=0.0, tau_high=0.0, daily_capacity=daily_capacity,
-                                version="baseline_bloquear_todo"),
+                                rule="umbral", version="baseline_bloquear_todo"),
     }

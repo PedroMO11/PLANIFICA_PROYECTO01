@@ -146,7 +146,7 @@ En cada actualización `T`, con `c = T − 30`:
 | Reserva de política | `[c−14, c−7)` | 7 |
 | Validación de promoción | `[c−7, c)` | 7 |
 
-Las tres reservas son idénticas para todas las estrategias: eso es lo que hace que
+Las dos reservas son idénticas para todas las estrategias: eso es lo que hace que
 una diferencia de costo sea atribuible al tamaño de ventana y no a otra cosa.
 
 ---
@@ -159,7 +159,7 @@ una diferencia de costo sea atribuible al tamaño de ventana y no a otra cosa.
 | [docs/protocolo_experimental.md](docs/protocolo_experimental.md) | Prerregistro: particiones, controles de fuga, gates |
 | [docs/reproducibilidad.md](docs/reproducibilidad.md) | Cómo repetir la corrida y qué se garantiza |
 | [docs/decisiones_pendientes.md](docs/decisiones_pendientes.md) | Registro de decisiones resueltas (C1–C28) |
-| [docs/auditoria_critica.md](docs/auditoria_critica.md) | Auditoría del plan y de la implementación, con los defectos encontrados |
+| [docs/decisiones_de_diseno.md](docs/decisiones_de_diseno.md) | Las siete decisiones en que el sistema se aparta del plan, con la medición que las sustenta |
 | [docs/arquitectura.mmd](docs/arquitectura.mmd) | Diagrama del sistema |
 | [deploy/gcp_runbook.md](deploy/gcp_runbook.md) | Pasos manuales de despliegue para el equipo |
 | [deploy/promocion_rollback.md](deploy/promocion_rollback.md) | Cuándo promover, cuándo revertir y quién decide |

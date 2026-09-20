@@ -155,9 +155,10 @@ con_futuro = pd.concat([base, base.iloc[[0]].assign(
 
 a, _ = prepare_features(base)
 b, _ = prepare_features(con_futuro)
-# Solo las features numéricas de historial: `card_proxy` es la clave de entidad, texto.
+# Solo las features numéricas de historial: los `*_proxy` son claves de entidad, texto.
 cols = [c for c in a.columns
-        if c.startswith("card_") and c != "card_proxy" and pd.api.types.is_numeric_dtype(a[c])]
+        if c.startswith(("card_", "cliente_")) and not c.endswith("_proxy")
+        and pd.api.types.is_numeric_dtype(a[c])]
 
 iguales = np.allclose(a[cols].fillna(-1).to_numpy(), b[cols].head(3).fillna(-1).to_numpy())
 print("Un evento futuro de monto extremo no altera las filas anteriores:", iguales)
@@ -197,12 +198,15 @@ tuning.sort_values(["familia", "ap_media"], ascending=[True, False]).round(4)
 """),
         _markdown("## 2. Comparación de las tres familias\n\nEl criterio de decisión es el "
                   "**costo**, no el AP. Una familia con mejor AP puede decidir peor si su "
-                  "calibración desplaza los umbrales."),
+                  "calibración está sesgada, porque la política compara costos esperados y "
+                  "esos costos se calculan con `p`.\n\nLa columna `costo_um_tx_umbral_fijo` "
+                  "es el costo que alcanzaría el mejor par de umbrales globales sobre `p`. "
+                  "La diferencia con `costo_um_tx_politica` mide lo que cuesta ignorar el monto."),
         _code("""
 modelos = pd.read_csv(REPORTS / "tables" / "comparacion_modelos.csv")
 modelos[["familia", "config", "ap_politica", "costo_um_tx_politica",
          "brier_crudo", "brier_calibrado", "ece_crudo", "ece_calibrado",
-         "tau_low", "tau_high", "elegida_para_adaptacion"]].round(5)
+         "costo_um_tx_umbral_fijo", "regla", "elegida_para_adaptacion"]].round(5)
 """),
         _markdown("""
 ### Por qué calibrar
@@ -223,12 +227,43 @@ for familia, info in estaticos["familias"].items():
 print(f"\\nFamilia congelada para adaptación: {estaticos['familia_elegida']}")
 print(f"Hash de prerregistro: {estaticos['prerregistro']['hash'][:32]}")
 """),
-        _markdown("## 3. Umbrales: nunca 0.5\n\nSe eligen por costo sobre la reserva `[76,83)`. "
-                  "También se fijan dos umbrales **diagnósticos**, que se aplican congelados al test."),
+        _markdown("""
+## 3. La política: argmin económico, no umbrales
+
+La acción es el mínimo de los tres costos esperados, caso por caso. No hay cortes
+sobre `p` que decidan.
+
+El motivo es que el punto de indiferencia entre aprobar y bloquear es
+`p* = c_FP / (monto + c_FP)`, de modo que depende del monto. Un corte fijo bloquea
+de más en los montos bajos y de menos en los altos.
+
+`c_FP` tampoco se fija a mano. No es observable, pero la fracción de legítimas
+rechazadas sí lo es y es lo que la operación restringe. Se declara el objetivo y se
+busca el menor `c_FP` que lo cumple.
+"""),
         _code("""
 elegida = estaticos["familias"][estaticos["familia_elegida"]]
 
-print("Política económica:", json.dumps(elegida["policy"], indent=2))
+print("Política:", json.dumps(elegida["policy"], indent=2))
+print("Economía congelada:", json.dumps(estaticos["costos"], indent=2))
+
+cal = estaticos["calibracion_c_fp"]
+print(f"\\nc_FP calibrado contra un objetivo de bloqueo de legítimas del "
+      f"{cal['objetivo']:.1%}")
+print(f"   familia de referencia : {cal['familia_referencia']}")
+print(f"   valor elegido         : {cal['c_fp']:.1f}")
+print(f"   tasa alcanzada        : {cal['tasa_bloqueo_legitimo']:.4f}")
+pd.DataFrame(cal["tabla"]).round(5)
+"""),
+        _code("""
+print("El argmin induce un umbral distinto por monto:")
+for u in estaticos["umbrales_implicados"]:
+    print(f"   monto {u['monto']:8.2f} -> revisar desde p={u['tau_low']:.4f},"
+          f" bloquear desde p={u['tau_high']:.4f}")
+
+print(f"\\nCosto con argmin          : {elegida['costo_politica']:.4f} UM/tx")
+print(f"Costo con el mejor umbral fijo: {elegida['costo_umbral']:.4f} UM/tx")
+
 print("\\nUmbral para FPR<=1%   :", json.dumps(elegida["umbral_fpr"], indent=2))
 print("Umbral para precisión>=80%:", json.dumps(elegida["umbral_precision"], indent=2))
 print("\\nReferencias simuladas (UM/tx):")
@@ -249,7 +284,7 @@ desenlaces = pd.read_parquet(RUN_DIR / "outcomes.parquet")
 estatico = desenlaces[desenlaces["estrategia"] == "S0"]
 
 serie = metrics_by_period(estatico, period_column="semana",
-                          threshold_binary=elegida["policy"]["tau_high"])
+                          threshold_binary=elegida["umbral_fpr"]["umbral"])
 serie[["semana", "n", "prevalencia", "ap", "skill", "brier", "costo_por_tx"]].round(4)
 """),
         _code("""
@@ -338,7 +373,7 @@ print("\\nFPR objetivo alcanzado en test:",
       bool((tabla['fpr_obtenido'] <= objetivos['fpr_target']).any()))
 print("Precisión objetivo alcanzada en test:",
       bool((tabla['precision_obtenida'] >= objetivos['precision_target']).any()))
-print("\\nLos umbrales se eligieron en validación y se aplicaron CONGELADOS.")
+print("\\nLa economía se calibró en validación y se aplicó CONGELADA.")
 print("Que no se sostengan en test es un resultado, no un error a corregir moviendo el umbral.")
 """),
         _markdown("## 4. Señales de drift y sus dos relojes\n\nKS/PSI y S1 están disponibles el "

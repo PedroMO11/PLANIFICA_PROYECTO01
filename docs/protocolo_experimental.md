@@ -14,8 +14,8 @@ retuneado.
 | Semilla | 42 | Única en el núcleo. Una semilla **no** permite afirmar variabilidad entre semillas |
 | Retraso de etiqueta `L` | 30 días | Supuesto de simulación, no un plazo regulatorio |
 | Cadencia de reentrenamiento | 15 días | Única cadencia evaluada |
-| Ventanas `W` | {30, 60, 90} días | Incluyen predictor **y** las tres reservas |
-| Estrategias | S0, E15, W30, W60, W90 | S0/E15 son referencias **no desplegables** |
+| Ventanas `W` | {30, 60, 90} días | Incluyen predictor **y** las dos reservas |
+| Estrategias | S0, E15, W30, W60, W90, R46_medio, R46_antiguo | Dos bloques: volumen variable y antigüedad variable |
 | Configuraciones por familia | 3 | Congeladas antes del tuning |
 | Folds de tuning | 2, forward | Selección interna, nunca resultado final |
 | Presupuesto de cómputo | 480 min acumulados | Incluye reintentos; reanudar no reinicia el contador |
@@ -61,17 +61,38 @@ Con `c = T − 30`:
 
 | Rol | Intervalo | Días |
 |---|---|---|
-| Predictor | `[c−W, c−21)` | W − 21 (= 9, 39 o 69) |
-| Calibrador | `[c−21, c−14)` | 7 |
-| Reserva de política | `[c−14, c−7)` | 7 |
+| Predictor | `[c−W, c−14)` | W − 14 (= 16, 46 o 76) |
+| Calibrador | `[c−14, c−7)` | 7 |
 | Validación de promoción (H) | `[c−7, c)` | 7 |
 
-Las tres reservas son **idénticas** para todas las estrategias. Eso es lo que
-aísla el efecto del tamaño de ventana: si W30 tuviera una cola de calibración
-distinta de W90, la diferencia de costo dejaría de ser atribuible al olvido.
+Hay **dos** reservas por versión, no tres. Los umbrales de referencia se eligen una
+sola vez en desarrollo y quedan congelados, de modo que reservar una ventana de
+política en cada actualización excluía siete días del fit sin cumplir función.
+Liberarla devuelve esos días al predictor y beneficia sobre todo a las ventanas
+cortas, que son las que el experimento evalúa.
 
-En T=120, S0, E15 y W90 comparten exactamente el predictor `[0,69)`: es **un solo
+Las dos reservas son **idénticas** para todas las estrategias. Eso es lo que aísla
+el efecto del tamaño de ventana: si W30 tuviera una cola de calibración distinta de
+W90, la diferencia de costo dejaría de ser atribuible al olvido.
+
+En T=120, S0, E15 y W90 comparten exactamente el predictor `[0,76)`: es **un solo
 ajuste**, no tres, y así se cuenta en el costo de cómputo.
+
+### 3.b Los dos bloques del experimento
+
+Variar solo `W` cambia a la vez el volumen de entrenamiento y la antigüedad de la
+información, de modo que una diferencia de costo no sería atribuible a ninguno de
+los dos. El experimento los separa.
+
+| Bloque | Estrategias | Qué varía | Qué se mantiene |
+|---|---|---|---|
+| Volumen variable | W30, W60, W90 | días de fit | punto de corte en `c−14` |
+| Antigüedad variable | W60, R46_medio, R46_antiguo | punto de corte | 46 días de fit |
+
+`R46_medio` toma 46 días terminando 30 días antes del corte. `R46_antiguo` toma los
+primeros 46 días del histórico. `build_version_roles` rechaza de forma explícita una
+combinación de `lag_days` y `fit_days` que no quepa en el corte, en lugar de truncar
+la ventana en silencio.
 
 ---
 
@@ -79,10 +100,13 @@ ajuste**, no tres, y así se cuenta en el costo de cómputo.
 
 No es intercambiable:
 
-1. **Predictor** `[c−W, c−21)` — ajusta preprocesamiento y modelo
-2. **Calibrador** `[c−21, c−14)` — Platt sobre scores del predictor ya ajustado
-3. **Política** `[c−14, c−7)` — umbrales por costo (solo en el arranque)
-4. **Validación** `[c−7, c)` — gate de promoción
+1. **Predictor** `[c−W, c−14)` — ajusta preprocesamiento y modelo
+2. **Calibrador** `[c−14, c−7)` — Platt sobre scores del predictor ya ajustado
+3. **Validación** `[c−7, c)` — gate de promoción
+
+La política no consume una reserva propia. Se congela en desarrollo y consiste en
+el modelo de costos, cuyo `c_FP` se calibra una sola vez contra el objetivo de
+bloqueo de legítimas.
 
 Cada paso usa scores producidos por el anterior sobre datos que ese paso no vio.
 Invertir el orden haría que el calibrador corrigiera un modelo distinto del que se
@@ -96,7 +120,7 @@ se está midiendo.
 ## 4.b Selección de la ventana desplegable
 
 La ventana se elige con datos de desarrollo, antes de abrir el test. La evaluación
-ocurre sobre la reserva de política `[c−14, c−7)`, posterior al predictor y al
+ocurre sobre la reserva de validación `[c−7, c)`, posterior al predictor y al
 calibrador de cada paquete.
 
 Compiten únicamente W30, W60 y W90. S0 y E15 quedan excluidas porque son

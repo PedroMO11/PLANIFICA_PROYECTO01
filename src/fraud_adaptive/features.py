@@ -16,11 +16,16 @@ empatados deje las features bit a bit iguales, que es lo que verifica
 
 Entidades
 ---------
-IEEE-CIS esta anonimizado y no trae un identificador de cliente. Se construyen dos
+IEEE-CIS esta anonimizado y no trae un identificador de cliente. Se construyen tres
 PROXIES y se mide su calidad en lugar de asumirla:
 
-* ``card_proxy``: combinacion de card1..card6 + addr1.
+* ``card_proxy``: card1..card6 + addr1. Clave gruesa, por emisor.
+* ``cliente_proxy``: card1 + addr1 + D1n, con ``D1n`` el dia de alta de la
+  tarjeta. Clave fina, por tarjeta individual.
 * ``device_proxy``: DeviceType + DeviceInfo (solo con identidad presente).
+
+Las dos claves de tarjeta conviven porque resuelven la misma entidad a granularidad
+distinta y los historiales resultantes son complementarios, no redundantes.
 
 Un proxy no es una persona. Dos clientes pueden colisionar en la misma clave y un
 cliente puede aparecer con varias. Por eso ``proxy_quality`` reporta cardinalidad
@@ -55,26 +60,84 @@ HISTORY_WINDOWS: dict[str, int] = {
 # se repite, no identifica un instante del calendario.
 FORBIDDEN_PREDICTOR_COLUMNS: frozenset[str] = frozenset({
     "TransactionID", "TransactionDT", "s_rel", "dia", "semana", "hora",
-    "isFraud", "available_at", "card_proxy", "device_proxy",
+    "isFraud", "available_at", "card_proxy", "cliente_proxy", "device_proxy",
 })
+
+# Sufijos prohibidos para el predictor.
+#
+# Un conteo expansivo acumula desde el primer evento, de modo que crece de forma
+# monotona con el calendario y funciona como sustituto del dia absoluto. Medido
+# sobre IEEE-CIS, la media de `card_cnt_expansivo` pasa de 138,8 en [0,60) a 707,4
+# en [150,182), con una correlacion de +0,23 con el dia. Una validacion adversarial
+# por feature le asigna AUC 0,71, el valor mas alto de las 425 columnas del panel.
+#
+# Dejarlo dentro del predictor contradice la prohibicion de tiempo absoluto y hace
+# que la comparacion entre ventanas dependa de cuan lejos quede el rango de
+# entrenamiento del rango de test. Las ventanas acotadas de 1 h, 24 h y 7 d no
+# tienen el problema: la correlacion con el dia es de -0,009 para `card_cnt_7d`.
+#
+# Las columnas se siguen calculando porque son utiles como diagnostico.
+FORBIDDEN_PREDICTOR_SUFFIXES: tuple[str, ...] = ("_expansivo",)
 
 
 # --------------------------------------------------------------------------- proxies
 
 def build_card_proxy(frame: pd.DataFrame) -> pd.Series:
-    """Clave de tarjeta a partir de las columnas card* y addr1.
+    """Clave de emisor, encadenando ``card1`` a ``card6`` mas ``addr1``.
 
-    Los faltantes se codifican como la cadena ``na`` en lugar de propagarse: si se
-    dejaran como NaN, todas las filas incompletas colapsarian en una unica entidad
-    gigante y sus agregados serian ruido.
+    Agrupa por atributos del medio de pago: numero de emisor, tipo, red y region.
+    Es una clave GRUESA. Sobre IEEE-CIS produce 43 018 entidades con 13,7 eventos
+    de media, de modo que sus ventanas de 24 h y 7 d casi siempre tienen soporte.
+    A cambio, una misma clave mezcla tarjetas distintas del mismo emisor.
     """
-    columns = [c for c in ("card1", "card2", "card3", "card4", "card5", "card6", "addr1") if c in frame.columns]
+    columns = [c for c in ("card1", "card2", "card3", "card4", "card5", "card6", "addr1")
+               if c in frame.columns]
     if not columns:
         return pd.Series(["desconocida"] * len(frame), index=frame.index, dtype="object")
-    parts = [frame[col].astype("string").fillna("na") for col in columns]
-    key = parts[0]
-    for part in parts[1:]:
-        key = key + "|" + part
+    key = frame[columns[0]].astype("string").fillna("na")
+    for column in columns[1:]:
+        key = key + "|" + frame[column].astype("string").fillna("na")
+    return key.astype("object")
+
+
+def build_client_proxy(frame: pd.DataFrame, *, time_col: str = "TransactionDT") -> pd.Series:
+    """Clave de cliente, construida como ``card1 + addr1 + D1n``.
+
+    ``D1`` mide los dias transcurridos desde que la tarjeta empezo a usarse, de modo
+    que ``D1n = dia - D1`` identifica el dia de alta. Dos transacciones con el mismo
+    ``card1``, el mismo ``addr1`` y la misma fecha de alta pertenecen casi siempre a
+    la misma tarjeta. Es la clave FINA: 217 850 entidades con 2,71 eventos de media.
+
+    Las dos claves no compiten, se complementan. Por separado rinden igual, con AP
+    de 0,1668 y 0,1671 sobre un test temporal usando solo features de historial.
+    Juntas rinden 0,1829, porque la gruesa aporta soporte estadistico y la fina
+    aporta resolucion por tarjeta. Por eso el panel emite ambos historiales.
+
+    ``D1n`` no introduce tiempo absoluto en el predictor. Es una constante por
+    tarjeta, no una funcion creciente del calendario, y ademas solo se usa para
+    agrupar: la clave nunca entra al modelo.
+
+    El dia se deriva aqui de ``TransactionDT`` y no de la columna ``dia``. Esta
+    ultima se mide desde el primer evento del frame, de modo que una misma tarjeta
+    recibiria claves distintas segun el rango que se este procesando. El dia
+    absoluto es estable entre llamadas y produce exactamente la misma agrupacion.
+    """
+    if "card1" not in frame.columns:
+        return pd.Series(["desconocida"] * len(frame), index=frame.index, dtype="object")
+
+    partes = [frame["card1"].astype("string").fillna("na")]
+    if "addr1" in frame.columns:
+        partes.append(frame["addr1"].astype("string").fillna("na"))
+
+    if "D1" in frame.columns and time_col in frame.columns:
+        dia_absoluto = np.floor(
+            pd.to_numeric(frame[time_col], errors="coerce") / SECONDS_PER_DAY)
+        d1n = dia_absoluto - pd.to_numeric(frame["D1"], errors="coerce")
+        partes.append(d1n.round().astype("Int64").astype("string").fillna("na"))
+
+    key = partes[0]
+    for parte in partes[1:]:
+        key = key + "|" + parte
     return key.astype("object")
 
 
@@ -191,7 +254,7 @@ def compute_history_features(
     """Calcula las features de historial en una sola pasada causal.
 
     ``entity_columns`` mapea prefijo de feature -> columna de proxy, por ejemplo
-    ``{"card": "card_proxy", "device": "device_proxy"}``.
+    ``{"card": "card_proxy", "cliente": "cliente_proxy"}``.
 
     El frame debe venir ordenado por tiempo. El recorrido agrupa eventos con el
     mismo timestamp, emite las features de todo el grupo contra el estado previo y
@@ -204,7 +267,9 @@ def compute_history_features(
     canonicalizar por ID, la invariancia frente a permutaciones de empatados pasa a
     ser una propiedad de esta funcion y no algo que el llamador deba recordar.
     """
-    entity_columns = entity_columns or {"card": "card_proxy", "device": "device_proxy"}
+    entity_columns = entity_columns or {
+        "card": "card_proxy", "cliente": "cliente_proxy", "device": "device_proxy",
+    }
     n_rows = len(frame)
 
     times = frame[time_col].to_numpy(dtype="float64")
@@ -275,14 +340,16 @@ def add_derived_features(frame: pd.DataFrame, *, amount_col: str = "TransactionA
     """
     out = frame.copy()
     out["monto_log"] = np.log1p(out[amount_col].clip(lower=0))
-    if "card_amt_medio_7d" in out.columns:
-        # Cuanto se desvia el monto de lo habitual en esa tarjeta, en escala log.
-        ratio = out[amount_col] / out["card_amt_medio_7d"].replace(0, np.nan)
-        out["monto_vs_media_tarjeta_7d"] = np.log1p(ratio.clip(lower=0)).astype("float32")
-    if "card_segundos_desde_ultimo" in out.columns:
-        out["horas_desde_ultimo_card"] = (out["card_segundos_desde_ultimo"] / 3600.0).astype("float32")
-    if "device_segundos_desde_ultimo" in out.columns:
-        out["horas_desde_ultimo_device"] = (out["device_segundos_desde_ultimo"] / 3600.0).astype("float32")
+    # Cuanto se desvia el monto de lo habitual en esa entidad, en escala log.
+    for prefijo, sufijo in (("card", "tarjeta"), ("cliente", "cliente")):
+        columna = "%s_amt_medio_7d" % prefijo
+        if columna in out.columns:
+            ratio = out[amount_col] / out[columna].replace(0, np.nan)
+            out["monto_vs_media_%s_7d" % sufijo] = np.log1p(ratio.clip(lower=0)).astype("float32")
+    for prefijo in ("card", "cliente", "device"):
+        columna = "%s_segundos_desde_ultimo" % prefijo
+        if columna in out.columns:
+            out["horas_desde_ultimo_%s" % prefijo] = (out[columna] / 3600.0).astype("float32")
     return out
 
 
@@ -304,7 +371,7 @@ def build_feature_panel(
     numeric: list[str] = []
     categorical: list[str] = []
     for column in frame.columns:
-        if column in forbidden:
+        if column in forbidden or column.endswith(FORBIDDEN_PREDICTOR_SUFFIXES):
             continue
         dtype = frame[column].dtype
         if pd.api.types.is_numeric_dtype(dtype) or pd.api.types.is_bool_dtype(dtype):
@@ -317,7 +384,10 @@ def build_feature_panel(
 def assert_no_forbidden_features(columns: Sequence[str], *, extra_forbidden: Iterable[str] = ()) -> None:
     """Falla si una columna prohibida llego al conjunto de entrada del modelo."""
     forbidden = set(FORBIDDEN_PREDICTOR_COLUMNS) | set(extra_forbidden)
-    present = sorted(set(columns) & forbidden)
+    present = sorted(
+        [c for c in columns if c in forbidden]
+        + [c for c in columns if c.endswith(FORBIDDEN_PREDICTOR_SUFFIXES)]
+    )
     if present:
         raise ValueError(
             "Columnas prohibidas en el panel del predictor: %s. "
@@ -338,10 +408,12 @@ def prepare_features(
     """
     out = frame.copy()
     out["card_proxy"] = build_card_proxy(out)
+    out["cliente_proxy"] = build_client_proxy(out, time_col=time_col)
     out["device_proxy"] = build_device_proxy(out)
 
     quality = {
         "card": proxy_quality(out, "card_proxy"),
+        "cliente": proxy_quality(out, "cliente_proxy"),
         "device": proxy_quality(out, "device_proxy"),
     }
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sqlite3
 
+import numpy as np
 import pytest
 
 from fraud_adaptive.decision import APROBAR, BLOQUEAR, REVISAR, CostModel, Policy
@@ -150,19 +151,24 @@ def test_el_resumen_cuenta_por_accion(ledger):
 
 def test_los_fixtures_estan_rotulados_como_sinteticos(cost_model):
     """El plan exige que un caso de prueba no pueda confundirse con un resultado."""
-    policy = Policy(tau_low=0.2, tau_high=0.8, daily_capacity=150)
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     fixtures = contract_fixtures(policy, cost_model)
     assert fixtures["es_fixture"].all()
     assert fixtures["nota"].str.contains("sintetico").all()
     # Cubren las tres acciones mas overflow.
-    assert {"aprobar_p_baja", "bloquear_p_alta", "revisar_zona_gris",
+    assert {"aprobar_p_baja", "bloquear_p_alta", "revisar_zona_intermedia",
             "overflow_sin_cupo"} <= set(fixtures["caso"])
 
 
-def test_los_fixtures_caen_en_la_zona_que_dicen(cost_model):
-    policy = Policy(tau_low=0.2, tau_high=0.8, daily_capacity=150)
+def test_los_fixtures_reciben_la_accion_que_dicen(cost_model):
+    """Cada fixture se evalua con la regla real, incluido el monto, y no contra una
+    zona aproximada. El caso de monto cero es el que distingue una regla de la otra."""
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     fixtures = contract_fixtures(policy, cost_model)
     for _, fixture in fixtures.iterrows():
-        zone = str(policy.zone([fixture["p_forzada"]])[0])
-        if fixture["esperado"] != "automatica":
-            assert zone == fixture["esperado"], fixture["caso"]
+        if fixture["esperado"] == "automatica":
+            continue
+        probability = np.array([float(fixture["p_forzada"])])
+        amount = np.array([float(fixture["monto"])])
+        accion = policy.propose(probability, cost_model.expected_costs(probability, amount))
+        assert str(accion[0]) == fixture["esperado"], fixture["caso"]

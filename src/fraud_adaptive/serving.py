@@ -34,7 +34,10 @@ import pandas as pd
 
 from pydantic import BaseModel as _BaseModel, Field as _Field
 
-from .decision import APROBAR, BLOQUEAR, REVISAR, CostModel, Policy, fallback_action
+from .decision import (
+    APROBAR, BLOQUEAR, REVISAR, CostModel, Policy, cost_model_from_dict,
+    fallback_action, policy_from_dict,
+)
 
 LOGGER = logging.getLogger("fraud_adaptive.serving")
 
@@ -133,13 +136,6 @@ def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | 
     decision_config = configs.get("decision", {})
     schema_version = serving_config.get("service", {}).get("schema_version", "1.0.0")
 
-    costs = decision_config.get("costs", {})
-    analyst = decision_config.get("analyst", {})
-    cost_model = CostModel(
-        c_fp=costs.get("c_fp", 5.0), c_review=costs.get("c_review", 1.0),
-        r_h=analyst.get("r_h", 0.90), f_h=analyst.get("f_h", 0.02),
-    )
-
     registry = PackageRegistry(package_dir or os.environ.get("PACKAGE_DIR"))
 
     app = FastAPI(
@@ -205,12 +201,10 @@ def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | 
         raw, calibrated = _score_frame(registry.active, frame)
         t_inference = time.perf_counter()
 
-        policy_data = manifest["policy"]
-        policy = Policy(
-            tau_low=policy_data["tau_low"], tau_high=policy_data["tau_high"],
-            daily_capacity=policy_data["daily_capacity"], delta=policy_data.get("delta", 0.0),
-            version=policy_data.get("version", "politica_v1"),
-        )
+        # Politica y economia salen del manifiesto del paquete. El servicio no
+        # tiene una economia propia: decide con la que se valido en el backtest.
+        policy = policy_from_dict(manifest["policy"])
+        cost_model = cost_model_from_dict(manifest["costos"])
 
         probability = np.array([calibrated])
         amount = np.array([request.amount])

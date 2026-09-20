@@ -19,7 +19,7 @@ código** que se implementó así.
 | **C5** | L ≥ 60 usaría una política construida con etiquetas no disponibles en T=120 | Solo **L = 30**. Otros retrasos quedan como extensión sin ejecutar | `configs/temporal.yaml` |
 | **C6** | El avance dice «no se puede monitorear F1» pero L principal es 30 días | F1 y costo se monitorean **solo al madurar** `y`. Al cerrar, se avanza únicamente el reloj de disponibilidad | `backtest.run_backtest` (cierre de madurez) |
 | **C19** | El arranque 90–119 pretendía alimentar S2, pero la política usa etiquetas hasta el día 89 | Warmup **solo de estado X**: sin scores, sin acciones, sin modelo provisional. El sistema arranca en T=120 | `configs/temporal.yaml` · `backtest` empieza en `test_start` |
-| **C20** | No quedaba un holdout maduro posterior a la calibración | H = `[c−7, c)`, posterior a predictor, Platt y reserva de política. Sin shadow deployment | `test_promotion_holdout.py` |
+| **C20** | No quedaba un holdout maduro posterior a la calibración | H = `[c−7, c)`, posterior a predictor y a Platt. Sin shadow deployment | `test_promotion_holdout.py` |
 | **C21** | Faltaba definir la contingencia si ninguna ventana es válida | `model_unavailable` (HTTP 503) y pausa. **Nunca** se degrada a S0 o E15 | `serving.py` · `test_sin_paquete_valido_responde_503` |
 | **C22** | Elegir W con resultados finales contaminaría la evaluación | Dos folds en `[0,60)`, calibración `[69,76)`, política `[76,83)`, validación `[83,90)`. El test nunca elige | `docs/protocolo_experimental.md` |
 | **C17** | La selección previa del dataset ya examinó periodos tardíos | Prerregistro con hash verificado; la exposición exploratoria se **declara** como limitación | `pipeline.run_adaptation` aborta si cambia el hash |
@@ -77,7 +77,8 @@ Estas no estaban en el plan: surgieron al ejecutar y se registran por completitu
 | El rezago de monto dependía del orden de llegada entre eventos empatados | Incorporación al historial en orden canónico por `TransactionID` | El plan exige que permutar empatados deje las features iguales; ahora es propiedad de la función, no del llamador |
 | La latencia medida incluía solo el commit al ledger | Medición separada **una fila por petición**, con 100 de calentamiento y 1 000 medidas | El replay puntúa el lote por adelantado; mezclarlo daba 0,013 ms en vez de 66 ms |
 | El daemon de Docker no estaba activo | `Dockerfile` entregado **sin build verificado**; servicio verificado de forma nativa sobre HTTP | El plan prevé este caso: no se llama «imagen probada» a lo que no se probó |
-| La zona gris es ciega al monto | Se **documenta** como característica, con su vía de mejora, en lugar de cambiarla | Cambiarla desviaría del diseño de dos umbrales globales especificado |
+| La regla de umbrales globales es ciega al monto | Se **sustituye** por el argmin de los tres costos esperados | El punto de indiferencia depende del monto, de modo que ningún corte fijo sobre `p` puede ser óptimo. Medido: 1,5054 UM/tx frente a 1,6262 |
+| `c_FP = 5` bloquea al 11,95 % de las legítimas | Se **deriva** del objetivo de bloqueo declarado en lugar de fijarse a mano | El parámetro no es observable, pero la tasa que restringe sí. La relación se invierte y `c_FP` queda como precio sombra de la restricción |
 
 ---
 

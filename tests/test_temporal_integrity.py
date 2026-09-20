@@ -26,6 +26,8 @@ STRATEGIES = [
     {"name": "W30", "kind": "sliding", "window_days": 30},
     {"name": "W60", "kind": "sliding", "window_days": 60},
     {"name": "W90", "kind": "sliding", "window_days": 90},
+    {"name": "R46_medio", "kind": "lagged", "fit_days": 46, "lag_days": 30},
+    {"name": "R46_antiguo", "kind": "static", "fit_days": 46},
 ]
 
 
@@ -56,18 +58,17 @@ def test_los_cuatro_roles_son_disjuntos_en_toda_la_grilla(temporal_config):
                 "roles solapados en %s: %s" % (roles.version_id, find_overlaps(named))
 
 
-def test_el_predictor_termina_antes_de_las_tres_reservas(temporal_config):
+def test_el_predictor_termina_antes_de_las_reservas(temporal_config):
     for versions in build_all_version_roles(STRATEGIES, temporal_config).values():
         for roles in versions:
             assert roles.predictor.end <= roles.calibration.start
-            assert roles.calibration.end <= roles.policy.start
-            assert roles.policy.end <= roles.promotion_validation.start
+            assert roles.calibration.end <= roles.promotion_validation.start
             assert roles.promotion_validation.end == roles.cutoff
 
 
 def test_ventanas_dan_el_fit_efectivo_esperado(temporal_config):
-    """W abarca predictor mas tres reservas de 7 dias: el fit efectivo es W-21."""
-    for window, expected in ((30, 9), (60, 39), (90, 69)):
+    """W abarca predictor mas dos reservas de 7 dias: el fit efectivo es W-14."""
+    for window, expected in ((30, 16), (60, 46), (90, 76)):
         roles = build_version_roles("W%d" % window, 135, temporal_config,
                                     window_days=window, kind="sliding")
         assert roles.predictor.days == expected
@@ -78,13 +79,16 @@ def test_cutoff_respeta_el_retraso_de_etiqueta(temporal_config):
     assert roles.cutoff == 120 - temporal_config.label_delay_days == 90
 
 
-def test_estrategias_iniciales_comparten_predictor(temporal_config):
-    """En T=120, S0/E15/W90 tienen el mismo tramo: es un solo fit, no tres."""
-    first = temporal_config.update_times[0]
-    static = build_version_roles("S0", first, temporal_config, kind="static")
-    expanding = build_version_roles("E15", first, temporal_config, kind="expanding")
-    w90 = build_version_roles("W90", first, temporal_config, window_days=90, kind="sliding")
-    assert static.predictor == expanding.predictor == w90.predictor
+def test_las_estrategias_con_lag_mantienen_el_volumen(temporal_config):
+    """El bloque de antiguedad variable debe conservar el mismo numero de dias."""
+    for update_time in temporal_config.update_times:
+        fresca = build_version_roles("W60", update_time, temporal_config,
+                                     window_days=60, kind="sliding")
+        media = build_version_roles("R46_medio", update_time, temporal_config,
+                                    kind="lagged", fit_days=46, lag_days=30)
+        assert fresca.predictor.days == media.predictor.days == 46
+        # La unica diferencia es el punto de corte.
+        assert media.predictor.end < fresca.predictor.end
 
 
 def test_ventana_deslizante_avanza_conservando_su_ancho(temporal_config):

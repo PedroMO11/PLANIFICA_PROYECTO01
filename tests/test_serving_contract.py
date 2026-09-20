@@ -21,12 +21,13 @@ from fraud_adaptive.serving import PackageRegistry, create_app
 
 SCHEMA_VERSION = "1.0.0"
 
+# El servicio ya no lee la economia del config: la toma del manifiesto del
+# paquete, que es lo que garantiza que decide igual que el backtest.
+COSTOS = {"c_fp": 75.0, "c_review": 1.0, "r_h": 0.90, "f_h": 0.02}
+
 CONFIGS = {
     "serving": {"service": {"schema_version": SCHEMA_VERSION}},
-    "decision": {
-        "costs": {"c_fp": 5.0, "c_review": 1.0},
-        "analyst": {"r_h": 0.90, "f_h": 0.02},
-    },
+    "decision": {"analyst": {"r_h": 0.90, "f_h": 0.02}},
 }
 
 
@@ -61,12 +62,13 @@ def package_dir(tmp_path) -> Path:
     (directory / "feature_schema.json").write_text(
         json.dumps(pipeline.schema()), encoding="utf-8"
     )
-    policy = {"tau_low": 0.2, "tau_high": 0.8, "daily_capacity": 150,
-              "delta": 0.0, "version": "politica_v1"}
-    (directory / "policy.json").write_text(json.dumps(policy), encoding="utf-8")
+    policy = {"rule": "argmin", "tau_low": 0.0, "tau_high": 1.0, "daily_capacity": 150,
+              "delta": 0.0, "version": "politica_v2"}
+    (directory / "policy.json").write_text(
+        json.dumps({**policy, "costos": COSTOS}), encoding="utf-8")
     (directory / "manifest.json").write_text(json.dumps({
         "version_id": "W30_T120", "strategy": "W30", "policy": policy,
-        "package_hash": "abc123",
+        "costos": COSTOS, "package_hash": "abc123",
     }), encoding="utf-8")
     return directory
 

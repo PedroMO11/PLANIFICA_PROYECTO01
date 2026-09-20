@@ -143,14 +143,24 @@ def cmd_train(args: argparse.Namespace) -> int:
         best = select_best_configs(pd.read_csv(summary_path))
         results = fit_static_models(frame, configs, run, temporal, numeric, categorical, best)
 
+        calibration = results["calibracion_c_fp"]
         payload = {
             "familia_elegida": results["familia_elegida"],
             "prerregistro": results["prerregistro"],
             "baselines": results["baselines"],
+            # Economia congelada. Todo consumidor posterior la lee de aqui y no
+            # del config, que ya no contiene c_fp.
+            "costos": results["costos"],
+            "calibracion_c_fp": {
+                **{k: v for k, v in calibration.items() if k != "tabla"},
+                "tabla": calibration["tabla"].to_dict("records"),
+            },
+            "umbrales_implicados": results["umbrales_implicados"],
             "familias": {
                 name: {
                     "config": info["config"],
                     "costo_politica": info["costo_politica"],
+                    "costo_umbral": info["costo_umbral"],
                     "ap_politica": info["ap_politica"],
                     "policy": info["policy"].to_dict(),
                     "umbral_fpr": info["umbral_fpr"],
@@ -265,12 +275,14 @@ def cmd_package(args: argparse.Namespace) -> int:
             print("Falta tuning. Ejecuta: fraud-adaptive train tune", file=sys.stderr)
             return 1
         best = select_best_configs(pd.read_csv(summary_path))
-        static_results = fit_static_models(frame, configs, run, temporal, numeric, categorical, best)
+        full = fit_static_models(frame, configs, run, temporal, numeric, categorical, best)
         static_results = {
-            "familia_elegida": static_results["familia_elegida"],
+            "familia_elegida": full["familia_elegida"],
+            "prerregistro": full["prerregistro"],
+            "costos": full["costos"],
             "familias": {
                 name: {"config": info["config"], "policy": info["policy"].to_dict()}
-                for name, info in static_results["familias"].items()
+                for name, info in full["familias"].items()
             },
         }
 

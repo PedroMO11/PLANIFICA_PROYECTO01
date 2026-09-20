@@ -169,8 +169,8 @@ def table_model_comparison(static_results: dict[str, Any], path: Path, *, data_s
             "brier_calibrado": calibration.get("brier_calibrado"),
             "ece_crudo": calibration.get("ece_crudo"),
             "ece_calibrado": calibration.get("ece_calibrado"),
-            "tau_low": info["policy"]["tau_low"],
-            "tau_high": info["policy"]["tau_high"],
+            "costo_um_tx_umbral_fijo": info.get("costo_umbral"),
+            "regla": info["policy"]["rule"],
             "umbral_fpr1": info.get("umbral_fpr", {}).get("umbral"),
             "umbral_precision80": info.get("umbral_precision", {}).get("umbral"),
             "precision80_alcanzable": "umbral" in info.get("umbral_precision", {})
@@ -295,6 +295,7 @@ def figure_calibration_costs(
 def cost_sensitivity(
     outcomes: pd.DataFrame,
     policy: dict[str, Any],
+    costs: dict[str, Any],
     scenarios: Sequence[dict[str, Any]],
     analyst: dict[str, Any],
     *,
@@ -303,23 +304,26 @@ def cost_sensitivity(
 ) -> pd.DataFrame:
     """Reevalua el costo bajo otros supuestos economicos, SIN reentrenar nada.
 
-    Se parte de las predicciones ya emitidas y se vuelve a aplicar la MISMA
-    politica congelada con otros ``c_FP`` y ``c_R``. Es una sensibilidad de
-    politica fija: responde "cuanto cambiaria la conclusion si los costos fueran
-    otros", no "que politica seria optima con esos costos". Reoptimizar los
-    umbrales aqui convertiria la sensibilidad en un resultado nuevo ajustado a
-    posteriori.
+    Las ACCIONES se calculan una sola vez con el modelo de costos congelado y no
+    se recalculan por escenario. Con la regla ``argmin`` la economia es la politica,
+    de modo que recalcular las acciones con otro ``c_FP`` responderia "que habria
+    hecho un sistema distinto" en lugar de "cuanto costo el sistema que se
+    desplego si los costos reales fueran otros". La segunda es la pregunta de una
+    sensibilidad; la primera seria un resultado nuevo ajustado a posteriori.
+
+    El escenario de estres del analista si cambia el desenlace, y debe hacerlo: la
+    accion emitida fue la misma, pero el analista trabajo peor.
     """
-    from .decision import CapacityLedger, CostModel, Policy, decide_batch, simulate_outcomes, total_cost
+    from .decision import (
+        CapacityLedger, CostModel, cost_model_from_dict, decide_batch, policy_from_dict,
+        simulate_outcomes, total_cost)
 
     subset = outcomes[outcomes["estrategia"] == strategy]
     if subset.empty:
         return pd.DataFrame()
 
-    frozen = Policy(
-        tau_low=policy["tau_low"], tau_high=policy["tau_high"],
-        daily_capacity=policy["daily_capacity"], delta=policy.get("delta", 0.0),
-    )
+    frozen = policy_from_dict(policy)
+    frozen_costs = cost_model_from_dict(costs)
     probability = subset["p"].to_numpy()
     amounts = subset["monto"].to_numpy()
     days = subset["dia_evento"].to_numpy()
@@ -331,21 +335,25 @@ def cost_sensitivity(
     ids = [ids[i] for i in order]
 
     rows = []
+    # Los escenarios se declaran como multiplos del c_FP calibrado, de modo que la
+    # sensibilidad sigue centrada en el valor que realmente se uso.
     variants: list[tuple[str, float, float, float, float]] = [
-        (s["name"], s["c_fp"], s["c_review"], analyst["r_h"], analyst["f_h"]) for s in scenarios
+        (s["name"], frozen_costs.c_fp * float(s["c_fp_factor"]), s["c_review"],
+         analyst["r_h"], analyst["f_h"])
+        for s in scenarios
     ]
     stress = analyst.get("stress")
     if stress:
-        base = next((s for s in scenarios if s["name"] == "base"), scenarios[0])
-        variants.append(("estres_analista", base["c_fp"], base["c_review"],
+        variants.append(("estres_analista", frozen_costs.c_fp, frozen_costs.c_review,
                          stress["r_h"], stress["f_h"]))
 
+    # Una sola pasada de decision, con la economia congelada.
+    decisions = decide_batch(
+        probability, amounts, days, ids, frozen, frozen_costs,
+        ledger=CapacityLedger(frozen.daily_capacity),
+    )
     for name, c_fp, c_review, r_h, f_h in variants:
         model = CostModel(c_fp=c_fp, c_review=c_review, r_h=r_h, f_h=f_h)
-        decisions = decide_batch(
-            probability, amounts, days, ids, frozen, model,
-            ledger=CapacityLedger(frozen.daily_capacity),
-        )
         results = simulate_outcomes(decisions, labels, model, seed=seed)
         summary = total_cost(results)
         rows.append({
@@ -359,7 +367,7 @@ def cost_sensitivity(
             "n_bloqueadas": summary["n_bloqueadas"],
             "monto_fraude_evitado": summary["monto_fraude_evitado"],
             "estrategia": strategy,
-            "nota": "Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.",
+            "nota": "Acciones congeladas; solo cambia la contabilidad del costo.",
         })
     return pd.DataFrame(rows)
 
@@ -837,7 +845,7 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
     # Sensibilidad economica: rescoring de predicciones guardadas con la politica
     # congelada. Se calcula sobre la estrategia desplegable, no sobre S0.
     sensitivity = cost_sensitivity(
-        outcomes, chosen["policy"],
+        outcomes, chosen["policy"], static_results["costos"],
         configs["decision"]["costs"]["scenarios"],
         configs["decision"]["analyst"],
         strategy=_preferred_strategy(outcomes, run), seed=base["seed"],
@@ -903,7 +911,9 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
         if spec["kind"] == "sliding":
             dias_de_fit[nombre] = spec["window_days"] + temporal.predictor_offset_end
         elif spec["kind"] == "static":
-            dias_de_fit[nombre] = temporal.base_fit.days
+            dias_de_fit[nombre] = spec.get("fit_days") or temporal.base_fit.days
+        elif spec["kind"] == "lagged":
+            dias_de_fit[nombre] = spec["fit_days"]
     confusion = volume_versus_recency(outcomes, dias_de_fit, seed=base["seed"])
     out["confusion_volumen_frescura"] = reports_dir / "volumen_vs_frescura.json"
     write_json(out["confusion_volumen_frescura"], confusion)

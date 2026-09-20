@@ -154,12 +154,16 @@ class TemporalConfig:
 
 @dataclass(frozen=True)
 class VersionRoles:
-    """Los cuatro roles disjuntos de una version de paquete en un cutoff dado.
+    """Los roles disjuntos de una version de paquete en un cutoff dado.
 
-    ``predictor`` -> ``calibration`` -> ``policy`` -> ``promotion_validation``
-    se suceden en el tiempo sin solaparse. Que la validacion de promocion sea la
-    cola mas reciente es lo que permite comparar champion y challenger sobre datos
-    que ninguno de los dos vio (C20), sin recurrir a shadow deployment.
+    ``predictor`` -> ``calibration`` -> ``promotion_validation`` se suceden en el
+    tiempo sin solaparse. Que la validacion de promocion sea la cola mas reciente
+    permite comparar champion y challenger sobre datos que ninguno de los dos vio,
+    sin recurrir a shadow deployment.
+
+    No existe reserva de politica por version. Los umbrales se eligen una vez en
+    desarrollo y quedan congelados, de modo que reservarla en cada actualizacion
+    restaba dias al predictor sin cumplir ninguna funcion.
     """
 
     strategy: str
@@ -168,14 +172,13 @@ class VersionRoles:
     window_days: int | None
     predictor: Interval
     calibration: Interval
-    policy: Interval
     promotion_validation: Interval
+    lag_days: int = 0
 
     def named(self) -> dict[str, Interval]:
         return {
             "predictor": self.predictor,
             "calibration": self.calibration,
-            "policy": self.policy,
             "promotion_validation": self.promotion_validation,
         }
 
@@ -215,6 +218,7 @@ class VersionRoles:
             "update_time": self.update_time,
             "cutoff": self.cutoff,
             "window_days": self.window_days,
+            "lag_days": self.lag_days,
             "predictor_days": self.predictor.days,
             **{name: iv.as_list() for name, iv in self.named().items()},
         }
@@ -227,28 +231,51 @@ def build_version_roles(
     *,
     window_days: int | None = None,
     kind: str = "sliding",
+    lag_days: int = 0,
+    fit_days: int | None = None,
 ) -> VersionRoles:
     """Construye los roles de una version.
 
-    ``kind`` decide donde EMPIEZA el predictor; el final y las tres reservas de 7
-    dias son identicos para todas las estrategias. Mantenerlas iguales es lo que
-    aisla el efecto del tamano de ventana: si W30 tuviera una cola de calibracion
-    distinta de W90, la diferencia de costo ya no seria atribuible al olvido.
+    ``kind`` decide donde empieza y termina el predictor. Las dos reservas de 7
+    dias son identicas para todas las estrategias.
+
+    Tipos disponibles:
+
+    * ``static``   ajuste unico sobre el tramo base, no se mueve.
+    * ``expanding`` acumula toda la historia hasta el corte del predictor.
+    * ``sliding``  ventana de ``window_days`` que termina en ``c-14``. El fit
+      efectivo es ``window_days - 14`` dias.
+    * ``lagged``   ventana de ``fit_days`` exactos que termina en ``c - lag_days``.
+      Permite variar la antiguedad manteniendo constante el volumen de
+      entrenamiento, que es la unica forma de medir el efecto de la frescura sin
+      confundirlo con el del tamano de muestra.
     """
     cutoff = update_time - config.label_delay_days
     predictor_end = cutoff + config.predictor_offset_end
 
     if kind == "static":
-        # S0 se ajusta una sola vez en el tramo base y no vuelve a moverse.
-        predictor = config.base_fit
+        predictor = config.base_fit if fit_days is None else Interval(0, fit_days)
     elif kind == "expanding":
-        # E15 acumula toda la historia disponible hasta el corte del predictor.
         predictor = Interval(0, predictor_end)
     elif kind == "sliding":
         if window_days is None:
             raise ValueError("Una estrategia deslizante requiere window_days")
-        # W abarca predictor + las tres reservas: el fit efectivo es W-21 dias.
         predictor = Interval(max(0, cutoff - window_days), predictor_end)
+    elif kind == "lagged":
+        if fit_days is None:
+            raise ValueError("Una estrategia con lag requiere fit_days")
+        end = cutoff - lag_days
+        # El proposito de esta estrategia es mantener constante el volumen de
+        # entrenamiento. Si el historial no alcanza, la ventana quedaria truncada
+        # y la comparacion mediria otra cosa, de modo que se falla de forma
+        # explicita en lugar de devolver una ventana mas corta en silencio.
+        if end - fit_days < 0:
+            raise ValueError(
+                "La estrategia %s con lag_days=%d y fit_days=%d no cabe en T=%d. "
+                "El predictor empezaria en el dia %d. Reduce el lag o el tamano."
+                % (strategy, lag_days, fit_days, update_time, end - fit_days)
+            )
+        predictor = Interval(end - fit_days, end)
     else:
         raise ValueError("kind desconocido: %s" % kind)
 
@@ -260,10 +287,10 @@ def build_version_roles(
         window_days=window_days,
         predictor=predictor,
         calibration=Interval(cutoff + reserves["calibration"][0], cutoff + reserves["calibration"][1]),
-        policy=Interval(cutoff + reserves["policy"][0], cutoff + reserves["policy"][1]),
         promotion_validation=Interval(
             cutoff + reserves["promotion_validation"][0], cutoff + reserves["promotion_validation"][1]
         ),
+        lag_days=lag_days,
     )
     roles.validate()
     return roles
@@ -281,10 +308,14 @@ def build_all_version_roles(
     for spec in strategies:
         name = spec["name"]
         kind = spec["kind"]
-        window = spec.get("window_days")
         times = [config.update_times[0]] if kind == "static" else list(config.update_times)
         out[name] = [
-            build_version_roles(name, t, config, window_days=window, kind=kind) for t in times
+            build_version_roles(
+                name, t, config,
+                window_days=spec.get("window_days"), kind=kind,
+                lag_days=spec.get("lag_days", 0), fit_days=spec.get("fit_days"),
+            )
+            for t in times
         ]
     return out
 

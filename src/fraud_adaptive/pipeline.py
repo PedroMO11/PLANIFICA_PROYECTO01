@@ -28,7 +28,8 @@ from .adaptation import authorization_manifest
 from .backtest import run_backtest
 from .calibration import PlattCalibrator, calibration_report
 from .decision import (
-    CapacityLedger, CostModel, Policy, baseline_policies, decide_batch,
+    CapacityLedger, CostModel, Policy, baseline_policies, calibrate_fp_cost,
+    cost_model_from_dict, decide_batch, implied_thresholds, policy_from_dict,
     select_thresholds, simulate_outcomes, total_cost,
 )
 from .metrics import (
@@ -107,7 +108,7 @@ def prepare_data(
 
     # Los objetos de proxy son texto largo; se conservan como categoricas para
     # que el Parquet no crezca de forma innecesaria.
-    for column in ("card_proxy", "device_proxy"):
+    for column in ("card_proxy", "cliente_proxy", "device_proxy"):
         if column in merged.columns:
             merged[column] = merged[column].astype("category")
 
@@ -259,15 +260,14 @@ def fit_static_models(
     cal_mask = mature_training_mask(days, temporal.calibration, job_time, temporal.label_delay_days)
     pol_mask = mature_training_mask(days, temporal.policy, job_time, temporal.label_delay_days)
 
-    cost_model = CostModel(
-        c_fp=decision_config["costs"]["c_fp"],
-        c_review=decision_config["costs"]["c_review"],
-        r_h=decision_config["analyst"]["r_h"],
-        f_h=decision_config["analyst"]["f_h"],
-    )
     capacity = decision_config["capacity"]["daily_reviews"]
+    analyst = decision_config["analyst"]
+    c_review = decision_config["costs"]["c_review"]
 
     results: dict[str, Any] = {"familias": {}}
+    # Primera pasada: ajustar y calibrar. Ningun costo se evalua todavia, porque
+    # c_FP aun no esta calibrado y evaluarlo con un valor provisional produciria
+    # una eleccion de familia que luego habria que rehacer.
     for family, spec in models_config["families"].items():
         config = next(c for c in spec["configs"] if c["name"] == best_configs[family])
         task_name = "estatico_%s" % family
@@ -292,18 +292,9 @@ def fit_static_models(
             )
             report = calibration_report(raw_cal, calibrator.transform(raw_cal), labels[cal_mask])
 
-            # Umbrales por costo sobre la reserva de politica.
             policy_frame = frame.loc[pol_mask]
             policy_labels = labels[pol_mask]
             calibrated_policy = calibrator.transform(model.predict_proba(policy_frame))
-            selection = select_thresholds(
-                calibrated_policy, policy_frame["TransactionAmt"].to_numpy(),
-                policy_frame["dia"].to_numpy(), policy_labels,
-                policy_frame["TransactionID"].tolist(), cost_model,
-                quantiles=decision_config["thresholds"]["grid_quantiles"],
-                daily_capacity=capacity, delta=decision_config["thresholds"]["delta"],
-                seed=base["seed"],
-            )
 
             # Umbrales diagnosticos, congelados junto con la politica.
             fpr_threshold = threshold_for_fpr(
@@ -318,20 +309,81 @@ def fit_static_models(
             "config": config["name"],
             "modelo": model,
             "calibrador": calibrator,
-            "policy": selection["policy"],
-            "costo_politica": float(selection["best"]["costo_por_tx"]),
+            "p_politica": calibrated_policy,
             "ap_politica": average_precision(policy_labels, calibrated_policy),
             "calibracion": report,
             "umbral_fpr": fpr_threshold,
             "umbral_precision": precision_threshold,
             "segundos": record.get("seconds"),
             "n_fit": model.fit_rows,
-            "grid_umbrales": selection["grid"],
         }
+        LOGGER.info("Estatico %s (%s): AP %.4f en la reserva de politica",
+                    family, config["name"], results["familias"][family]["ap_politica"])
+
+    policy_frame = frame.loc[pol_mask]
+    policy_labels = labels[pol_mask]
+    policy_amount = policy_frame["TransactionAmt"].to_numpy()
+    policy_day = policy_frame["dia"].to_numpy()
+    policy_ids = policy_frame["TransactionID"].tolist()
+
+    # Calibracion de c_FP.
+    #
+    # Se usa la familia de mayor AP como referencia, no la de menor costo: el costo
+    # depende de c_FP y elegir por costo antes de calibrarlo seria circular. El AP
+    # no depende del modelo economico, de modo que la referencia queda fijada por un
+    # criterio ajeno al parametro que se esta calibrando.
+    reference = max(results["familias"].items(), key=lambda kv: kv[1]["ap_politica"])[0]
+    calibration_spec = decision_config["costs"]["calibracion_c_fp"]
+    with run.task("calibrar_c_fp", kind="politica"):
+        fp_calibration = calibrate_fp_cost(
+            results["familias"][reference]["p_politica"], policy_amount, policy_day,
+            policy_labels, policy_ids,
+            target_block_rate=calibration_spec["objetivo_bloqueo_legitimo"],
+            grid=calibration_spec["grid"], c_review=c_review,
+            r_h=analyst["r_h"], f_h=analyst["f_h"],
+            daily_capacity=capacity, seed=base["seed"],
+        )
+    cost_model = CostModel(c_fp=fp_calibration["c_fp"], c_review=c_review,
+                           r_h=analyst["r_h"], f_h=analyst["f_h"])
+    results["calibracion_c_fp"] = {
+        "familia_referencia": reference,
+        "c_fp": fp_calibration["c_fp"],
+        "objetivo": fp_calibration["objetivo"],
+        "alcanzado": fp_calibration["alcanzado"],
+        "tasa_bloqueo_legitimo": fp_calibration["tasa_bloqueo_legitimo"],
+        "tabla": fp_calibration["tabla"],
+    }
+    results["costos"] = cost_model.to_dict()
+    results["umbrales_implicados"] = [
+        implied_thresholds(cost_model, monto)
+        for monto in (25.0, float(np.median(policy_amount)), 250.0)
+    ]
+
+    # Segunda pasada: costo de cada familia bajo la politica ya congelada, y la
+    # regla de umbrales como referencia para medir lo que cuesta ignorar el monto.
+    operating = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=capacity,
+                       rule=decision_config["rule"])
+    for family, info in results["familias"].items():
+        decisions = decide_batch(
+            info["p_politica"], policy_amount, policy_day, policy_ids,
+            operating, cost_model, ledger=CapacityLedger(capacity),
+        )
+        outcomes = simulate_outcomes(decisions, policy_labels, cost_model, seed=base["seed"])
+        info["costo_politica"] = float(total_cost(outcomes)["costo_por_tx"])
+
+        selection = select_thresholds(
+            info["p_politica"], policy_amount, policy_day, policy_labels, policy_ids,
+            cost_model, quantiles=decision_config["thresholds"]["grid_quantiles"],
+            daily_capacity=capacity, delta=decision_config["thresholds"]["delta"],
+            seed=base["seed"],
+        )
+        info["policy"] = operating
+        info["policy_umbral"] = selection["policy"]
+        info["costo_umbral"] = float(selection["best"]["costo_por_tx"])
+        info["grid_umbrales"] = selection["grid"]
         LOGGER.info(
-            "Estatico %s (%s): costo %.4f UM/tx, AP %.4f",
-            family, config["name"], selection["best"]["costo_por_tx"],
-            results["familias"][family]["ap_politica"],
+            "Estatico %s: costo %.4f UM/tx con argmin, %.4f con el mejor umbral fijo",
+            family, info["costo_politica"], info["costo_umbral"],
         )
 
     # Familia adaptativa: menor costo en la reserva de politica.
@@ -365,6 +417,11 @@ def fit_static_models(
         "familia": chosen,
         "config": results["familias"][chosen]["config"],
         "policy": results["familias"][chosen]["policy"].to_dict(),
+        # c_FP entra al sello porque ahora es un parametro derivado de los datos de
+        # desarrollo, no una constante del config. Sin sellarlo se podria recalibrar
+        # despues de ver el test, que es exactamente lo que el prerregistro impide.
+        "costos": cost_model.to_dict(),
+        "objetivo_bloqueo_legitimo": results["calibracion_c_fp"]["objetivo"],
         "umbral_fpr": results["familias"][chosen]["umbral_fpr"].get("umbral"),
         "umbral_precision": results["familias"][chosen]["umbral_precision"].get("umbral"),
         "seed": base["seed"],
@@ -397,8 +454,9 @@ def select_deployable_window(
     Protocolo:
 
     * se construyen los paquetes iniciales de W30, W60 y W90 en el primer corte;
-    * cada uno se evalua sobre la reserva de politica ``[c-14, c-7)``, que es
-      posterior a su predictor y a su calibrador y anterior al holdout;
+    * cada uno se evalua sobre ``[c-7, c)``, posterior a su predictor y a su
+      calibrador. En el primer corte no hay champion, de modo que esa cola no
+      cumple todavia funcion de gate y puede usarse para elegir;
     * se aplica la politica YA CONGELADA, sin reoptimizar umbrales;
     * gana el menor costo. Desempate a <=1 %: la W mas pequena tecnicamente
       viable, porque a igualdad de costo la ventana corta reentrena mas barato.
@@ -418,34 +476,29 @@ def select_deployable_window(
     config = next(c for c in family_spec["configs"] if c["name"] == chosen["config"])
 
     policy_data = chosen["policy"]
-    policy = Policy(
-        tau_low=policy_data["tau_low"], tau_high=policy_data["tau_high"],
-        daily_capacity=policy_data["daily_capacity"], delta=policy_data.get("delta", 0.0),
-    )
-    cost_model = CostModel(
-        c_fp=decision_config["costs"]["c_fp"], c_review=decision_config["costs"]["c_review"],
-        r_h=decision_config["analyst"]["r_h"], f_h=decision_config["analyst"]["f_h"],
-    )
+    policy = policy_from_dict(policy_data)
+    cost_model = cost_model_from_dict(static_results["costos"])
 
     update_time = temporal.update_times[0]
     days = frame["dia"].to_numpy()
     labels = frame[configs["base"]["data"]["target"]].to_numpy()
     candidatos = [
         s for s in adaptation_config["strategies"]
-        if s.get("role") == "desplegable" and s.get("window_days")
+        if s.get("role") == "desplegable" and s.get("kind") == "sliding"
     ]
 
     filas: list[dict[str, Any]] = []
     for spec in sorted(candidatos, key=lambda s: s["window_days"]):
         roles = build_version_roles(
             spec["name"], update_time, temporal,
-            window_days=spec["window_days"], kind=spec["kind"],
+            window_days=spec.get("window_days"), kind=spec["kind"],
+            lag_days=spec.get("lag_days", 0), fit_days=spec.get("fit_days"),
         )
         with run.task("seleccion_W_%s" % spec["name"], kind="fit_seleccion_W"):
             package = build_package(
                 spec["name"], roles, frame, family=family, model_config=config,
                 model_base=family_spec.get("base", {}), numeric_columns=numeric_columns,
-                categorical_columns=categorical_columns, policy=policy,
+                categorical_columns=categorical_columns, policy=policy, costs=cost_model,
                 temporal_config=temporal, calibration_params=configs["models"]["calibration"],
                 seed=configs["base"]["seed"], n_threads=configs["base"]["n_threads"],
                 max_rows=configs["models"]["resource_caps"]["rf_max_rows"] if family == "random_forest" else None,
@@ -460,8 +513,9 @@ def select_deployable_window(
             })
             continue
 
-        # Reserva de politica: posterior al predictor y al calibrador de ESTE paquete.
-        mask = roles.policy.mask(days) & ((days + temporal.label_delay_days) < roles.job_time)
+        # Cola posterior al predictor y al calibrador de ESTE paquete.
+        mask = (roles.promotion_validation.mask(days)
+                & ((days + temporal.label_delay_days) < roles.job_time))
         subset = frame.loc[mask]
         subset_labels = labels[mask]
         _, calibrated = package.score(subset)
@@ -478,7 +532,7 @@ def select_deployable_window(
             "window_days": spec["window_days"],
             "dias_de_fit": roles.predictor.days,
             "valida": True,
-            "n_eventos_politica": int(len(subset)),
+            "n_eventos_evaluacion": int(len(subset)),
             "costo_por_tx": resumen["costo_por_tx"],
             "n_revisiones": resumen["n_revisiones"],
             "fraudes_en_fit": package.support["predictor"]["fraud"],
@@ -501,7 +555,7 @@ def select_deployable_window(
         "costo_en_desarrollo": float(elegida["costo_por_tx"]),
         "tabla": tabla,
         "criterio": "menor costo en la reserva de politica; desempate a <=1 % por menor W",
-        "evaluado_en": "reserva de politica [c-14, c-7), solo desarrollo",
+        "evaluado_en": "cola [c-7, c) del primer corte, solo desarrollo",
         "nota": "Elegida SIN mirar el test. Que otra gane en el test es diagnostico retrospectivo.",
     }
     run.save_checkpoint("seleccion_W", {k: v for k, v in resultado.items() if k != "tabla"})
@@ -542,10 +596,9 @@ def run_adaptation(
             "Eso indica un retuning despues de congelar; la corrida se detiene."
         )
 
-    cost_model = CostModel(
-        c_fp=decision_config["costs"]["c_fp"], c_review=decision_config["costs"]["c_review"],
-        r_h=decision_config["analyst"]["r_h"], f_h=decision_config["analyst"]["f_h"],
-    )
+    # El test usa la economia sellada en el prerregistro, no la del config: si
+    # alguien recalibrara c_FP despues de congelar, esta lectura lo ignoraria.
+    cost_model = cost_model_from_dict(static_results["prerregistro"]["contenido"]["costos"])
 
     # Manifest de autorizacion humana previa (C23).
     tasks = [
@@ -643,11 +696,8 @@ def export_package(
     config = next(c for c in family_spec["configs"] if c["name"] == chosen["config"])
 
     policy_data = chosen["policy"]
-    policy = Policy(
-        tau_low=policy_data["tau_low"], tau_high=policy_data["tau_high"],
-        daily_capacity=policy_data["daily_capacity"], delta=policy_data.get("delta", 0.0),
-        version=policy_data.get("version", "politica_v1"),
-    )
+    policy = policy_from_dict(policy_data)
+    costs = cost_model_from_dict(static_results["costos"])
 
     roles = build_version_roles(
         strategy, update_time, temporal, window_days=spec.get("window_days"), kind=spec["kind"]
@@ -657,7 +707,8 @@ def export_package(
         package = build_package(
             strategy, roles, frame, family=family, model_config=config,
             model_base=family_spec.get("base", {}), numeric_columns=numeric_columns,
-            categorical_columns=categorical_columns, policy=policy, temporal_config=temporal,
+            categorical_columns=categorical_columns, policy=policy, costs=costs,
+            temporal_config=temporal,
             calibration_params=configs["models"]["calibration"],
             seed=configs["base"]["seed"], n_threads=configs["base"]["n_threads"],
             max_rows=configs["models"]["resource_caps"]["rf_max_rows"] if family == "random_forest" else None,
@@ -678,4 +729,5 @@ def export_package(
         "roles": roles.to_dict(),
         "soporte": package.support,
         "politica": policy.to_dict(),
+        "costos": costs.to_dict(),
     }

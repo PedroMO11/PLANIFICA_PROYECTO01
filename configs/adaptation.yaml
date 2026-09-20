@@ -1,15 +1,32 @@
 # Experimento central de olvido por ventanas fijas. F4 del plan.
 
+# Cada ventana reserva 14 dias para calibracion y validacion, de modo que el
+# predictor entrena con window_days - 14.
+#
+# El bloque de volumen variable mide el efecto del tamano del training set.
+# El bloque de antiguedad variable mantiene 46 dias de fit constantes y solo mueve
+# el punto de corte, que es la unica forma de medir la frescura sin confundirla
+# con el tamano de muestra.
 strategies:
-  - {name: S0,  kind: static,    window_days: null, role: referencia_no_desplegable}
-  - {name: E15, kind: expanding, window_days: null, role: referencia_no_desplegable}
-  - {name: W30, kind: sliding,   window_days: 30,   role: desplegable}
-  - {name: W60, kind: sliding,   window_days: 60,   role: desplegable}
-  - {name: W90, kind: sliding,   window_days: 90,   role: desplegable}
+  # Referencias
+  - {name: S0,  kind: static,    window_days: null, role: referencia}
+  - {name: E15, kind: expanding, window_days: null, role: desplegable}
 
-# En T=120, W90/E15/S0 comparten exactamente el mismo paquete (mismos datos, config y seed):
-# se cuenta como 1 fit fisico, no 3. Ver §"Costo de computo" del plan.
+  # Volumen variable, todas igual de frescas (terminan en c-14)
+  - {name: W30, kind: sliding,   window_days: 30,   role: desplegable}   # 16 dias de fit
+  - {name: W60, kind: sliding,   window_days: 60,   role: desplegable}   # 46 dias de fit
+  - {name: W90, kind: sliding,   window_days: 90,   role: desplegable}   # 76 dias de fit
+
+  # Antiguedad variable, todas con 46 dias de fit
+  - {name: R46_medio,   kind: lagged, fit_days: 46, lag_days: 30, role: diagnostico}
+  - {name: R46_antiguo, kind: static, fit_days: 46,               role: diagnostico}
+
+# En T=120 varias estrategias comparten predictor identico. Reutilizar el paquete
+# evita contar el mismo ajuste varias veces en el costo de computo.
 share_initial_package: [S0, E15, W90]
+
+# W60 es la referencia de 46 dias mas fresca del bloque de antiguedad.
+recency_comparison: [W60, R46_medio, R46_antiguo]
 
 detectors:
   ks_psi:

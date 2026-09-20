@@ -163,6 +163,7 @@ def run_backtest(
                 roles = build_version_roles(
                     name, current_day, temporal,
                     window_days=spec.get("window_days"), kind=spec["kind"],
+                    lag_days=spec.get("lag_days", 0), fit_days=spec.get("fit_days"),
                 )
 
                 # En T=120 varias estrategias tienen predictor identico [0,69).

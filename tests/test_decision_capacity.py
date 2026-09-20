@@ -20,10 +20,10 @@ from fraud_adaptive.decision import (
 
 # --------------------------------------------------------------------------- costos
 
-def test_formula_de_costos_esperados(cost_model):
+def test_formula_de_costos_esperados(cost_model_barato):
     probability = np.array([0.5])
     amount = np.array([100.0])
-    costs = cost_model.expected_costs(probability, amount)
+    costs = cost_model_barato.expected_costs(probability, amount)
     assert costs[APROBAR][0] == pytest.approx(50.0)                 # p*m
     assert costs[BLOQUEAR][0] == pytest.approx(0.5 * 5.0)           # (1-p)*c_fp
     # c_R + p*(1-r_H)*m + (1-p)*f_H*c_FP = 1 + 0.5*0.1*100 + 0.5*0.02*5
@@ -37,19 +37,74 @@ def test_revisar_no_siempre_gana(cost_model):
     assert costs[REVISAR][0] > costs[APROBAR][0]
 
 
+# --------------------------------------------------------------------------- regla
+
+def test_la_regla_de_operacion_usa_el_monto(cost_model):
+    """Dos transacciones con el mismo score y distinto monto deben poder recibir
+    acciones distintas. Un umbral sobre p solo no puede expresarlo."""
+    policy = Policy(tau_low=0.0, tau_high=1.0)
+    probability = np.array([0.30, 0.30])
+    amount = np.array([1.0, 5000.0])
+    acciones = policy.propose(probability, cost_model.expected_costs(probability, amount))
+    assert acciones[0] != acciones[1]
+    assert acciones[0] == APROBAR       # perder 0.30 UM es mas barato que cualquier friccion
+    assert acciones[1] == BLOQUEAR      # 1500 UM esperadas superan la friccion de bloquear
+
+
+def test_argmin_nunca_es_peor_que_el_mejor_umbral_fijo(cost_model):
+    """Propiedad que justifica el cambio de regla: el argmin minimiza el costo
+    esperado caso por caso, de modo que ninguna reja de umbrales puede batirlo en
+    costo esperado agregado."""
+    rng = np.random.default_rng(7)
+    n = 3000
+    probability = rng.beta(1.0, 12.0, n)
+    amount = rng.lognormal(4.0, 1.2, n)
+    costs = cost_model.expected_costs(probability, amount)
+    minimo = np.vstack([costs[APROBAR], costs[REVISAR], costs[BLOQUEAR]]).min(axis=0).sum()
+
+    economica = Policy(tau_low=0.0, tau_high=1.0, rule="argmin")
+    esperado_argmin = sum(
+        costs[a][i] for i, a in enumerate(economica.propose(probability, costs)))
+    assert esperado_argmin == pytest.approx(minimo)
+
+    for low, high in ((0.01, 0.05), (0.02, 0.5), (0.0, 1.0), (0.1, 0.1)):
+        umbral = Policy(tau_low=low, tau_high=high, rule="umbral")
+        esperado_umbral = sum(
+            costs[a][i] for i, a in enumerate(umbral.propose(probability, costs)))
+        assert esperado_argmin <= esperado_umbral + 1e-9
+
+
+def test_monto_cero_nunca_consume_cupo(cost_model):
+    """E[aprobar] = p*0 = 0 es siempre el minimo. Antes, con dos umbrales sobre p,
+    estos casos caian en revision y gastaban cupo."""
+    n = 40
+    policy = Policy(tau_low=0.0, tau_high=1.0)
+    decisions = decide_batch(
+        np.full(n, 0.5), np.zeros(n), np.zeros(n, dtype=int),
+        list(range(n)), policy, cost_model, ledger=CapacityLedger(150),
+    )
+    assert not decisions["revision_admitida"].any()
+    assert set(decisions["accion"]) == {APROBAR}
+
+
+def test_regla_desconocida_es_rechazada():
+    with pytest.raises(ValueError, match="Regla de decision"):
+        Policy(tau_low=0.0, tau_high=1.0, rule="lo_que_sea")
+
+
 def test_umbrales_invalidos_fallan():
     with pytest.raises(ValueError):
         Policy(tau_low=0.9, tau_high=0.1)
 
 
 def test_zonas_de_la_politica():
-    policy = Policy(tau_low=0.2, tau_high=0.8)
+    policy = Policy(tau_low=0.2, tau_high=0.8, rule="umbral")
     zones = policy.zone(np.array([0.05, 0.2, 0.5, 0.79, 0.8, 0.99]))
     assert list(zones) == [APROBAR, REVISAR, REVISAR, REVISAR, BLOQUEAR, BLOQUEAR]
 
 
 def test_umbrales_iguales_eliminan_la_zona_gris():
-    policy = Policy(tau_low=0.5, tau_high=0.5)
+    policy = Policy(tau_low=0.5, tau_high=0.5, rule="umbral")
     zones = policy.zone(np.array([0.49, 0.5, 0.51]))
     assert list(zones) == [APROBAR, BLOQUEAR, BLOQUEAR]
     assert REVISAR not in set(zones)
@@ -59,7 +114,7 @@ def test_umbrales_iguales_eliminan_la_zona_gris():
 
 def test_el_cupo_diario_nunca_se_excede(cost_model):
     n = 500
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=150)  # todo cae en revisar
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     decisions = decide_batch(
         np.full(n, 0.5), np.full(n, 100.0), np.zeros(n, dtype=int),
         list(range(n)), policy, cost_model, ledger=CapacityLedger(150),
@@ -70,7 +125,7 @@ def test_el_cupo_diario_nunca_se_excede(cost_model):
 def test_el_cupo_se_reinicia_cada_dia(cost_model):
     days = np.array([0] * 200 + [1] * 200)
     n = len(days)
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=150)
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     decisions = decide_batch(
         np.full(n, 0.5), np.full(n, 100.0), days, list(range(n)),
         policy, cost_model, ledger=CapacityLedger(150),
@@ -82,19 +137,22 @@ def test_el_cupo_se_reinicia_cada_dia(cost_model):
 def test_overflow_elige_la_accion_automatica_mas_barata(cost_model):
     """Agotado el cupo, el caso cae a aprobar o bloquear segun costo esperado."""
     n = 160
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=150)
-    # Monto alto: con p=0.5, aprobar cuesta 500 y bloquear 2.5 => debe bloquear.
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
+    # Con p=0.5 y monto 100: revisar cuesta 6.75, aprobar 50 y bloquear 37.5. Los
+    # 150 primeros se revisan; los 10 restantes caen a bloquear, que es la mas
+    # barata de las dos acciones automaticas.
     decisions = decide_batch(
-        np.full(n, 0.5), np.full(n, 1000.0), np.zeros(n, dtype=int),
+        np.full(n, 0.5), np.full(n, 100.0), np.zeros(n, dtype=int),
         list(range(n)), policy, cost_model, ledger=CapacityLedger(150),
     )
     overflow = decisions[decisions["motivo"] == "overflow_cupo_menor_costo_esperado"]
     assert len(overflow) == 10
     assert set(overflow["accion"]) == {BLOQUEAR}
 
-    # Monto bajo: aprobar cuesta 0.05 y bloquear 2.5 => debe aprobar.
+    # Con p=0.1 y monto 60: revisar cuesta 2.95 y sigue siendo la propuesta, pero
+    # al agotarse el cupo aprobar (6) es mas barato que bloquear (67.5).
     decisions = decide_batch(
-        np.full(n, 0.1), np.full(n, 0.5), np.zeros(n, dtype=int),
+        np.full(n, 0.1), np.full(n, 60.0), np.zeros(n, dtype=int),
         list(range(n)), policy, cost_model, ledger=CapacityLedger(150),
     )
     overflow = decisions[decisions["motivo"] == "overflow_cupo_menor_costo_esperado"]
@@ -109,10 +167,12 @@ def test_admision_es_causal_no_top_k_del_dia(cost_model):
     en llegar son los admitidos, aunque lleguen despues casos de mayor prioridad.
     """
     n = 200
-    # Prioridad creciente: los ultimos son los mas valiosos.
+    # Prioridad creciente: los ultimos son los mas valiosos. Los montos se mantienen
+    # en la franja donde revisar es la accion de menor costo para todo el rango de p,
+    # de modo que la prueba aisle la admision y no el argmin.
     probability = np.linspace(0.30, 0.70, n)
-    amounts = np.linspace(10.0, 5000.0, n)
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=150)
+    amounts = np.linspace(20.0, 280.0, n)
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     decisions = decide_batch(
         probability, amounts, np.zeros(n, dtype=int), list(range(n)),
         policy, cost_model, ledger=CapacityLedger(150),
@@ -126,8 +186,8 @@ def test_prioridad_ordena_el_servicio_no_la_admision(cost_model):
     """p*monto decide a quien mira primero el analista, entre los ya admitidos."""
     n = 10
     probability = np.linspace(0.3, 0.6, n)
-    amounts = np.linspace(100.0, 1000.0, n)
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=150)
+    amounts = np.linspace(50.0, 280.0, n)
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     decisions = decide_batch(
         probability, amounts, np.zeros(n, dtype=int), list(range(n)),
         policy, cost_model, ledger=CapacityLedger(150),
@@ -141,7 +201,7 @@ def test_prioridad_ordena_el_servicio_no_la_admision(cost_model):
 
 def test_reintento_es_idempotente_y_no_consume_cupo(cost_model):
     ledger = CapacityLedger(150)
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=150)
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     args = (np.array([0.5]), np.array([100.0]), np.array([0]), ["evento-1"], policy, cost_model)
 
     first = decide_batch(*args, ledger=ledger)
@@ -169,14 +229,14 @@ def test_costo_observado_suma_sus_tres_componentes(cost_model):
     outcomes = simulate_outcomes(decisions, np.array([1, 0]), cost_model, seed=42)
     # Fraude aprobado: se pierde el monto. Legitima bloqueada: friccion c_FP.
     assert outcomes.loc[0, "costo_observado"] == pytest.approx(100.0)
-    assert outcomes.loc[1, "costo_observado"] == pytest.approx(5.0)
+    assert outcomes.loc[1, "costo_observado"] == pytest.approx(cost_model.c_fp)
     summary = total_cost(outcomes)
-    assert summary["costo_total"] == pytest.approx(105.0)
+    assert summary["costo_total"] == pytest.approx(100.0 + cost_model.c_fp)
 
 
 def test_el_analista_simulado_es_determinista(cost_model):
     n = 300
-    policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=1000)
+    policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=1000)
     decisions = decide_batch(
         np.full(n, 0.5), np.full(n, 100.0), np.zeros(n, dtype=int), list(range(n)),
         policy, cost_model, ledger=CapacityLedger(1000),

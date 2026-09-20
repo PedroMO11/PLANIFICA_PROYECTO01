@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20T14:25:53+00:00",
+  "generated_at": "2026-09-20T15:51:26+00:00",
   "sources": {
     "transactions": {
       "path": "ieee-fraud-detection/train_transaction.csv",
@@ -89,6 +89,17 @@
         "top1_share": 0.016764317404409524,
         "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
       },
+      "cliente": {
+        "proxy": "cliente_proxy",
+        "n_entidades": 217850,
+        "cobertura": 1.0,
+        "eventos_por_entidad_medio": 2.7107642873536837,
+        "eventos_por_entidad_p95": 9.0,
+        "entidades_con_un_evento": 125222,
+        "fraccion_singleton": 0.5748083543722745,
+        "top1_share": 0.002394418667660108,
+        "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
+      },
       "device": {
         "proxy": "device_proxy",
         "n_entidades": 1943,
@@ -101,7 +112,7 @@
         "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
       }
     },
-    "n_features_historial": 26,
+    "n_features_historial": 39,
     "ventanas": {
       "1h": 3600,
       "24h": 86400,

@@ -129,11 +129,38 @@ def test_columnas_prohibidas_son_rechazadas():
     features_module.assert_no_forbidden_features(["monto_log", "hora_sin", "card_cnt_24h"])
 
 
+def test_conteos_expansivos_son_rechazados():
+    """Un conteo que acumula desde el origen crece con el calendario y sustituye al
+    dia absoluto, asi que queda fuera del predictor aunque se siga calculando."""
+    with pytest.raises(ValueError, match="prohibidas"):
+        features_module.assert_no_forbidden_features(["monto_log", "card_cnt_expansivo"])
+
+
 def test_panel_excluye_identificadores_y_objetivo(prepared_frame):
     numeric, categorical = features_module.build_feature_panel(prepared_frame)
     prohibited = {"TransactionID", "TransactionDT", "dia", "semana", "isFraud",
-                  "card_proxy", "device_proxy", "s_rel"}
-    assert not (set(numeric) | set(categorical)) & prohibited
+                  "card_proxy", "cliente_proxy", "device_proxy", "s_rel"}
+    panel = set(numeric) | set(categorical)
+    assert not panel & prohibited
+    assert not [c for c in panel if c.endswith("_expansivo")]
+
+
+def test_las_dos_claves_de_tarjeta_producen_historiales_distintos():
+    """La clave gruesa agrupa por emisor y la fina separa por fecha de alta. Si
+    ambas dieran el mismo historial, mantener las dos no aportaria nada."""
+    frame = pd.concat([
+        _frame([100, 200], [10.0, 20.0], card="A", ids=[1, 2]),
+        _frame([300, 400], [30.0, 40.0], card="A", ids=[3, 4]),
+    ]).sort_values("TransactionDT").reset_index(drop=True)
+    # Mismo card1 y mismo addr1, pero dos fechas de alta distintas.
+    frame["D1"] = [0.0, 0.0, 100.0, 100.0]
+
+    out, metadata = features_module.prepare_features(frame)
+    assert metadata["proxies"]["cliente"]["n_entidades"] >         metadata["proxies"]["card"]["n_entidades"]
+    # La clave gruesa ve los cuatro eventos como una sola entidad.
+    assert list(out["card_cnt_expansivo"]) == [0.0, 1.0, 2.0, 3.0]
+    # La fina los separa en dos tarjetas de dos eventos cada una.
+    assert list(out["cliente_cnt_expansivo"]) == [0.0, 1.0, 0.0, 1.0]
 
 
 def test_frame_desordenado_es_rechazado():

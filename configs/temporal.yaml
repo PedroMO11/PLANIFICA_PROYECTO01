@@ -28,12 +28,16 @@ test_blocks:
 # Actualizaciones programadas. c = T - label_delay_days
 update_times: [120, 135, 150, 165]
 
-# Reservas relativas al cutoff c, identicas para todas las estrategias (aisla el efecto de W)
+# Reservas relativas al cutoff c, identicas para todas las estrategias.
+#
+# Solo hay DOS reservas por version. Los umbrales se eligen una vez en desarrollo,
+# sobre [76,83), y quedan congelados, de modo que reservar una ventana de politica
+# en cada actualizacion no cumplia ninguna funcion. Liberarla devuelve 7 dias al
+# predictor en cada corte. Para W30 eso son 16 dias de fit en lugar de 9.
 reserves_days:
-  calibration: [-21, -14]
-  policy: [-14, -7]
+  calibration: [-14, -7]
   promotion_validation: [-7, 0]
-predictor_offset_end: -21     # el predictor termina en c-21; usa W-21 dias efectivos
+predictor_offset_end: -14     # el predictor termina en c-14; usa W-14 dias efectivos
 
 # Soporte minimo por rol; si no se cumple la version se marca no valida (no se amplia W)
 min_support:

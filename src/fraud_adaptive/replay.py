@@ -28,7 +28,10 @@ from typing import Any, Iterable
 import numpy as np
 import pandas as pd
 
-from .decision import APROBAR, BLOQUEAR, REVISAR, CostModel, Policy, fallback_action
+from .decision import (
+    APROBAR, BLOQUEAR, REVISAR, CostModel, Policy, cost_model_from_dict,
+    fallback_action, implied_thresholds, policy_from_dict,
+)
 from .tracking import RunContext, utc_now, write_json
 
 LOGGER = logging.getLogger("fraud_adaptive.replay")
@@ -368,23 +371,30 @@ def contract_fixtures(policy: Policy, cost_model: CostModel) -> pd.DataFrame:
 
     El plan lo exige de forma explicita: si el dataset no genera las tres acciones
     o una alerta, se completan con fixtures claramente identificados, y no se
-    mueven umbrales ni se presentan como resultados de fraude.
+    cambia la politica ni se presentan como resultados de fraude.
+
+    Los casos se construyen a partir de los umbrales que la regla economica induce
+    en cada monto, de modo que ejercitan la decision real y no una aproximacion.
     """
-    midpoint = (policy.tau_low + policy.tau_high) / 2.0
+    bajo = implied_thresholds(cost_model, 25.0)
+    alto = implied_thresholds(cost_model, 900.0)
+    medio = implied_thresholds(cost_model, 400.0)
+    zona_gris = (medio["tau_low"] + medio["tau_high"]) / 2.0
     rows = [
-        {"caso": "aprobar_p_baja", "p_forzada": max(0.0, policy.tau_low * 0.5),
+        {"caso": "aprobar_p_baja", "p_forzada": max(0.0, bajo["tau_low"] * 0.5),
          "monto": 25.0, "esperado": APROBAR},
-        {"caso": "bloquear_p_alta", "p_forzada": min(1.0, policy.tau_high + (1 - policy.tau_high) * 0.5),
+        {"caso": "bloquear_p_alta", "p_forzada": min(1.0, alto["tau_high"] + (1 - alto["tau_high"]) * 0.5),
          "monto": 900.0, "esperado": BLOQUEAR},
-        {"caso": "revisar_zona_gris", "p_forzada": midpoint, "monto": 400.0, "esperado": REVISAR},
-        {"caso": "overflow_sin_cupo", "p_forzada": midpoint, "monto": 400.0, "esperado": "automatica"},
-        # Monto cero con p en zona gris: la politica propone REVISAR aunque
-        # E[aprobar] = p*0 = 0 sea la accion mas barata. No es un fallo, es una
-        # caracteristica del diseno especificado: la zona se define solo sobre p,
-        # y el monto solo interviene en la prioridad de servicio y en el overflow.
-        # Queda documentada como limitacion, con su via de mejora, en el informe.
-        {"caso": "monto_cero", "p_forzada": midpoint, "monto": 0.0, "esperado": REVISAR,
-         "observacion": "la zona gris es ciega al monto; consume cupo aunque aprobar cueste 0"},
+        {"caso": "revisar_zona_intermedia", "p_forzada": zona_gris, "monto": 400.0,
+         "esperado": REVISAR},
+        {"caso": "overflow_sin_cupo", "p_forzada": zona_gris, "monto": 400.0,
+         "esperado": "automatica"},
+        # Monto cero: E[aprobar] = p*0 = 0 es siempre el minimo, asi que el caso
+        # nunca consume cupo. Con la regla anterior, de dos umbrales sobre p, caia
+        # en la zona de revision y si lo consumia. El fixture se conserva porque
+        # ahora comprueba que la decision usa el monto y no solo el score.
+        {"caso": "monto_cero", "p_forzada": zona_gris, "monto": 0.0, "esperado": APROBAR,
+         "observacion": "E[aprobar]=0 domina; la regla economica no gasta cupo aqui"},
     ]
     frame = pd.DataFrame(rows)
     frame["es_fixture"] = True
@@ -415,19 +425,11 @@ def run_replay(
     decision_config = configs["decision"]
     temporal = TemporalConfig.from_yaml("configs/temporal.yaml")
 
-    cost_model = CostModel(
-        c_fp=decision_config["costs"]["c_fp"], c_review=decision_config["costs"]["c_review"],
-        r_h=decision_config["analyst"]["r_h"], f_h=decision_config["analyst"]["f_h"],
-    )
     capacity = decision_config["capacity"]["daily_reviews"]
 
     package = ModelPackage.load_for_serving(package_dir)
-    policy_data = package["manifest"]["policy"]
-    policy = Policy(
-        tau_low=policy_data["tau_low"], tau_high=policy_data["tau_high"],
-        daily_capacity=policy_data.get("daily_capacity", capacity),
-        delta=policy_data.get("delta", 0.0), version=policy_data.get("version", "politica_v1"),
-    )
+    policy = policy_from_dict(package["manifest"]["policy"], daily_capacity=capacity)
+    cost_model = cost_model_from_dict(package["manifest"]["costos"])
 
     ledger = Ledger(ledger_path or (run.dir / "replay.sqlite"), daily_capacity=capacity)
     ledger.log_event("inicio_replay", {

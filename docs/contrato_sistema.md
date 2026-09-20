@@ -78,30 +78,51 @@ E[revisar]  = c_R + p·(1 − r_H)·m + (1 − p)·f_H·c_FP
 
 | Parámetro | Valor | Naturaleza |
 |---|---|---|
-| `c_FP` | 5 UM | Supuesto cerrado |
+| `c_FP` | Calibrado en desarrollo | Precio sombra del objetivo de bloqueo de legítimas |
 | `c_R` | 1 UM | Supuesto cerrado |
 | `r_H` | 0.90 | Recall del analista simulado |
 | `f_H` | 0.02 | Bloqueo erróneo del analista simulado |
+| Objetivo de bloqueo de legítimas | 1 % | Restricción operativa declarada |
 | Capacidad | 150 revisiones/día | Límite duro (2 × 8 h × 10 casos/h = 160; 10 de holgura declarada) |
 
 UM es consistente con `TransactionAmt`; **no se convierte a PEN ni USD**.
 
-Sensibilidad económica sobre predicciones ya guardadas, sin reajustar nada:
-`(1, 0.5)`, `(5, 1)`, `(10, 2)`. Estrés del analista: `r_H=0.80`, `f_H=0.05`.
+**`c_FP` no se fija a mano.** No es observable, pero la fracción de transacciones
+legítimas rechazadas sí lo es y es lo que la operación restringe. Se declara el
+objetivo y se busca el menor `c_FP` que lo cumple, sobre la reserva de política de
+desarrollo `[76, 83)` y usando como referencia la familia de mayor AP. Un valor
+plano de 5 UM produce un 11,95 % de bloqueo de legítimas, incompatible con
+cualquier operación de pagos. El valor calibrado queda sellado en el prerregistro y
+viaja en el manifiesto del paquete desplegable.
+
+Sensibilidad económica sobre predicciones ya guardadas, sin reajustar nada. Los
+escenarios son múltiplos del `c_FP` calibrado: `0.5×`, `1×` y `2×`, con `c_R` de
+0.5, 1 y 2. Estrés del analista: `r_H=0.80`, `f_H=0.05`. Las acciones se calculan
+una sola vez con la economía congelada y no se recalculan por escenario.
 
 **Revisar no siempre gana.** Con montos bajos, el costo fijo `c_R` supera la
 pérdida esperada: la política prefiere una acción automática. Esa es la razón de
-que exista una zona gris y no un umbral único.
+que exista una acción de revisión y no una decisión binaria.
 
 ---
 
 ## 4. Política de tres acciones y cola
 
-Dos umbrales globales `(τ_bajo, τ_alto)` elegidos **por costo** sobre la reserva
-`[76, 83)` y congelados antes del test. La rejilla recorre pares de cuantiles del
-score, incluidos pares iguales (sin zona gris) y los bordes de aprobar/bloquear
-todo. Desempates, en orden: menor bloqueo de legítimas, menor demanda de revisión,
-zona gris más estrecha.
+**La acción es el argmin de los tres costos esperados**, caso por caso, sujeta al
+cupo diario. No hay umbrales que decidan.
+
+Un corte global sobre `p` no puede ser óptimo bajo este modelo de costos, porque el
+punto de indiferencia entre aprobar y bloquear es `p* = c_FP / (m + c_FP)` y
+depende del monto. Un corte fijo bloquea de más en los montos bajos y de menos en
+los altos. Medido sobre los cuatro bloques de test con la misma economía y el mismo
+cupo, la regla de umbrales cuesta 1,6262 UM/tx frente a 1,5054 del argmin, con el
+mismo número de revisiones y más bloqueo de legítimas.
+
+Los umbrales se siguen eligiendo sobre `[76, 83)` y se congelan, pero cumplen dos
+funciones de reporte y no deciden: cuantificar lo que cuesta ignorar el monto, y
+dar un corte binario a las métricas de diagnóstico. `implied_thresholds` calcula el
+umbral que la regla económica induce en cada monto, para poder describir la
+política en términos de `p` sin cambiar la decisión.
 
 **Causalidad de la cola (C12).** El cupo se reserva al **admitir**, de forma
 irrevocable y por `event_id`. No se ordena el día completo por `p × monto` para

@@ -10,7 +10,8 @@ Lo que se compara y por que
 * **Hash de codigo y configuracion**: si difieren, las corridas no son comparables
   y cualquier diferencia posterior queda explicada.
 * **Checkpoints de tuning**: el AP de cada uno de los 18 fits, bit a bit.
-* **Prerregistro**: la familia elegida y sus umbrales deben ser identicos; si no,
+* **Prerregistro**: la familia elegida, su configuracion y la economia calibrada
+  deben ser identicas; si no,
   la seleccion no es determinista y todo lo demas pierde sentido.
 * **Tabla de adaptacion**: los resultados finales por estrategia.
 

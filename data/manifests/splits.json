@@ -94,16 +94,13 @@
         "update_time": 120,
         "cutoff": 90,
         "window_days": null,
+        "lag_days": 0,
         "predictor_days": 69,
         "predictor": [
           0,
           69
         ],
         "calibration": [
-          69,
-          76
-        ],
-        "policy": [
           76,
           83
         ],
@@ -120,16 +117,13 @@
         "update_time": 120,
         "cutoff": 90,
         "window_days": null,
-        "predictor_days": 69,
+        "lag_days": 0,
+        "predictor_days": 76,
         "predictor": [
           0,
-          69
-        ],
-        "calibration": [
-          69,
           76
         ],
-        "policy": [
+        "calibration": [
           76,
           83
         ],
@@ -144,16 +138,13 @@
         "update_time": 135,
         "cutoff": 105,
         "window_days": null,
-        "predictor_days": 84,
+        "lag_days": 0,
+        "predictor_days": 91,
         "predictor": [
           0,
-          84
-        ],
-        "calibration": [
-          84,
           91
         ],
-        "policy": [
+        "calibration": [
           91,
           98
         ],
@@ -168,16 +159,13 @@
         "update_time": 150,
         "cutoff": 120,
         "window_days": null,
-        "predictor_days": 99,
+        "lag_days": 0,
+        "predictor_days": 106,
         "predictor": [
           0,
-          99
-        ],
-        "calibration": [
-          99,
           106
         ],
-        "policy": [
+        "calibration": [
           106,
           113
         ],
@@ -192,16 +180,13 @@
         "update_time": 165,
         "cutoff": 135,
         "window_days": null,
-        "predictor_days": 114,
+        "lag_days": 0,
+        "predictor_days": 121,
         "predictor": [
           0,
-          114
-        ],
-        "calibration": [
-          114,
           121
         ],
-        "policy": [
+        "calibration": [
           121,
           128
         ],
@@ -218,16 +203,13 @@
         "update_time": 120,
         "cutoff": 90,
         "window_days": 30,
-        "predictor_days": 9,
+        "lag_days": 0,
+        "predictor_days": 16,
         "predictor": [
           60,
-          69
-        ],
-        "calibration": [
-          69,
           76
         ],
-        "policy": [
+        "calibration": [
           76,
           83
         ],
@@ -242,16 +224,13 @@
         "update_time": 135,
         "cutoff": 105,
         "window_days": 30,
-        "predictor_days": 9,
+        "lag_days": 0,
+        "predictor_days": 16,
         "predictor": [
           75,
-          84
-        ],
-        "calibration": [
-          84,
           91
         ],
-        "policy": [
+        "calibration": [
           91,
           98
         ],
@@ -266,16 +245,13 @@
         "update_time": 150,
         "cutoff": 120,
         "window_days": 30,
-        "predictor_days": 9,
+        "lag_days": 0,
+        "predictor_days": 16,
         "predictor": [
           90,
-          99
-        ],
-        "calibration": [
-          99,
           106
         ],
-        "policy": [
+        "calibration": [
           106,
           113
         ],
@@ -290,16 +266,13 @@
         "update_time": 165,
         "cutoff": 135,
         "window_days": 30,
-        "predictor_days": 9,
+        "lag_days": 0,
+        "predictor_days": 16,
         "predictor": [
           105,
-          114
-        ],
-        "calibration": [
-          114,
           121
         ],
-        "policy": [
+        "calibration": [
           121,
           128
         ],
@@ -316,16 +289,13 @@
         "update_time": 120,
         "cutoff": 90,
         "window_days": 60,
-        "predictor_days": 39,
+        "lag_days": 0,
+        "predictor_days": 46,
         "predictor": [
           30,
-          69
-        ],
-        "calibration": [
-          69,
           76
         ],
-        "policy": [
+        "calibration": [
           76,
           83
         ],
@@ -340,16 +310,13 @@
         "update_time": 135,
         "cutoff": 105,
         "window_days": 60,
-        "predictor_days": 39,
+        "lag_days": 0,
+        "predictor_days": 46,
         "predictor": [
           45,
-          84
-        ],
-        "calibration": [
-          84,
           91
         ],
-        "policy": [
+        "calibration": [
           91,
           98
         ],
@@ -364,16 +331,13 @@
         "update_time": 150,
         "cutoff": 120,
         "window_days": 60,
-        "predictor_days": 39,
+        "lag_days": 0,
+        "predictor_days": 46,
         "predictor": [
           60,
-          99
-        ],
-        "calibration": [
-          99,
           106
         ],
-        "policy": [
+        "calibration": [
           106,
           113
         ],
@@ -388,16 +352,13 @@
         "update_time": 165,
         "cutoff": 135,
         "window_days": 60,
-        "predictor_days": 39,
+        "lag_days": 0,
+        "predictor_days": 46,
         "predictor": [
           75,
-          114
-        ],
-        "calibration": [
-          114,
           121
         ],
-        "policy": [
+        "calibration": [
           121,
           128
         ],
@@ -414,16 +375,13 @@
         "update_time": 120,
         "cutoff": 90,
         "window_days": 90,
-        "predictor_days": 69,
+        "lag_days": 0,
+        "predictor_days": 76,
         "predictor": [
           0,
-          69
-        ],
-        "calibration": [
-          69,
           76
         ],
-        "policy": [
+        "calibration": [
           76,
           83
         ],
@@ -438,16 +396,13 @@
         "update_time": 135,
         "cutoff": 105,
         "window_days": 90,
-        "predictor_days": 69,
+        "lag_days": 0,
+        "predictor_days": 76,
         "predictor": [
           15,
-          84
-        ],
-        "calibration": [
-          84,
           91
         ],
-        "policy": [
+        "calibration": [
           91,
           98
         ],
@@ -462,16 +417,13 @@
         "update_time": 150,
         "cutoff": 120,
         "window_days": 90,
-        "predictor_days": 69,
+        "lag_days": 0,
+        "predictor_days": 76,
         "predictor": [
           30,
-          99
-        ],
-        "calibration": [
-          99,
           106
         ],
-        "policy": [
+        "calibration": [
           106,
           113
         ],
@@ -486,22 +438,128 @@
         "update_time": 165,
         "cutoff": 135,
         "window_days": 90,
-        "predictor_days": 69,
+        "lag_days": 0,
+        "predictor_days": 76,
         "predictor": [
           45,
-          114
-        ],
-        "calibration": [
-          114,
           121
         ],
-        "policy": [
+        "calibration": [
           121,
           128
         ],
         "promotion_validation": [
           128,
           135
+        ]
+      }
+    ],
+    "R46_medio": [
+      {
+        "version_id": "R46_medio_T120",
+        "strategy": "R46_medio",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": null,
+        "lag_days": 30,
+        "predictor_days": 46,
+        "predictor": [
+          14,
+          60
+        ],
+        "calibration": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
+        ]
+      },
+      {
+        "version_id": "R46_medio_T135",
+        "strategy": "R46_medio",
+        "update_time": 135,
+        "cutoff": 105,
+        "window_days": null,
+        "lag_days": 30,
+        "predictor_days": 46,
+        "predictor": [
+          29,
+          75
+        ],
+        "calibration": [
+          91,
+          98
+        ],
+        "promotion_validation": [
+          98,
+          105
+        ]
+      },
+      {
+        "version_id": "R46_medio_T150",
+        "strategy": "R46_medio",
+        "update_time": 150,
+        "cutoff": 120,
+        "window_days": null,
+        "lag_days": 30,
+        "predictor_days": 46,
+        "predictor": [
+          44,
+          90
+        ],
+        "calibration": [
+          106,
+          113
+        ],
+        "promotion_validation": [
+          113,
+          120
+        ]
+      },
+      {
+        "version_id": "R46_medio_T165",
+        "strategy": "R46_medio",
+        "update_time": 165,
+        "cutoff": 135,
+        "window_days": null,
+        "lag_days": 30,
+        "predictor_days": 46,
+        "predictor": [
+          59,
+          105
+        ],
+        "calibration": [
+          121,
+          128
+        ],
+        "promotion_validation": [
+          128,
+          135
+        ]
+      }
+    ],
+    "R46_antiguo": [
+      {
+        "version_id": "R46_antiguo_T120",
+        "strategy": "R46_antiguo",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": null,
+        "lag_days": 0,
+        "predictor_days": 46,
+        "predictor": [
+          0,
+          46
+        ],
+        "calibration": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
         ]
       }
     ]
