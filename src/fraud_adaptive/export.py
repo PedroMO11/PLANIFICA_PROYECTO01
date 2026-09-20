@@ -44,7 +44,7 @@ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body {
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   font-size: 8.1pt;
-  line-height: 1.30;
+  line-height: 1.26;
   color: #12110f;
   margin: 0;
 }
@@ -58,7 +58,7 @@ h2 {
 }
 h2:first-of-type { break-before: avoid; page-break-before: avoid; }
 h3 { font-size: 9pt; margin: 7pt 0 3pt; color: #1a1918; }
-p { margin: 0 0 4.5pt; text-align: justify; }
+p { margin: 0 0 3.8pt; text-align: justify; }
 ul, ol { margin: 0 0 4.5pt; padding-left: 13pt; }
 li { margin-bottom: 1.5pt; }
 strong { color: #0b0b0b; }
@@ -74,7 +74,7 @@ pre {
 }
 table {
   border-collapse: collapse; width: 100%; margin: 4pt 0 6pt;
-  font-size: 7.1pt; break-inside: avoid; page-break-inside: avoid;
+  font-size: 6.9pt; break-inside: avoid; page-break-inside: avoid;
 }
 th {
   background: #eef4fb; color: #0b0b0b; font-weight: 700;

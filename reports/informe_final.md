@@ -323,6 +323,20 @@ La regla económica induce un umbral distinto por monto. Con la economía calibr
 | 59,00 UM | `p` ≥ 0,1747 | `p` ≥ 0,5143 |
 | 250,00 UM | `p` ≥ 0,0415 | `p` ≥ 0,3159 |
 
+### Objetivos diagnósticos y AP por bloque
+
+El AP del sistema estático pasa de 0,5257 en B1 a 0,5144 en B4, sin degradación
+monótona. El descenso común en B2, hasta 0,3907, afecta a las siete por igual,
+incluidas las que se reentrenan, de modo que corresponde a un periodo más
+difícil y no a un modelo que caduca.
+
+Los umbrales diagnósticos se eligieron en validación y se aplicaron congelados.
+Ninguna estrategia alcanza el FPR máximo del 1 % ni la precisión mínima del 80 %
+en test. El FPR obtenido queda entre 0,78 % y 1,18 % y la precisión entre 75,4 %
+y 82,5 %. El informe reporta el nivel obtenido y no ajusta el umbral,
+porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
+posteriori.
+
 ### Selección de la ventana desplegable
 
 El protocolo exige elegir la ventana con datos de desarrollo. La evaluación se
@@ -384,16 +398,14 @@ corte manteniendo 46 días de fit.
 | R46_medio frente a W60 | Frescura, corte 30 días más antiguo | 0,1059 | 0 de 18 | **concluyente** |
 | W30 frente a W90 | Volumen, 16 frente a 76 días | 0,1257 | 1 de 18 | no concluyente |
 
-Solo 1 de las 5 comparaciones controladas resiste el control de robustez, y es
-la de frescura: mantener el volumen en 46 días y retroceder el corte 30 días
-encarece 0,1059 UM/tx, con las 18 combinaciones excluyendo el cero. Variar el
-volumen entre 16 y 76 días con el mismo corte da 0,1257, de magnitud parecida
-pero menos estable, que cruza el cero en 1 de las 18.
-
-El efecto de la antigüedad no es monótono. Retroceder 30 días encarece, pero
-tomar los 46 primeros días del histórico no se distingue de la ventana más
-fresca, con 0,0084. La correlación entre días de fit y costo cae de −0,9916 en
-el diseño confundido a −0,7412 en el controlado.
+Solo 1 de las 5 comparaciones resiste el control de robustez, y es la de
+frescura: con el volumen fijo en 46 días, retroceder el corte 30 días encarece
+0,1059 UM/tx con las 18 combinaciones excluyendo el cero. Variar el volumen
+entre 16 y 76 días con el mismo corte da 0,1257, de magnitud parecida pero menos
+estable. El efecto de la antigüedad no es monótono: tomar los 46 primeros días
+del histórico no se distingue de la ventana más fresca, con 0,0084. La
+correlación entre días de fit y costo cae de −0,9916 en el diseño confundido a
+−0,7412 en el controlado.
 
 El efecto de la frescura no viene de las covariables. El domain classifier obtiene
 un AUC de 0,551 y ninguna columna original supera 0,61 en la validación
@@ -403,46 +415,33 @@ sí registra deriva y que el protocolo no identifica causalmente.
 ### Contraste con la literatura sobre el mismo dataset
 
 Topal et al. [1] comparan sobre IEEE-CIS modelos congelados tras los primeros 16
-días contra modelos reentrenados a diario sobre los últimos 23, con un recall a FPR
-del 5 % de 0,03 frente a 0,37, y concluyen que existe concept drift.
+días contra modelos reentrenados a diario, y concluyen que existe concept drift. Su
+titular, un recall a FPR del 5 % de 0,03 frente a 0,37, parece contradecir lo
+anterior. Su tabla por familia no lo hace.
 
-Ese resultado refuerza el de aquí en lugar de contradecirlo. Su comparación
-mantiene el volumen casi constante y mueve solo la antigüedad, igual que el bloque
-de antigüedad variable de este trabajo, y da el mismo signo. La magnitud difiere
-porque su modelo congelado llega a cinco meses de antigüedad y el de aquí retrocede
-30 días.
+| Familia | Congelado | Reentrenado | Caída |
+|---|---|---|---|
+| XGBoost | 0,04 | 0,35 | −89 % |
+| LightGBM | 0,03 | 0,37 | −92 % |
+| Random Forest | 0,25 | 0,33 | −24 % |
+| Logística | 0,29 | 0,30 | −3 % |
+| **Este trabajo**, LightGBM congelado 136 días | **0,3769** | **0,4240** | **−11 %** |
 
-Lo que este trabajo añade es una distinción que su diseño no necesita hacer.
-**Reentrenar no es olvidar.** Su método de reentrenamiento usa todos los datos
-disponibles, y aquí la estrategia expansiva, que reentrena sin descartar, es la más
-barata de las siete. La evidencia sostiene reentrenar seguido, no descartar
-histórico.
+El colapso se concentra en los dos boosters. Un recall de 0,03 a FPR del 5 % es
+peor que el 0,05 que da una moneda, de modo que esos dos modelos no están
+degradados sino rotos. La deriva degradaría a las cuatro familias en proporción
+parecida, y no lo hace: Random Forest y la logística caen un 24 % y un 3 %, que es
+el orden de magnitud medido aquí.
 
-### Objetivos diagnósticos, señales y gates
+Dos comprobaciones descartan que el protocolo de este trabajo sea ciego al efecto.
+La estrategia congelada en los días 0 a 46 y usada hasta el 182 no pierde AP, con
+0,5077 en B1 y 0,5103 en B4. Y reintroducir las features acopladas al calendario no
+la degrada, con una diferencia del 0,3 % en B4, de modo que el resultado tampoco es
+un artefacto de haberlas excluido.
 
-El AP del sistema estático pasa de 0,5257 en B1 a 0,5144 en B4, sin degradación
-monótona. El descenso común en B2, hasta 0,3907, afecta a las siete por igual,
-incluidas las que se reentrenan, de modo que corresponde a un periodo más
-difícil y no a un modelo que caduca.
-
-Los umbrales diagnósticos se eligieron en validación y se aplicaron congelados.
-Ninguna estrategia alcanza el FPR máximo del 1 % ni la precisión mínima del 80 %
-en test. El FPR obtenido queda entre 0,78 % y 1,18 % y la precisión entre 75,4 %
-y 82,5 %. El informe reporta el nivel obtenido y no ajusta el umbral,
-porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
-posteriori.
-
-ADWIN registra 49 detecciones entre las 7 estrategias, todas con 30 días de
-retraso: existe deriva en el error real. Las señales sin etiqueta generan 2
-alertas sobre 497 registros y el domain classifier no se acerca a su umbral. El
-error deriva mientras las covariables se mantienen estables.
-
-Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
-promover. El gate social ya no tiene nada que bloquear, porque con `c_FP`
-calibrado la brecha máxima entre segmentos es de 0,70 puntos frente a un umbral
-de 2. Con `c_FP` fijado en 5 UM ese mismo gate bloqueaba a todas las estrategias
-en T = 135 con brechas de hasta 4,69 puntos: su actividad era un síntoma del
-costo mal especificado, no de deriva.
+Queda además una distinción que su diseño no necesita hacer. **Reentrenar no es
+olvidar.** Su método de reentrenamiento usa todos los datos disponibles, y aquí la
+estrategia expansiva, que reentrena sin descartar, es la más barata de las siete.
 
 ---
 
@@ -474,6 +473,20 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 | Acciones del contenedor sobre 1 000 peticiones | 951 aprobar, 38 revisar, 11 bloquear |
 | Sin paquete montado | `/health` informa `model_unavailable` y `/predict` devuelve 503 |
 | Cambio de versión y rollback | Score restaurado de forma exacta |
+
+### Señales de drift y gates
+
+ADWIN registra 49 detecciones entre las 7 estrategias, todas con 30 días de
+retraso: existe deriva en el error real. Las señales sin etiqueta generan 2
+alertas sobre 497 registros y el domain classifier no se acerca a su umbral. El
+error deriva mientras las covariables se mantienen estables.
+
+Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
+promover. El gate social ya no tiene nada que bloquear, porque con `c_FP`
+calibrado la brecha máxima entre segmentos es de 0,70 puntos frente a un umbral
+de 2. Con `c_FP` fijado en 5 UM ese mismo gate bloqueaba a todas las estrategias
+en T = 135 con brechas de hasta 4,69 puntos: su actividad era un síntoma del
+costo mal especificado, no de deriva.
 
 ### Frecuencia, autonomía y gates
 
@@ -531,18 +544,14 @@ cloud. El prototipo asume identidad simultánea y features precomputadas.
 | El sistema funciona en producción | El cupo está garantizado solo para un orquestador secuencial |
 | Existe un ahorro económico medido | Los costos son simulados y `c_FP` es el precio sombra de un objetivo declarado |
 
-### Por qué el olvido no compensa en este dataset
+### Alcance, selective labels y riesgos residuales
 
-El domain classifier alcanza un AUC de 0,551 y la validación adversarial
-por feature da una mediana de 0,5053 sobre 425 columnas, con un máximo de 0,6002 en
-`C9`. P(X) es estable durante los 182 días, de modo que la ventana corta pierde
-información sin ganar frescura útil en las covariables.
-
-El soporte refuerza la explicación. W30 entrena con 2 191 fraudes frente a los 9 169 de W90. El proxy de emisor
+El resultado no invalida el diseño adaptativo. Indica que la cadencia de 15 días con
+L igual a 30 no encuentra deriva suficiente para justificar el descarte de datos, y
+el protocolo no puede evaluar adaptación más rápida que L, porque con un retraso de
+etiqueta de 30 días toda versión nace con esa antigüedad. W30 entrena con 2 191 fraudes frente a los 9 169 de W90. El proxy de emisor
 presenta un 40 % de singletons y el de cliente un 57 %, de modo que las features
 de historial aportan menos de lo que aportarían con entidades recurrentes.
-
-### Selective labels, capacidad y riesgos residuales
 
 El núcleo emplea información completa, de modo que toda etiqueta madura a los 30
 días incluso si la acción simulada fue bloquear. En operación real una transacción
@@ -577,13 +586,10 @@ semilla y bloque. El efecto del volumen, 0,1257 entre 16 y 76 días, es de
 magnitud parecida pero no alcanza ese criterio. Ambos factores importan poco: el
 rango completo de las siete estrategias va de 1,98 a 2,21 UM/tx, un 11,6 %.
 
-La recomendación operativa es conservar el modelo con el mayor volumen de
-entrenamiento disponible y monitoreo activo. W60 fue la ventana elegida en
-desarrollo entre las tres deslizantes, pero el protocolo no ofrece evidencia de
-que el olvido aporte valor sobre este dataset. Una revisión posterior debería
-evaluar cadencias y retrasos distintos antes de descartarlo, porque la deriva de
-IEEE-CIS parece operar a una escala temporal mayor que la del protocolo
-evaluado.
+La recomendación operativa es reentrenar con todo el histórico disponible y
+monitoreo activo. W60 fue la ventana elegida en desarrollo entre las tres
+deslizantes, pero ninguna aporta valor sobre la expansiva. Una revisión
+posterior debería evaluar cadencias y retrasos menores que los 30 días de L.
 
 Este trabajo constituye un backtest retrospectivo. Un backtest no demuestra que el
 sistema funcione en el futuro.

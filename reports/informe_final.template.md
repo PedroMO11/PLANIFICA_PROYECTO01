@@ -304,6 +304,14 @@ La regla económica induce un umbral distinto por monto. Con la economía calibr
 
 {TABLA_UMBRALES_IMPLICADOS}
 
+### Objetivos diagnósticos y AP por bloque
+
+{TEXTO_AP_BLOQUE}
+
+{TEXTO_DIAGNOSTICOS} El informe reporta el nivel obtenido y no ajusta el umbral,
+porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
+posteriori.
+
 ### Selección de la ventana desplegable
 
 El protocolo exige elegir la ventana con datos de desarrollo. La evaluación se
@@ -351,32 +359,33 @@ sí registra deriva y que el protocolo no identifica causalmente.
 ### Contraste con la literatura sobre el mismo dataset
 
 Topal et al. [1] comparan sobre IEEE-CIS modelos congelados tras los primeros 16
-días contra modelos reentrenados a diario sobre los últimos 23, con un recall a FPR
-del 5 % de 0,03 frente a 0,37, y concluyen que existe concept drift.
+días contra modelos reentrenados a diario, y concluyen que existe concept drift. Su
+titular, un recall a FPR del 5 % de 0,03 frente a 0,37, parece contradecir lo
+anterior. Su tabla por familia no lo hace.
 
-Ese resultado refuerza el de aquí en lugar de contradecirlo. Su comparación
-mantiene el volumen casi constante y mueve solo la antigüedad, igual que el bloque
-de antigüedad variable de este trabajo, y da el mismo signo. La magnitud difiere
-porque su modelo congelado llega a cinco meses de antigüedad y el de aquí retrocede
-30 días.
+| Familia | Congelado | Reentrenado | Caída |
+|---|---|---|---|
+| XGBoost | 0,04 | 0,35 | −89 % |
+| LightGBM | 0,03 | 0,37 | −92 % |
+| Random Forest | 0,25 | 0,33 | −24 % |
+| Logística | 0,29 | 0,30 | −3 % |
+| **Este trabajo**, LightGBM congelado 136 días | **0,3769** | **0,4240** | **−11 %** |
 
-Lo que este trabajo añade es una distinción que su diseño no necesita hacer.
-**Reentrenar no es olvidar.** Su método de reentrenamiento usa todos los datos
-disponibles, y aquí la estrategia expansiva, que reentrena sin descartar, es la más
-barata de las siete. La evidencia sostiene reentrenar seguido, no descartar
-histórico.
+El colapso se concentra en los dos boosters. Un recall de 0,03 a FPR del 5 % es
+peor que el 0,05 que da una moneda, de modo que esos dos modelos no están
+degradados sino rotos. La deriva degradaría a las cuatro familias en proporción
+parecida, y no lo hace: Random Forest y la logística caen un 24 % y un 3 %, que es
+el orden de magnitud medido aquí.
 
-### Objetivos diagnósticos, señales y gates
+Dos comprobaciones descartan que el protocolo de este trabajo sea ciego al efecto.
+La estrategia congelada en los días 0 a 46 y usada hasta el 182 no pierde AP, con
+0,5077 en B1 y 0,5103 en B4. Y reintroducir las features acopladas al calendario no
+la degrada, con una diferencia del 0,3 % en B4, de modo que el resultado tampoco es
+un artefacto de haberlas excluido.
 
-{TEXTO_AP_BLOQUE}
-
-{TEXTO_DIAGNOSTICOS} El informe reporta el nivel obtenido y no ajusta el umbral,
-porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
-posteriori.
-
-{TEXTO_SENALES}
-
-{TEXTO_GATES}
+Queda además una distinción que su diseño no necesita hacer. **Reentrenar no es
+olvidar.** Su método de reentrenamiento usa todos los datos disponibles, y aquí la
+estrategia expansiva, que reentrena sin descartar, es la más barata de las siete.
 
 ---
 
@@ -408,6 +417,12 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 | Acciones del contenedor sobre 1 000 peticiones | {ACCIONES_HTTP} |
 | Sin paquete montado | `/health` informa `model_unavailable` y `/predict` devuelve 503 |
 | Cambio de versión y rollback | Score restaurado de forma exacta |
+
+### Señales de drift y gates
+
+{TEXTO_SENALES}
+
+{TEXTO_GATES}
 
 ### Frecuencia, autonomía y gates
 
@@ -465,16 +480,12 @@ cloud. El prototipo asume identidad simultánea y features precomputadas.
 | El sistema funciona en producción | El cupo está garantizado solo para un orquestador secuencial |
 | Existe un ahorro económico medido | Los costos son simulados y `c_FP` es el precio sombra de un objetivo declarado |
 
-### Por qué el olvido no compensa en este dataset
+### Alcance, selective labels y riesgos residuales
 
-El domain classifier alcanza un AUC de {AUC_DOMINIO} y la validación adversarial
-por feature da una mediana de 0,5053 sobre 425 columnas, con un máximo de 0,6002 en
-`C9`. P(X) es estable durante los 182 días, de modo que la ventana corta pierde
-información sin ganar frescura útil en las covariables.
-
-El soporte refuerza la explicación. {TEXTO_SOPORTE}
-
-### Selective labels, capacidad y riesgos residuales
+El resultado no invalida el diseño adaptativo. Indica que la cadencia de 15 días con
+L igual a 30 no encuentra deriva suficiente para justificar el descarte de datos, y
+el protocolo no puede evaluar adaptación más rápida que L, porque con un retraso de
+etiqueta de 30 días toda versión nace con esa antigüedad. {TEXTO_SOPORTE}
 
 El núcleo emplea información completa, de modo que toda etiqueta madura a los 30
 días incluso si la acción simulada fue bloquear. En operación real una transacción
