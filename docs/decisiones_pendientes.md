@@ -77,8 +77,9 @@ Estas no estaban en el plan: surgieron al ejecutar y se registran por completitu
 | El rezago de monto dependía del orden de llegada entre eventos empatados | Incorporación al historial en orden canónico por `TransactionID` | El plan exige que permutar empatados deje las features iguales; ahora es propiedad de la función, no del llamador |
 | La latencia medida incluía solo el commit al ledger | Medición separada **una fila por petición**, con 100 de calentamiento y 1 000 medidas | El replay puntúa el lote por adelantado; mezclarlo daba 0,013 ms en vez de 66 ms |
 | El daemon de Docker no estaba activo | `Dockerfile` entregado **sin build verificado**; servicio verificado de forma nativa sobre HTTP | El plan prevé este caso: no se llama «imagen probada» a lo que no se probó |
-| La regla de umbrales globales es ciega al monto | Se **sustituye** por el argmin de los tres costos esperados | El punto de indiferencia depende del monto, de modo que ningún corte fijo sobre `p` puede ser óptimo. Medido: 1,5054 UM/tx frente a 1,6262 |
-| `c_FP = 5` bloquea al 11,95 % de las legítimas | Se **deriva** del objetivo de bloqueo declarado en lugar de fijarse a mano | El parámetro no es observable, pero la tasa que restringe sí. La relación se invierte y `c_FP` queda como precio sombra de la restricción |
+| La regla de umbrales globales es ciega al monto | Se **sustituye** por el argmin de los tres costos esperados | El punto de indiferencia depende del monto, de modo que ningún corte fijo sobre `p` puede ser óptimo. Medido: 1,5895 UM/tx frente a 1,9696 |
+| `c_FP = 5` bloquea al 11,17 % de las legítimas | Se **deriva** del objetivo de bloqueo declarado en lugar de fijarse a mano | El parámetro no es observable, pero la tasa que restringe sí. La relación se invierte y `c_FP` queda como precio sombra de la restricción |
+| Los 150 casos diarios de cupo no interactuaban con la regla de decisión | La revisión solo se propone si supera el **precio sombra** del cupo | Sin él la regla pide 704 revisiones diarias y el cupo se llena por orden de llegada. Con él, la demanda queda en 150,0 |
 
 ---
 

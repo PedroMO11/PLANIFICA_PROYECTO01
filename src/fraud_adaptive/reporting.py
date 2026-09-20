@@ -1178,10 +1178,51 @@ def _preferred_strategy(outcomes: pd.DataFrame, run: Any = None) -> str:
     return next(iter(available))
 
 
+def _robustez_de_un_par(
+    outcomes: pd.DataFrame, a: str, b: str,
+    *, seeds: Sequence[int], block_sizes: Sequence[int], n_resamples: int,
+) -> dict[str, Any] | None:
+    """Diferencia de costo entre dos estrategias y su estabilidad.
+
+    Devuelve en cuantas de las combinaciones de semilla y tamano de bloque el
+    intervalo cruza el cero. Una diferencia que cruza el cero en alguna de ellas
+    no se declara concluyente.
+    """
+    A = outcomes[outcomes["estrategia"] == a].set_index("event_id")
+    B = outcomes[outcomes["estrategia"] == b].set_index("event_id")
+    comunes = A.index.intersection(B.index)
+    if len(comunes) == 0:
+        return None
+    valores_a = A.loc[comunes, "costo_observado"].to_numpy()
+    valores_b = B.loc[comunes, "costo_observado"].to_numpy()
+    dias = B.loc[comunes, "dia_evento"].to_numpy()
+
+    cruces = total = 0
+    for seed in seeds:
+        for block in block_sizes:
+            resultado = paired_block_bootstrap(
+                valores_a, valores_b, dias, block_days=block,
+                n_resamples=n_resamples, confidence=0.95, seed=seed,
+            )
+            total += 1
+            if resultado["ic_low"] < 0 < resultado["ic_high"]:
+                cruces += 1
+    return {
+        "estrategia": a,
+        "referencia": b,
+        "delta_costo": float(np.mean(valores_a - valores_b)),
+        "combinaciones": total,
+        "cruzan_cero": cruces,
+        "robusto": cruces == 0,
+        "veredicto": "concluyente" if cruces == 0 else "no concluyente",
+    }
+
+
 def robustness_check(
     outcomes: pd.DataFrame,
     reference: str = "S0",
     *,
+    pairs: Sequence[tuple[str, str]] | None = None,
     seeds: Sequence[int] = (1, 7, 17, 42, 99, 123),
     block_sizes: Sequence[int] = (5, 7, 10),
     n_resamples: int = 400,
@@ -1189,48 +1230,27 @@ def robustness_check(
     """Comprueba si cada diferencia de costo sobrevive a otras elecciones de bootstrap.
 
     Un unico intervalo con una semilla fija puede excluir el cero por azar. Esta
-    funcion repite el bootstrap pareado variando la semilla y el tamano de bloque,
-    y cuenta en cuantas combinaciones el intervalo cruza el cero. Una diferencia
-    que cruza el cero en alguna combinacion no se declara concluyente.
-    """
-    estrategias = [e for e in outcomes["estrategia"].unique() if e != reference]
-    base = outcomes[outcomes["estrategia"] == reference].set_index("event_id")
-    filas = []
-    for estrategia in estrategias:
-        actual = outcomes[outcomes["estrategia"] == estrategia].set_index("event_id")
-        comunes = base.index.intersection(actual.index)
-        if len(comunes) == 0:
-            continue
-        valores_a = actual.loc[comunes, "costo_observado"].to_numpy()
-        valores_b = base.loc[comunes, "costo_observado"].to_numpy()
-        dias = base.loc[comunes, "dia_evento"].to_numpy()
+    funcion repite el bootstrap pareado variando la semilla y el tamano de bloque.
 
-        cruces = 0
-        total = 0
-        for seed in seeds:
-            for block in block_sizes:
-                resultado = paired_block_bootstrap(
-                    valores_a, valores_b, dias, block_days=block,
-                    n_resamples=n_resamples, confidence=0.95, seed=seed,
-                )
-                total += 1
-                if resultado["ic_low"] < 0 < resultado["ic_high"]:
-                    cruces += 1
-        efecto = float(np.mean(valores_a - valores_b))
-        filas.append({
-            "estrategia": estrategia,
-            "referencia": reference,
-            "delta_costo": efecto,
-            "combinaciones": total,
-            "cruzan_cero": cruces,
-            "robusto": cruces == 0,
-            "veredicto": "concluyente" if cruces == 0 else "no concluyente",
-        })
+    Con ``pairs`` se evaluan comparaciones concretas en lugar de todas contra una
+    referencia. Se usa para someter las comparaciones controladas de volumen y de
+    frescura al mismo criterio que el resto, en vez de declararlas concluyentes a
+    partir de un solo intervalo.
+    """
+    if pairs is None:
+        pairs = [(e, reference) for e in outcomes["estrategia"].unique() if e != reference]
+    filas = [
+        fila for a, b in pairs
+        if (fila := _robustez_de_un_par(
+            outcomes, a, b, seeds=seeds, block_sizes=block_sizes,
+            n_resamples=n_resamples)) is not None
+    ]
     return pd.DataFrame(filas).sort_values("delta_costo")
 
 
 def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
-                          *, recency_block: Sequence[str] = (), seed: int = 42) -> dict[str, Any]:
+                          *, recency_block: Sequence[str] = (), seed: int = 42,
+                          n_resamples: int = 400) -> dict[str, Any]:
     """Separa el efecto del volumen de entrenamiento del efecto de la frescura.
 
     Son dos preguntas distintas y variar solo el ancho de ventana las confunde,
@@ -1260,6 +1280,7 @@ def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
         return r
 
     # Frescura a volumen constante. La referencia es la mas fresca del bloque.
+    pares: list[tuple[str, str]] = []
     bloque = [e for e in recency_block if e in set(outcomes["estrategia"])]
     if len(bloque) >= 2:
         referencia = bloque[0]
@@ -1270,10 +1291,21 @@ def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
             "dias_de_fit": sorted(d for d in dias if d is not None),
             "volumen_constante": len(dias) == 1,
         }
-        resultado["efecto_frescura"] = {
-            e: pareado(e, referencia) for e in bloque[1:]
-        }
+        resultado["efecto_frescura"] = {e: pareado(e, referencia) for e in bloque[1:]}
+        pares += [(e, referencia) for e in bloque[1:]]
     resultado["efecto_volumen"] = pareado("W30", "W90")
+
+    # Volumen a corte constante: todas las ventanas deslizantes entre si.
+    deslizantes = [e for e in ("W30", "W60", "W90") if e in set(outcomes["estrategia"])]
+    pares += [(deslizantes[i], deslizantes[j])
+              for i in range(len(deslizantes)) for j in range(i + 1, len(deslizantes))]
+
+    # Mismo control de robustez que se exige al resto de las diferencias. Declarar
+    # concluyente una comparacion controlada a partir de un solo intervalo seria
+    # aplicar un criterio mas laxo justo donde se apoya la conclusion.
+    if pares:
+        robustez = robustness_check(outcomes, pairs=pares, n_resamples=n_resamples)
+        resultado["robustez"] = robustez.to_dict("records")
 
     # Correlacion entre dias de fit y costo sobre las estrategias de fit fijo.
     pares = [(dias_de_fit[e], float(outcomes[outcomes["estrategia"] == e]["costo_observado"].mean()))

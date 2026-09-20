@@ -91,7 +91,7 @@ UM es consistente con `TransactionAmt`; **no se convierte a PEN ni USD**.
 legítimas rechazadas sí lo es y es lo que la operación restringe. Se declara el
 objetivo y se busca el menor `c_FP` que lo cumple, sobre la reserva de política de
 desarrollo `[76, 83)` y usando como referencia la familia de mayor AP. Un valor
-plano de 5 UM produce un 11,95 % de bloqueo de legítimas, incompatible con
+plano de 5 UM produce un 11,17 % de bloqueo de legítimas, incompatible con
 cualquier operación de pagos. El valor calibrado queda sellado en el prerregistro y
 viaja en el manifiesto del paquete desplegable.
 
@@ -108,15 +108,26 @@ que exista una acción de revisión y no una decisión binaria.
 
 ## 4. Política de tres acciones y cola
 
-**La acción es el argmin de los tres costos esperados**, caso por caso, sujeta al
-cupo diario. No hay umbrales que decidan.
+**La acción sale del costo esperado**, caso por caso, sujeta al cupo diario. No hay
+umbrales que decidan.
+
+    accion = revisar            si min(E[aprobar], E[bloquear]) - E[revisar] > lambda
+             la más barata      en otro caso
+             entre aprobar y bloquear
+
+`lambda` es el precio sombra del cupo, el multiplicador de Lagrange de la
+restricción de capacidad. Sin él, la regla propone 704 revisiones diarias frente a
+un cupo de 150 y las plazas se las llevan los casos que llegan primero. Se calibra
+por bisección como el menor valor que deja la demanda dentro del cupo, sin usar
+etiquetas.
 
 Un corte global sobre `p` no puede ser óptimo bajo este modelo de costos, porque el
 punto de indiferencia entre aprobar y bloquear es `p* = c_FP / (m + c_FP)` y
 depende del monto. Un corte fijo bloquea de más en los montos bajos y de menos en
 los altos. Medido sobre los cuatro bloques de test con la misma economía y el mismo
-cupo, la regla de umbrales cuesta 1,6262 UM/tx frente a 1,5054 del argmin, con el
-mismo número de revisiones y más bloqueo de legítimas.
+cupo, la regla de umbrales cuesta 1,9696 UM/tx frente a 1,5895 de la regla
+económica, y eso que los umbrales se eligen minimizando sobre esa misma ventana
+mientras la regla económica no se ajusta a ella.
 
 Los umbrales se siguen eligiendo sobre `[76, 83)` y se congelan, pero cumplen dos
 funciones de reporte y no deciden: cuantificar lo que cuesta ignorar el monto, y

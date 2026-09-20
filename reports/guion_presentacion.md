@@ -51,7 +51,7 @@ relativa y no identifica hora local ni día laboral.
 Mostrar `reports/figures/eda_temporal.png`.
 
 El dato que conviene destacar es la estabilidad. El domain classifier obtiene un
-AUC de {AUC_DOMINIO}, por debajo del umbral de alerta de 0,75. La validación
+AUC de 0,551, por debajo del umbral de alerta de 0,75. La validación
 adversarial por feature lo confirma columna a columna: de 425 features, la mediana
 queda en 0,5053 y la más alta del dataset original es `C9` con 0,6002. Ninguna
 alcanza el umbral de 0,70 que la competencia usaba para descartar features
@@ -82,7 +82,11 @@ que el predictor no cambia.
 
 ## 6:30 a 9:00. Modelos y decisión (C)
 
-{TABLA_FAMILIAS}
+| Familia | Config | AP | Costo UM/tx con la regla económica | Costo con el mejor umbral fijo |
+|---|---|---|---|---|
+| LightGBM | `lgbm_31` | **0,6214** | **1,5895** | 1,9696 |
+| Random Forest | `rf_200_20` | 0,5391 | 1,8728 | 2,2746 |
+| Logística | `lr_c1_bal` | 0,4029 | 2,1910 | 2,8712 |
 
 La familia se elige por costo y no por AP. Son criterios distintos.
 
@@ -96,13 +100,13 @@ Conviene dedicar un minuto a la política, porque es donde este trabajo se apart
 del plan. La acción no sale de dos umbrales sobre `p`, sale del mínimo de los tres
 costos esperados. El motivo es que el punto de indiferencia entre aprobar y
 bloquear es `p* = c_FP / (monto + c_FP)` y depende del monto, de modo que ningún
-corte fijo puede ser óptimo. La diferencia medida es de {COSTO_UMBRAL} a
-{COSTO_ARGMIN} UM/tx, con las mismas revisiones y menos bloqueo de legítimas.
+corte fijo puede ser óptimo. La diferencia medida es de 1,9696 a
+1,5895 UM/tx, con las mismas revisiones y menos bloqueo de legítimas.
 
 `c_FP` tampoco se fija a mano. Con el valor de 5 UM que proponía el plan, el
-sistema rechaza al {BLOQUEO_CFP5} % de las transacciones legítimas, que ninguna
+sistema rechaza al 11,17 % de las transacciones legítimas, que ninguna
 operación de pagos acepta. Se invierte la relación: se declara el objetivo del 1 %
-y se busca el menor `c_FP` que lo cumple, que resulta {C_FP}. El orden de las
+y se busca el menor `c_FP` que lo cumple, que resulta 25 UM. El orden de las
 estrategias no depende de ese valor.
 
 ---
@@ -113,26 +117,39 @@ Mostrar `reports/figures/drift_adaptacion.png`. Siete estrategias, los mismos
 eventos, la misma semilla y la misma política. Tres varían el volumen de
 entrenamiento y tres mantienen 46 días de fit moviendo solo el punto de corte.
 
-{TABLA_ADAPTACION_CORTA}
+| Estrategia | Días de fit | AP | Costo UM/tx | Δ frente a S0 |
+|---|---|---|---|---|
+| E15 | 76 a 121 | 0,4965 | 1,9840 | −0,108 |
+| W90 | 76 | 0,4901 | 2,0573 | −0,035 |
+| S0 | 69 | 0,4828 | 2,0921 | referencia |
+| W60 | 46 | 0,4802 | 2,1087 | 0,017 |
+| R46_antiguo | 46 | 0,4681 | 2,1171 | 0,025 |
+| W30 | 16 | 0,4701 | 2,1830 | 0,091 |
+| R46_medio | 46 | 0,4571 | 2,2146 | 0,123 |
 
 El mensaje central es que el olvido no compensa en este dataset.
 
 Conviene explicar tres puntos con cuidado.
 
 El primero es que la ventana se eligió en desarrollo, sin observar el test.
-{TEXTO_SELECCION_CORTA}
+W60 obtuvo 2,2527 UM/tx en desarrollo frente a 2,2708 de W90 y 2,3501 de W30. El
+desarrollo ya identificaba el ordenamiento. Lo que no podía anticipar es si
+alguna superaría al estático.
 
 El segundo es que el experimento separa volumen de frescura por diseño, y esa
 separación cambia la conclusión. Variar solo el ancho de ventana confunde las dos
 cosas, porque una ventana más corta entrena con menos datos y con datos más
 recientes a la vez. El bloque de antigüedad variable mantiene los 46 días de fit y
-solo mueve el corte. {TEXTO_VOLUMEN_CORTO}
+solo mueve el corte. Retroceder el corte 30 días con el mismo volumen encarece en 0,1059 UM/tx, y es
+la única comparación controlada que resiste las 18 combinaciones de semilla y
+bloque. Variar el volumen entre 16 y 76 días con el mismo corte da 0,1257, de
+magnitud parecida pero menos estable.
 
 La conclusión correcta no es que el olvido perjudique por olvidar, sino que
 perjudica por entrenar con menos datos.
 
 El tercero es la explicación. Las covariables son estables, con un AUC de S1 de
-{AUC_DOMINIO}, mientras que ADWIN sí registra deriva en el error. Existe deriva,
+0,551, mientras que ADWIN sí registra deriva en el error. Existe deriva,
 pero reentrenar con ventanas cortas no la corrige.
 
 Conviene mencionar también que ninguna estrategia alcanzó el FPR máximo del 1 % ni
@@ -179,7 +196,8 @@ Equidad operativa. De 14 segmentos con soporte suficiente, 6 superan el umbral d
 variables de negocio y no de una auditoría demográfica, porque IEEE-CIS no
 contiene atributos protegidos verificables.
 
-{TEXTO_GATE_SOCIAL}
+Los gates de promoción actuaron durante el test y no son decorativos. El detalle
+por versión está en `runs/v3/gates.csv`.
 
 La restricción dominante es la capacidad. La demanda de revisión supera de forma
 sistemática los 150 casos diarios, de modo que mejorar el AP presenta rendimientos
@@ -189,7 +207,20 @@ decrecientes.
 
 ## 17:00 a 18:00. Conclusión (A)
 
-{TEXTO_CIERRE}
+El sistema reduce el costo de 5,40 a 1,98 UM por transacción frente a aprobar
+todo, una mejora del 63,2 %. Ese resultado proviene del modelo y de la política
+económica.
+
+El olvido por ventanas fijas no aporta mejora. La de menor costo es E15, que usa
+todo el histórico, y la de mayor costo es R46_medio. Ninguna se distingue del
+modelo estático de forma estable.
+
+Las comparaciones controladas sí encuentran señal en la frescura, 0,1059 UM/tx
+al retroceder el corte 30 días con el mismo volumen. Es la única que resiste las
+18 combinaciones de semilla y bloque.
+
+La recomendación operativa es conservar el modelo con el mayor volumen de
+entrenamiento disponible y monitoreo activo.
 
 Este trabajo constituye un backtest retrospectivo y no demuestra que el sistema
 funcione en el futuro.
@@ -218,7 +249,10 @@ eventos con el mismo timestamp deja las features idénticas.
 Porque entrena con 16 días frente a los 76 de W90, y no porque la frescura
 perjudique. El experimento separa las dos cosas: el bloque de antigüedad variable
 mantiene 46 días de fit en las tres estrategias y solo mueve el punto de corte.
-{TEXTO_VOLUMEN_CORTO}
+Retroceder el corte 30 días con el mismo volumen encarece en 0,1059 UM/tx, y es
+la única comparación controlada que resiste las 18 combinaciones de semilla y
+bloque. Variar el volumen entre 16 y 76 días con el mismo corte da 0,1257, de
+magnitud parecida pero menos estable.
 
 ### ¿No estarán sobreajustando al elegir la ventana?
 
@@ -233,8 +267,8 @@ la corrida se detiene.
 Porque bajo este modelo de costos ningún umbral fijo sobre `p` puede ser óptimo.
 El punto de indiferencia entre aprobar y bloquear es `p* = c_FP / (monto + c_FP)`
 y depende del monto, de modo que un corte fijo bloquea de más en los montos bajos
-y de menos en los altos. La diferencia medida es de {COSTO_UMBRAL} a
-{COSTO_ARGMIN} UM/tx, con las mismas revisiones y menos bloqueo de legítimas. Los
+y de menos en los altos. La diferencia medida es de 1,9696 a
+1,5895 UM/tx, con las mismas revisiones y menos bloqueo de legítimas. Los
 umbrales se siguen calculando, pero solo para cuantificar esa diferencia y para
 dar un corte binario a las métricas de diagnóstico.
 
@@ -245,7 +279,7 @@ observable, pero la fracción de transacciones legítimas rechazadas sí lo es y
 lo que la operación restringe. Se declara el objetivo del 1 % y se busca el menor
 `c_FP` que lo cumple, sobre datos de desarrollo. El valor resultante es el precio
 sombra de esa restricción. Con los 5 UM que proponía el plan, el sistema rechazaba
-al {BLOQUEO_CFP5} % de las legítimas.
+al 11,17 % de las legítimas.
 
 ### ADWIN detecta 33 cambios. ¿No contradice que el olvido no sirva?
 

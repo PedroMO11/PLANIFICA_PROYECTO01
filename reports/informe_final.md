@@ -94,7 +94,7 @@ decidan. El punto de indiferencia entre aprobar y bloquear es
 `p* = c_FP / (m + c_FP)`, de modo que depende del monto: un corte fijo bloquea de
 más en los montos bajos y de menos en los altos. Medido sobre los cuatro bloques de
 test con la misma economía y el mismo cupo, la regla de dos umbrales cuesta
-{COSTO_UMBRAL} UM/tx frente a {COSTO_ARGMIN} del argmin, con el mismo número de
+1,9696 UM/tx frente a 1,5895 del argmin, con el mismo número de
 revisiones y más bloqueo de legítimas.
 
 La revisión no siempre resulta más barata. Con montos bajos el costo fijo `c_R`
@@ -104,15 +104,34 @@ razón de que exista una tercera acción y no una decisión binaria.
 **`c_FP` no se fija a mano.** No es observable, pero la fracción de transacciones
 legítimas rechazadas sí lo es y es lo que la operación restringe. Se declara el
 objetivo, un 1 %, y se busca el menor `c_FP` que lo cumple sobre la reserva de
-política de desarrollo. El valor resultante, {C_FP}, es el precio sombra de esa
+política de desarrollo. El valor resultante, 25 UM, es el precio sombra de esa
 restricción y queda sellado en el prerregistro. Un valor plano de 5 UM, que es el
-que fijaba el plan, produce un {BLOQUEO_CFP5} % de bloqueo de legítimas.
+que fijaba el plan, produce un 11,17 % de bloqueo de legítimas.
 
 La calibración usa como referencia la familia de mayor AP y no la de menor costo,
 porque el costo depende de `c_FP` y elegir por costo antes de calibrarlo sería
-circular. El orden de las estrategias no depende del valor elegido: reevaluado
-entre `c_FP` de 5 y 100, la estrategia con más datos gana siempre y la de menos
-datos pierde siempre.
+circular.
+
+**La revisión compite por un cupo escaso.** Que sea la acción más barata no basta:
+tiene que serlo por un margen que justifique ocupar una de las 150 plazas diarias.
+Ese margen es el precio sombra del cupo, el multiplicador de Lagrange de la
+restricción de capacidad. Se revisa solo si
+
+```
+min(E[aprobar], E[bloquear]) - E[revisar] > lambda
+```
+
+Sin ese precio, la regla propone 704 revisiones diarias frente a un cupo de 150.
+El cupo se llena con los casos que llegan primero y los que más ahorrarían quedan
+fuera. `lambda` se calibra por bisección como el menor valor que deja la demanda
+diaria dentro del cupo, lo que la sitúa en 150,0 exactas. El criterio es la
+capacidad y no el costo observado, de modo que la calibración no usa etiquetas. El
+`lambda` que iguala demanda y cupo queda a un 0,7 % del que minimiza el costo.
+
+El valor calibrado es 7,86 UM. Ambos parámetros se condicionan
+mutuamente, porque `c_FP` fija la escala de los costos y racionar el cupo cambia
+cuántos casos terminan bloqueados, de modo que se calibran alternando hasta que
+ambos se estabilizan. Convergen en tres pasadas.
 
 ### Evidencia sobre la necesidad de calibrar
 
@@ -292,7 +311,7 @@ etiquetas inmaduras para completar el soporte.
 ### Prerregistro
 
 La familia, los hiperparámetros, la economía calibrada y la ventana desplegable se
-congelan usando solo desarrollo. El hash `{HASH_PRE}` sella esa selección antes de
+congelan usando solo desarrollo. El hash `7d4c9fac0af4d15f` sella esa selección antes de
 abrir el test. `c_FP` entra al sello porque pasó de ser una constante del config a
 un parámetro derivado de los datos de desarrollo, de modo que sin sellarlo sería
 posible recalibrarlo después de ver el test. Si la configuración cambiara entre la selección y el test, la
@@ -316,10 +335,14 @@ test, con la tasa base superpuesta.*
 La selección aplica el criterio de costo, no el de AP. El proceso ejecuta 18 fits
 de tuning y tres ajustes finales.
 
-{TABLA_FAMILIAS}
+| Familia | Config | AP | Costo UM/tx con la regla económica | Costo con el mejor umbral fijo |
+|---|---|---|---|---|
+| LightGBM | `lgbm_31` | **0,6214** | **1,5895** | 1,9696 |
+| Random Forest | `rf_200_20` | 0,5391 | 1,8728 | 2,2746 |
+| Logística | `lr_c1_bal` | 0,4029 | 2,1910 | 2,8712 |
 
-Las referencias simuladas sobre la reserva de política alcanzan {BASE_APROBAR} UM/tx
-al aprobar todo y {BASE_BLOQUEAR} UM/tx al bloquear todo. {FAMILIA_ELEGIDA} queda
+Las referencias simuladas sobre la reserva de política alcanzan 4,5937 UM/tx
+al aprobar todo y 24,1365 UM/tx al bloquear todo. LightGBM queda
 congelada como familia adaptativa.
 
 La columna de umbral fijo es el costo que alcanzaría el mejor par de cortes
@@ -328,7 +351,11 @@ con la columna de argmin mide lo que cuesta ignorar el monto.
 
 La regla económica induce un umbral distinto por monto. Con la economía calibrada:
 
-{TABLA_UMBRALES_IMPLICADOS}
+| Monto | Revisar desde | Bloquear desde |
+|---|---|---|
+| 25,00 UM | `p` ≥ 0,4072 | `p` ≥ 0,5791 |
+| 59,00 UM | `p` ≥ 0,1747 | `p` ≥ 0,5143 |
+| 250,00 UM | `p` ≥ 0,0415 | `p` ≥ 0,3159 |
 
 ### Selección de la ventana desplegable
 
@@ -336,9 +363,17 @@ El protocolo exige elegir la ventana con datos de desarrollo. La evaluación se
 realiza sobre la reserva de validación, posterior al predictor y al calibrador de
 cada paquete.
 
-{TABLA_SELECCION_W}
+| Estrategia | Días de fit | Fraudes en el fit | Costo UM/tx en desarrollo |
+|---|---|---|---|
+| **W60** | 46 | 5 768 | **2,2527** |
+| W90 | 76 | 9 169 | 2,2708 |
+| W30 | 16 | 2 191 | 2,3501 |
 
-{TEXTO_SELECCION_W}
+W60 y W90 quedan separadas por un 0,80 %, dentro del margen de desempate del 1 %
+que favorece la ventana menor. W30 queda un 4,33 % por encima. El desarrollo
+anticipa que la ventana más corta es la peor de las tres.
+
+W60 constituye la recomendación operativa y fue elegida sin observar el test.
 
 ---
 
@@ -349,7 +384,15 @@ política y la misma familia. 175 998 eventos por estrategia en cuatro bloques.
 Las tres primeras varían el volumen de entrenamiento y las tres últimas lo
 mantienen constante en 46 días variando solo la antigüedad.
 
-{TABLA_ADAPTACION}
+| Estrategia | Días de fit | AP | Brier | Costo UM/tx con IC 95 % | Δ frente a S0 | Bloqueo legítimas | Versiones |
+|---|---|---|---|---|---|---|---|
+| E15 *(ref.)* | 76 a 121 | 0,4965 | 0,0231 | 1,9840 [1,821 y 2,155] | −0,108 [−0,205 y 0,002] | 1,26 % | 4 |
+| W90 | 76 | 0,4901 | 0,0234 | 2,0573 [1,909 y 2,208] | −0,035 [−0,128 y 0,061] | 1,36 % | 4 |
+| S0 *(ref.)* | 69 | 0,4828 | 0,0233 | 2,0921 [1,911 y 2,256] | referencia | 0,87 % | 1 |
+| **W60** | 46 | 0,4802 | 0,0237 | 2,1087 [1,917 y 2,330] | 0,017 [−0,114 y 0,165] | 1,38 % | 4 |
+| R46_antiguo *(diag.)* | 46 | 0,4681 | 0,0236 | 2,1171 [1,943 y 2,246] | 0,025 [−0,059 y 0,090] | 0,98 % | 1 |
+| W30 | 16 | 0,4701 | 0,0238 | 2,1830 [1,943 y 2,421] | 0,091 [−0,061 y 0,280] | 1,27 % | 4 |
+| R46_medio *(diag.)* | 46 | 0,4571 | 0,0242 | 2,2146 [2,033 y 2,382] | 0,123 [0,004 y 0,229] | 1,40 % | 4 |
 
 *Intervalos por bootstrap pareado de bloques contiguos de 7 días con 200
 remuestreos.*
@@ -360,9 +403,18 @@ Un intervalo obtenido con una semilla fija puede excluir el cero por azar. Cada
 diferencia se reevaluó con 6 semillas y 3 tamaños de bloque, 18 combinaciones en
 total, contando en cuántas el intervalo cruza el cero.
 
-{TABLA_ROBUSTEZ}
+| Diferencia | Efecto | Cruzan cero | Veredicto |
+|---|---|---|---|
+| E15 frente a S0 | −0,1081 | 8 de 18 | no concluyente |
+| W90 frente a S0 | −0,0348 | 18 de 18 | no concluyente |
+| W60 frente a S0 | 0,0166 | 18 de 18 | no concluyente |
+| R46_antiguo frente a S0 | 0,0250 | 18 de 18 | no concluyente |
+| W30 frente a S0 | 0,0909 | 18 de 18 | no concluyente |
+| R46_medio frente a S0 | 0,1225 | 13 de 18 | no concluyente |
 
-{TEXTO_ROBUSTEZ}
+Ninguna de las 6 diferencias frente a S0 resiste el control. Todas cruzan el
+cero en al menos una de las 18 combinaciones, de modo que el informe no declara
+concluyente ninguna comparación contra el modelo estático.
 
 ### Volumen frente a frescura
 
@@ -370,25 +422,55 @@ El experimento separa los dos factores por diseño. El bloque de volumen variabl
 mueve los días de fit manteniendo el corte, y el bloque de antigüedad variable
 mueve el corte manteniendo 46 días de fit.
 
-{TABLA_VOLUMEN_FRESCURA}
+| Comparación | Qué aísla | Efecto | Cruzan cero | Veredicto |
+|---|---|---|---|---|
+| R46_antiguo frente a W60 | Frescura, corte al inicio del histórico | 0,0084 | 18 de 18 | no concluyente |
+| W60 frente a W90 | Volumen, 46 frente a 76 días | 0,0514 | 18 de 18 | no concluyente |
+| W30 frente a W60 | Volumen, 16 frente a 46 días | 0,0742 | 4 de 18 | no concluyente |
+| R46_medio frente a W60 | Frescura, corte 30 días más antiguo | 0,1059 | 0 de 18 | **concluyente** |
+| W30 frente a W90 | Volumen, 16 frente a 76 días | 0,1257 | 1 de 18 | no concluyente |
 
-{TEXTO_VOLUMEN_FRESCURA}
+Solo 1 de las 5 comparaciones controladas resiste el control de robustez, la de
+frescura: mantener el volumen en 46 días y retroceder el corte 30 días encarece
+la decisión en 0,1059 UM/tx, con las 18 combinaciones excluyendo el cero.
 
-El resultado es coherente con las señales de drift. El domain classifier obtiene un
-AUC de {AUC_DOMINIO}, por debajo del umbral de alerta de 0,75, de modo que P(X) se
-mantiene estable durante los 182 días. La validación adversarial por feature lo
-confirma de forma independiente: ninguna columna original del dataset supera un AUC
-de 0,61 entre el primer y el último bloque. Sin deriva apreciable en las
-covariables, deslizar la ventana no aporta información nueva y reducirla solo resta
-muestra.
+Mantener el corte y variar el volumen produce un efecto de magnitud parecida,
+0,1257 entre 16 y 76 días de fit, pero menos estable: cruza el cero en 1 de las
+18 combinaciones y no se declara concluyente.
+
+El efecto de la frescura no es monótono. Retroceder el corte 30 días encarece,
+pero tomar los 46 primeros días del histórico no se distingue de la ventana más
+fresca, con 0,0084 y un intervalo que cruza el cero en las 18 combinaciones. La
+correlación entre días de fit y costo sobre las estrategias de tamaño fijo es de
+−0,7412, frente al −0,9916 que producía el diseño confundido.
+
+Las señales de drift explican por qué los efectos son pequeños y por qué el que
+sobrevive es el de frescura. El domain classifier obtiene un AUC de 0,551,
+por debajo del umbral de alerta de 0,75, de modo que P(X) se mantiene estable
+durante los 182 días. La validación adversarial por feature lo confirma de forma
+independiente: ninguna columna original del dataset supera un AUC de 0,61 entre el
+primer y el último bloque.
+
+Sin deriva de covariables, deslizar la ventana no aporta distribuciones de entrada
+nuevas, y por eso el efecto del volumen no se distingue del ruido. El efecto de la
+frescura, que sí sobrevive, no puede venir entonces de P(X). Apunta a P(y|X), que es
+donde ADWIN registra deriva. Es también la deriva que el protocolo no puede
+identificar causalmente con datos observacionales.
 
 ### AP por bloque
 
-{TEXTO_AP_BLOQUE}
+El AP del sistema estático pasa de 0,5257 en B1 a 0,5144 en B4, sin degradación
+monótona. El descenso común en B2, hasta 0,3907, afecta a las siete estrategias
+por igual, incluidas las que se reentrenan, de modo que corresponde a un periodo
+más difícil y no a un modelo que caduca. El detalle por bloque está en
+`reports/tables/adaptacion.csv`.
 
 ### Objetivos diagnósticos no alcanzados
 
-{TEXTO_DIAGNOSTICOS}
+Los umbrales diagnósticos se eligieron en validación y se aplicaron congelados.
+Ninguna estrategia alcanza el FPR máximo del 1 % ni la precisión mínima del 80 %
+en test. El FPR obtenido queda entre 0,78 % y 1,18 % y la precisión entre 75,4 %
+y 82,5 %.
 El informe reporta el nivel obtenido y no ajusta el umbral, porque hacerlo
 convertiría un objetivo incumplido en un resultado ajustado a posteriori.
 
@@ -437,7 +519,7 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 
 ### Frecuencia, autonomía y gates
 
-El reentrenamiento ocurre cada 15 días con la ventana {W_ELEGIDA} elegida en desarrollo.
+El reentrenamiento ocurre cada 15 días con la ventana W60 elegida en desarrollo.
 El monitoreo aplica KS/PSI a diario, S1 por bloque y ADWIN al madurar cada
 etiqueta. Cinco gates controlan la promoción. El primero verifica integridad y
 bloquea la versión ante cualquier leakage. El segundo exige costo inferior al de
@@ -496,7 +578,7 @@ cloud. El prototipo asume identidad simultánea y features precomputadas.
 
 Las señales medidas ofrecen una explicación coherente y convergente.
 
-El domain classifier alcanza un AUC de {AUC_DOMINIO}, por debajo del umbral de
+El domain classifier alcanza un AUC de 0,551, por debajo del umbral de
 0,75, lo que indica estabilidad de P(X) durante los 182 días. La validación
 adversarial por feature, aplicada columna a columna entre el primer y el último
 bloque, da una mediana de 0,5053 sobre 425 features y un máximo de 0,6002 en `C9`.
@@ -505,7 +587,9 @@ usaba para descartar features inestables.
 
 En ese régimen la ventana corta pierde información sin ganar frescura útil.
 
-El soporte refuerza la explicación. {TEXTO_SOPORTE}
+El soporte refuerza la explicación. W30 entrena con 2 191 fraudes frente a los 9 169 de W90. El proxy de emisor
+presenta un 40 % de singletons y el de cliente un 57 %, de modo que las features
+de historial aportan menos de lo que aportarían con entidades recurrentes.
 
 El resultado no invalida el diseño adaptativo. Indica que la cadencia de 15 días
 con L igual a 30 no encuentra, en este dataset, una deriva suficiente para
@@ -533,7 +617,39 @@ queda bloqueado por el hash de prerregistro.
 
 ### Conclusión
 
-{TEXTO_CONCLUSION}
+El sistema reduce el costo observado de 5,40 a 1,98 UM por transacción frente a
+aprobar todo, una mejora del 63,2 %. Ese resultado proviene del modelo y de la
+política económica, no de la adaptación.
+
+El olvido por ventanas fijas no aporta mejora sobre IEEE-CIS con este protocolo.
+La estrategia de menor costo es E15, con 1,9840 UM/tx, que es la que usa todo el
+histórico disponible. La de mayor costo es R46_medio, con 2,2146. Ninguna de las
+6 diferencias frente a S0 resiste el control. Todas cruzan el cero en al menos
+una de las 18 combinaciones, de modo que el informe no declara concluyente
+ninguna comparación contra el modelo estático.
+
+Las comparaciones controladas sí encuentran señal. Mantener el volumen constante
+y retroceder el corte 30 días encarece la decisión en 0,1059 UM/tx, con las 18
+combinaciones de semilla y bloque excluyendo el cero. La frescura produce por
+tanto un efecto medible, al contrario de lo que sugería el diseño que confundía
+volumen con antigüedad. El efecto del volumen es de magnitud parecida, 0,1257
+entre 16 y 76 días de fit, pero no resiste el mismo control.
+
+La lectura conjunta es que ambos factores importan poco. El rango completo de
+las siete estrategias va de 1,98 a 2,21 UM/tx, un 11,6 %, y ninguna se distingue
+del modelo estático de forma estable.
+
+Ninguna estrategia alcanza los objetivos diagnósticos de FPR máximo del 1 % ni
+de precisión mínima del 80 %. La capacidad de revisión resulta más limitante que
+la calidad del modelo.
+
+La recomendación operativa es conservar el modelo con el mayor volumen de
+entrenamiento disponible y monitoreo activo. W60 fue la ventana elegida en
+desarrollo entre las tres deslizantes, pero el protocolo no ofrece evidencia de
+que el olvido aporte valor sobre este dataset. Una revisión posterior debería
+evaluar cadencias y retrasos distintos antes de descartar el enfoque adaptativo,
+porque la deriva de IEEE-CIS parece operar a una escala temporal mayor que la
+del protocolo evaluado.
 
 Este trabajo constituye un backtest retrospectivo. Un backtest no demuestra que el
 sistema funcione en el futuro.

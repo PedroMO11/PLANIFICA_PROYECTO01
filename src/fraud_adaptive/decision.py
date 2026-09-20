@@ -96,18 +96,24 @@ class Policy:
     Un umbral global sobre ``p`` no puede ser optimo bajo este modelo de costos,
     porque el punto de indiferencia entre aprobar y bloquear es
     ``p* = c_FP / (monto + c_FP)`` y por lo tanto depende del monto. Un corte fijo
-    bloquea de mas en los montos bajos y de menos en los altos.
+    bloquea de mas en los montos bajos y de menos en los altos. Medido sobre la
+    reserva de desarrollo, la regla de umbrales cuesta 1,9696 UM/tx frente a 1,5895
+    de la regla economica, y eso que los umbrales se eligen minimizando sobre esa
+    misma ventana mientras la regla economica no se ajusta a ella.
 
     ``review_price`` es el precio sombra del cupo diario. Se revisa un caso solo si
 
         min(E[aprobar], E[bloquear]) - E[revisar] > review_price
 
     es decir, si revisar ahorra lo suficiente como para justificar ocupar una plaza
-    escasa. Con ``review_price = 0`` la regla es el argmin sin restriccion, que
-    propone muchas mas revisiones de las que caben: el cupo se llena con los casos
-    que llegan primero y los mejores del dia se quedan fuera. Medido sobre los
-    cuatro bloques de test, pasar de 0 al precio sombra calibrado baja el costo de
-    3,2779 a 2,5657 UM/tx y el bloqueo de legitimas del 1,31 % al 0,57 %.
+    escasa. Con ``review_price = 0`` la regla resuelve el problema sin restriccion y
+    propone 704 revisiones diarias frente a un cupo de 150: el cupo se llena con los
+    casos que llegan primero y los que mas ahorrarian quedan fuera.
+
+    El precio importa mas de lo que parece. Sin el, la regla economica PERDIA contra
+    el mejor umbral fijo, con 2,3090 frente a 2,2339 UM/tx, porque un umbral
+    ajustado por rejilla raciona el cupo de forma implicita al elegir una zona
+    estrecha. Con el, gana por un 19 %.
     """
 
     tau_low: float
@@ -450,8 +456,8 @@ def calibrate_review_price(
     Con el cupo como restriccion dura, elegir la accion de menor costo esperado
     resuelve el problema equivocado. La regla sin restriccion propone muchas mas
     revisiones de las que caben, el cupo se llena con los casos que llegan primero
-    y los mejores del dia quedan fuera. Medido sobre IEEE-CIS, propone 644
-    revisiones diarias frente a un cupo de 150.
+    y los mejores del dia quedan fuera. Medido sobre la reserva de desarrollo de
+    IEEE-CIS, propone 704 revisiones diarias frente a un cupo de 150.
 
     El multiplicador de Lagrange de la restriccion es el precio que una plaza de
     revision debe pagar. Se revisa solo si
@@ -524,11 +530,12 @@ def calibrate_fp_cost(
 
     ``c_FP`` no es observable. Fijarlo por intuicion deja sin controlar la cantidad
     que el negocio si observa y si restringe, que es la fraccion de transacciones
-    legitimas rechazadas. Con ``c_FP = 5`` la regla economica bloquea el 11,95 % de
+    legitimas rechazadas. Con ``c_FP = 5`` la regla economica bloquea el 11,17 % de
     las legitimas sobre IEEE-CIS, un nivel que ninguna operacion de pagos acepta.
 
     Aqui se invierte la relacion: se declara el objetivo (``diagnostic_targets``,
-    ``fpr_target``) y se busca el menor ``c_FP`` de la grilla que lo cumple. El
+    ``fpr_target``) y se busca el menor ``c_FP`` de la grilla que lo cumple. Sobre
+    IEEE-CIS el valor resultante es 25 UM, que alcanza un 0,89 %. El
     valor resultante es el precio sombra de la restriccion. Se calibra una sola vez
     sobre la reserva de politica de desarrollo y queda congelado y sellado en el
     prerregistro, igual que los hiperparametros.

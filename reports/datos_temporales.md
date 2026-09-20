@@ -3,7 +3,7 @@
 > Origen de los datos: IEEE-CIS Fraud Detection, particion `train` unicamente.
 
 
-Generado: 2026-09-20T15:25:27+00:00
+Generado: 2026-09-20T17:00:05+00:00
 
 
 ## 1. Fuentes e integridad
@@ -83,7 +83,7 @@ de 24 h; no identifica hora local ni dia laboral, y el informe no afirma lo cont
 | addr | 2 | 0.111 | 0.111 | 0.111 | 0 |
 | card | 20 | 0.077 | 0.000 | 0.754 | 0 |
 | id_ | 38 | 0.848 | 0.756 | 0.992 | 9 |
-| otras | 36 | 0.437 | 0.000 | 0.936 | 0 |
+| otras | 52 | 0.376 | 0.000 | 0.936 | 0 |
 
 Las columnas con mas de 95%% de faltantes se descartan DENTRO de cada fit, 
 nunca globalmente: una columna puede estar vacia en el tramo de entrenamiento de una 
@@ -118,6 +118,7 @@ comportamiento.
 | Proxy | Entidades | Cobertura | Eventos/entidad | Singletons |
 |---|---|---|---|---|
 | card | 43018 | 1.000 | 13.73 | 0.404 |
+| cliente | 217850 | 1.000 | 2.71 | 0.575 |
 | device | 1943 | 0.244 | 74.23 | 0.260 |
 
 Un proxy agrupa comportamiento, no identifica a una persona. Dos clientes pueden 
