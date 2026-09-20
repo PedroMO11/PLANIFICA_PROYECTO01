@@ -61,7 +61,7 @@
   <text class="cuerpo" x="544" y="250">Features solo del pasado, por proxy de entidad:</text>
   <text class="cuerpo" x="544" y="270">ventanas de 1 h, 24 h y 7 d · emitidas antes de</text>
   <text class="cuerpo" x="544" y="290">actualizar el estado</text>
-  <text class="nota"   x="544" y="314">137 pruebas automáticas verifican la causalidad</text>
+  <text class="nota"   x="544" y="314">148 pruebas automáticas verifican la causalidad</text>
 
   <!-- ====================== ESTACIÓN 3: MODELADO ====================== -->
   <rect class="caja" x="992" y="130" width="400" height="196" stroke="#4a3aa7"/>
@@ -72,7 +72,7 @@
   <text class="cuerpo" x="1016" y="224">Cada versión tiene su propio calibrador Platt,</text>
   <text class="cuerpo" x="1016" y="244">ajustado en 7 días que el predictor no vio.</text>
   <text class="dato"   x="1016" y="270">Sin calibrar, p·monto no significa nada</text>
-  <text class="cuerpo" x="1016" y="292">Umbrales por costo, nunca 0.5</text>
+  <text class="cuerpo" x="1016" y="292">Acción por costo esperado, no por umbrales</text>
   <text class="nota"   x="1016" y="314">ECE de la logística 0,294 → 0,004 tras calibrar</text>
 
   <!-- ====================== CENTRO: LOS DOS RELOJES ====================== -->
@@ -134,7 +134,7 @@
   <text class="cuerpo" x="1016" y="744"><tspan font-weight="700">Hoy:</tspan> KS/PSI y domain classifier → cambio en P(X)</text>
   <text class="cuerpo" x="1016" y="768"><tspan font-weight="700">A 30 días:</tspan> ADWIN sobre el error real → P(y|X)</text>
   <text class="cuerpo" x="1016" y="796">Reentrenamiento con ventana fija cada 15 días.</text>
-  <text class="dato"   x="1016" y="822">W60 elegida en desarrollo. No supera al estático</text>
+  <text class="dato"   x="1016" y="822">Ninguna ventana supera al estático de forma estable</text>
   <text class="humano" x="1016" y="848">Toda promoción exige aprobación humana</text>
   <text class="nota"   x="1016" y="870">Ninguna alerta despliega por sí sola</text>
 
@@ -171,6 +171,6 @@
     el cupo se garantiza para un orquestador secuencial · es un backtest retrospectivo, no una validación prospectiva.
   </text>
   <text class="nota" x="48" y="1008" font-weight="700" fill="#e34948">
-    Resultado principal. El olvido por ventanas fijas no reduce el costo sobre IEEE-CIS con este protocolo.
+    Resultado principal. El olvido por ventanas fijas no reduce el costo. A volumen igual, retroceder el corte 30 días encarece 0,106 UM/tx.
   </text>
 </svg>

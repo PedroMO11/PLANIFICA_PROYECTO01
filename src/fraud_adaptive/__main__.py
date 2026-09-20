@@ -330,7 +330,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
         notebooks = {}
     else:
         print("1/4  Generando y ejecutando notebooks...")
-        notebooks = write_notebooks("notebooks")
+        notebooks = write_notebooks("notebooks", run_id=run.run_id)
 
     if args.execute_notebooks:
         import nbformat

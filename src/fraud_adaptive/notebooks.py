@@ -41,7 +41,11 @@ from fraud_adaptive.pipeline import load_configs
 from fraud_adaptive.tracking import read_json
 
 CONFIGS = load_configs(ROOT / "configs")
-RUN_DIR = ROOT / CONFIGS["base"]["paths"]["runs"] / "principal"
+# La corrida se fija al generar el notebook, de modo que las cifras de aqui son
+# las mismas del informe. Dejarla escrita a mano dejaba los notebooks describiendo
+# una corrida distinta de la entregada.
+RUN_ID = "__RUN_ID__"
+RUN_DIR = ROOT / CONFIGS["base"]["paths"]["runs"] / RUN_ID
 REPORTS = ROOT / CONFIGS["base"]["paths"]["reports"]
 
 MANIFEST = read_json(ROOT / CONFIGS["base"]["paths"]["manifests"] / "sources.json")
@@ -55,7 +59,11 @@ print("Run:", RUN_DIR)
 """
 
 
-def build_eda_notebook() -> Any:
+def _con_run(texto: str, run_id: str) -> str:
+    return texto.replace("__RUN_ID__", run_id)
+
+
+def build_eda_notebook(run_id: str = "principal") -> Any:
     nb = nbf.v4.new_notebook()
     nb.cells = [
         _markdown("""
@@ -174,7 +182,7 @@ display(Image(filename=str(REPORTS / "figures" / "eda_temporal.png")))
     return nb
 
 
-def build_models_notebook() -> Any:
+def build_models_notebook(run_id: str = "principal") -> Any:
     nb = nbf.v4.new_notebook()
     nb.cells = [
         _markdown("""
@@ -303,7 +311,7 @@ por sí sola **no identifica causalmente** el drift, y el informe no lo afirma.
     return nb
 
 
-def build_drift_notebook() -> Any:
+def build_drift_notebook(run_id: str = "principal") -> Any:
     nb = nbf.v4.new_notebook()
     nb.cells = [
         _markdown("""
@@ -456,14 +464,14 @@ print(f"\\nConsumido: {presupuesto['consumed_minutes']:.1f} min de "
     return nb
 
 
-def write_notebooks(output_dir: str | Path) -> dict[str, Path]:
-    """Escribe los tres notebooks sin ejecutarlos."""
+def write_notebooks(output_dir: str | Path, run_id: str = "principal") -> dict[str, Path]:
+    """Escribe los tres notebooks sin ejecutarlos, apuntando a ``run_id``."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     built = {
-        "01_eda_temporal.ipynb": build_eda_notebook(),
-        "02_modelos_temporales.ipynb": build_models_notebook(),
-        "03_drift_adaptacion.ipynb": build_drift_notebook(),
+        "01_eda_temporal.ipynb": build_eda_notebook(run_id),
+        "02_modelos_temporales.ipynb": build_models_notebook(run_id),
+        "03_drift_adaptacion.ipynb": build_drift_notebook(run_id),
     }
     out: dict[str, Path] = {}
     for name, notebook in built.items():
@@ -471,6 +479,8 @@ def write_notebooks(output_dir: str | Path) -> dict[str, Path]:
             "display_name": "Python 3", "language": "python", "name": "python3",
         }
         notebook.metadata["language_info"] = {"name": "python", "version": "3.12"}
+        for celda in notebook.cells:
+            celda.source = _con_run(celda.source, run_id)
         path = output_dir / name
         with open(path, "w", encoding="utf-8") as handle:
             nbf.write(notebook, handle)

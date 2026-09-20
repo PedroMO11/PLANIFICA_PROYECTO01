@@ -1,6 +1,6 @@
 # Reproducción final: qué se verificó
 
-Generado: 2026-09-20T15:29:20+00:00
+Generado: 2026-09-20T17:18:41+00:00
 
 
 > Resultados sobre IEEE-CIS (particion train).
@@ -14,9 +14,9 @@ Generado: 2026-09-20T15:29:20+00:00
 | Plataforma | Windows-11-10.0.26200-SP0 |
 | Procesador | AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD |
 | CPUs disponibles | 8 (el código se limita a 4 hilos) |
-| Commit | 8018b978dcb312c111eccfb3fe7add23aa2ea20d |
-| Hash del código | 183a7374f33e2fbca04ba91bd8cde877 |
-| Hash de configuración | 0ae2212bbb6d780d408158fd2d329aa5 |
+| Commit | bdb2a813028bdde3717bd62ec62e7efe47bf748a |
+| Hash del código | b6cc39cfd50bf7236a359099103a4884 |
+| Hash de configuración | 7a50ab228bf8abab5bb9736a53396c82 |
 
 ### Versiones de los paquetes
 
@@ -35,13 +35,12 @@ Generado: 2026-09-20T15:29:20+00:00
 
 | Tipo de tarea | Tareas | Minutos |
 |---|---|---|
-| fit_tuning | 18 | 18.36 |
-| fit_final | 6 | 9.84 |
-| backtest | 1 | 3.21 |
-| fit_seleccion_W | 3 | 0.36 |
-| datos | 5 | 0.28 |
-| fit_adaptivo | 2 | 0.26 |
-| **Total** | 35 | **32.32 de 480** |
+| fit_tuning | 18 | 18.99 |
+| fit_final | 9 | 15.07 |
+| backtest | 1 | 4.90 |
+| fit_seleccion_W | 3 | 0.43 |
+| politica | 3 | 0.09 |
+| **Total** | 34 | **39.48 de 480** |
 
 Tareas fallidas: **0**. Tareas que excedieron su límite: **0**.
 

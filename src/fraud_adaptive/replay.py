@@ -532,7 +532,10 @@ def run_replay(
             probability = np.array([float(fixture["p_forzada"])])
             amount = np.array([float(fixture["monto"])])
             fixture_costs = cost_model.expected_costs(probability, amount)
-            proposed = str(policy.zone(probability)[0])
+            # Se usa la regla real, no `zone`. Esta ultima ignora el monto y el
+            # precio del cupo, de modo que evaluaba los fixtures con una politica
+            # distinta de la que el servicio aplica.
+            proposed = str(policy.propose(probability, fixture_costs)[0])
             # El caso de overflow se fuerza sin cupo para ejercitar esa rama.
             no_quota = fixture["caso"] == "overflow_sin_cupo"
             action = proposed

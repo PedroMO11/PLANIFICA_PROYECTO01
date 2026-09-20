@@ -1,17 +1,17 @@
 {
-  "generado_en": "2026-09-20T15:29:20+00:00",
-  "run_id": "ieee_real",
+  "generado_en": "2026-09-20T17:18:41+00:00",
+  "run_id": "v3",
   "origen_datos": "ieee_cis_real",
   "advertencia_datos": "Resultados sobre IEEE-CIS (particion train).",
-  "computo_minutos": 32.32,
+  "computo_minutos": 39.48,
   "computo_limite_minutos": 480,
   "inventario": {
     "codigo": [
       {
         "ruta": "src/fraud_adaptive/__main__.py",
         "existe": true,
-        "bytes": 24493,
-        "sha256": "dc64b6ec75d851eea6acc473f62bd23981dec9e76f67d1b34a0bbb4a06bba0fa"
+        "bytes": 25180,
+        "sha256": "fd6d508a1ef46e8f1a37d2d176c2602febe1caadf1f1331bf4c70d16391f4788"
       },
       {
         "ruta": "pyproject.toml",
@@ -42,14 +42,14 @@
       {
         "ruta": "configs/temporal.yaml",
         "existe": true,
-        "bytes": 1717,
-        "sha256": "ae03afc9df7e546e75903dfcbb4332031cdcfbf3a00f2d1cc5c2bdc06a36b1dd"
+        "bytes": 1997,
+        "sha256": "dd50454bb609fd49828d711aa34d1cbbe74c36e7cd04efac94be1e7fefdf802a"
       },
       {
         "ruta": "configs/decision.yaml",
         "existe": true,
-        "bytes": 2129,
-        "sha256": "5db291c0735e82248ff06b6e109738184ba5671b9e9569420c378de6acad1cdf"
+        "bytes": 3030,
+        "sha256": "85ee72ef7c97ec5ab7891ceab02dd418953ea340d3c085534da65394c97fab46"
       },
       {
         "ruta": "configs/models.yaml",
@@ -60,8 +60,8 @@
       {
         "ruta": "configs/adaptation.yaml",
         "existe": true,
-        "bytes": 2441,
-        "sha256": "ae7fb15938c1965f80282889ea709062cd472fd3ac13becd9987f1b68c8d1056"
+        "bytes": 3508,
+        "sha256": "d99e3199bfdf3ff8fddb2d7c2678b6d1cd3c850491f7ab17d5b188bf0f13eaf2"
       },
       {
         "ruta": "configs/serving.yaml",
@@ -80,20 +80,20 @@
       {
         "ruta": "README.md",
         "existe": true,
-        "bytes": 11942,
-        "sha256": "3db75e51e19a57695fdb855d9ab72c31c89b07867072ebf2502c849f7119220a"
+        "bytes": 11966,
+        "sha256": "b56b843df3d13825c21607712ebb4531bb19882506f22e2937eb37d5a5fba850"
       },
       {
         "ruta": "docs/contrato_sistema.md",
         "existe": true,
-        "bytes": 7327,
-        "sha256": "e06a9a542d42b2450243a6648c4bb3cee913aaed199152e62cc24f5f0effc4ec"
+        "bytes": 9393,
+        "sha256": "324e7d442d507cc8ab88367972955551e1e4d13650529e40994e8bb28a8752a1"
       },
       {
         "ruta": "docs/protocolo_experimental.md",
         "existe": true,
-        "bytes": 9869,
-        "sha256": "1d63ea710a767274d0e5d6417c66942b5e0641dabad22bab3334c3a015400e75"
+        "bytes": 11344,
+        "sha256": "008e2579ee302d575f2d30503ff2dc3cdbe2b8335ebac67e0a677499a1f6e854"
       },
       {
         "ruta": "docs/reproducibilidad.md",
@@ -104,8 +104,8 @@
       {
         "ruta": "docs/decisiones_pendientes.md",
         "existe": true,
-        "bytes": 9649,
-        "sha256": "28107ef30b3a36b282f4d77432b89ad301943cc57dfde1686bb730169d55826a"
+        "bytes": 10330,
+        "sha256": "647bfd2b0b049467cc8bc22cd88f3a52162f623ededfa7e899e5b312a011b5db"
       },
       {
         "ruta": "docs/arquitectura.mmd",
@@ -136,8 +136,8 @@
       {
         "ruta": "deploy/promocion_rollback.md",
         "existe": true,
-        "bytes": 5373,
-        "sha256": "a662a027c3d9fe2c65fe55ce79d0ae25d256bced9e7a7c6d6d749cbe44263226"
+        "bytes": 5501,
+        "sha256": "42f298205aa0a99da1786d8fed06c5ca6428300efd7529fb3033e103b6caa4f2"
       },
       {
         "ruta": "deploy/arquitectura_gcp.mmd",
@@ -150,34 +150,34 @@
       {
         "ruta": "notebooks/01_eda_temporal.ipynb",
         "existe": true,
-        "bytes": 243620,
-        "sha256": "181f51461675a80ed8d694a4677f723f0c415d2bb85198f74d493b2bebb5ce31"
+        "bytes": 244255,
+        "sha256": "22a3c872e6a6f2c5ef5a7a563c304ff1255aeb6105948a34e9e2d3e6f817390f"
       },
       {
         "ruta": "notebooks/02_modelos_temporales.ipynb",
         "existe": true,
-        "bytes": 313928,
-        "sha256": "02fd402cbca563e392ebbe7bcc3f7277f4c32a00b028366ec97e97ad4f115811"
+        "bytes": 332838,
+        "sha256": "f6a49de31188e4f5f462b5e5c87f834c7ba523a070b9f5302fd3e36a27edd0b1"
       },
       {
         "ruta": "notebooks/03_drift_adaptacion.ipynb",
         "existe": true,
-        "bytes": 515423,
-        "sha256": "2e3371b7a6a3276d46ea48fcc7b3f20e816bd33d34db1a00f71df5ec8b2e6cb3"
+        "bytes": 573276,
+        "sha256": "2d1f90884bb7bdf13c47364e6c22c2b8b4e42ca1c311366468b865ed6316ad56"
       }
     ],
     "informe": [
       {
         "ruta": "reports/informe_final.md",
         "existe": true,
-        "bytes": 26149,
-        "sha256": "c4cf145767379a47ac14de67372046653e2d7f6a99f1c663a4568569a553494b"
+        "bytes": 30150,
+        "sha256": "d37ed9325a2f65327a283c3d17307fd928c701188bb1810917ea736139768d89"
       },
       {
         "ruta": "reports/informe_final.pdf",
         "existe": true,
-        "bytes": 836035,
-        "sha256": "c96150168836c4708d4bffe33e217327bb8104ef40b8aee4e7bec8083d6e1e02"
+        "bytes": 902888,
+        "sha256": "f5f0cb530d52d3f863a08d524ff9aeb5e71990aa55ece5ede37ee9c002efc041"
       },
       {
         "ruta": "reports/infografia.svg",
@@ -194,40 +194,40 @@
       {
         "ruta": "reports/guion_presentacion.md",
         "existe": true,
-        "bytes": 11459,
-        "sha256": "e0fbab37ad5cee21e71c2fb49d8a6d12cb74a05c2ac3e23fb321854309639e5c"
+        "bytes": 15831,
+        "sha256": "bbd04b3f12bdce14b5adfd2cfbb5d7e7a30c319239b8a8f3d4ac6b242ff7377a"
       },
       {
         "ruta": "reports/indice_evidencia.csv",
         "existe": true,
-        "bytes": 5257,
-        "sha256": "bc0d048b291fe2786c109b3afbfd0f613750869ee9b11826fea7c7091cbf833e"
+        "bytes": 3950,
+        "sha256": "f22f89ed9d533e2c5246991b6510916a8c0822877456797dfe05c10c92515e1d"
       }
     ],
     "tablas": [
       {
         "ruta": "reports/tables/comparacion_modelos.csv",
         "existe": true,
-        "bytes": 1002,
-        "sha256": "691ea016239033f05cd3400ef3c8610675109e8127979125df3766cc8e5b2773"
+        "bytes": 972,
+        "sha256": "5b293836b1583ae45507ec147de512f108673eb0cb0ffc16cd00bf95630cb423"
       },
       {
         "ruta": "reports/tables/adaptacion.csv",
         "existe": true,
-        "bytes": 3502,
-        "sha256": "d72f5a31fc19062d2efcaca3828b455b0c7e85e5d7b501284e35dfc8480b13b3"
+        "bytes": 4603,
+        "sha256": "ed5c8efc018a98c953d7e91bad4766c922c64e7992aa46eac67f4d8f946ae678"
       },
       {
         "ruta": "reports/tables/costos_computo.csv",
         "existe": true,
-        "bytes": 436,
-        "sha256": "687fe0317474b823e2734b0cff8a3c92a776af218090fa78be146f857983ef3e"
+        "bytes": 364,
+        "sha256": "6ef6ab53cc561550c93772c4deb3f0f5d4579f83ab727a95adf920d3db2b4b14"
       },
       {
         "ruta": "reports/tables/segmentos.csv",
         "existe": true,
-        "bytes": 9188,
-        "sha256": "e1a49d27000835450898082df1c64155484e0f78d64b95383297dbbb00398883"
+        "bytes": 8848,
+        "sha256": "87e389f5e1e90151c041e27c6ac56f96cc519c0925cf7dfa0b76df4defb556fa"
       },
       {
         "ruta": "reports/tables/adwin_selftest.csv",
@@ -238,42 +238,42 @@
       {
         "ruta": "reports/tables/sensibilidad_economica.csv",
         "existe": true,
-        "bytes": 673,
-        "sha256": "75677cc8a67bb2fc10c6bbe50a301c0da90ea79ab4d26428669ba43f8305245e"
+        "bytes": 652,
+        "sha256": "991022d6aee8fa1a50e11019afd2fc636a9d0cb282be5d2df7e4ba1ef8046973"
       }
     ],
     "figuras": [
       {
         "ruta": "reports/figures/eda_temporal.png",
         "existe": true,
-        "bytes": 159681,
-        "sha256": "b25a735071aeb72bc938fdc8ea2f88db9722b37ed812e98d0d4a3cd6511cca36"
+        "bytes": 159562,
+        "sha256": "0e1b2c48112d9784974d4066b16ddf09de10d885b1f2d07bea930d921e01bdb9"
       },
       {
         "ruta": "reports/figures/rendimiento_estatico.png",
         "existe": true,
-        "bytes": 107739,
-        "sha256": "c47438ab4a6867029912a9247f6ab9a05bb5cff2cb61be95157be854018d4c6e"
+        "bytes": 114592,
+        "sha256": "ddc781ecc42c306c7a1ca746d30365cef8d5c6ec193194ffac098e3d989fffe0"
       },
       {
         "ruta": "reports/figures/calibracion_costos.png",
         "existe": true,
-        "bytes": 108924,
-        "sha256": "a3afc26df085e1c8520b4733749fb8781967c2e95a9ca808203e7c81f50d4866"
+        "bytes": 109715,
+        "sha256": "66e4071f3c46300ad6aecefafbdc51cd7539cc48ac741d8e80d9e41aa778fb48"
       },
       {
         "ruta": "reports/figures/drift_adaptacion.png",
         "existe": true,
-        "bytes": 340136,
-        "sha256": "ad4b573e86f84b58138feaad7a4a3b7ace9ddc1321b5091082bf2609e5714858"
+        "bytes": 365759,
+        "sha256": "a6ae0f7635c41a5eef87be62a549d5a5fe213c3238fac621abc90ef359784083"
       }
     ],
     "evidencia": [
       {
         "ruta": "reports/datos_temporales.md",
         "existe": true,
-        "bytes": 5164,
-        "sha256": "d186235150010d87c65782b7afbf6805f6c8408ae03205345c1bf4b873695c95"
+        "bytes": 5209,
+        "sha256": "89b38d350f1aac417ca4e8a806a360aa18f0d49e186598b84f9addfb62c3dab6"
       },
       {
         "ruta": "reports/replay_local.md",
@@ -284,14 +284,14 @@
       {
         "ruta": "data/manifests/sources.json",
         "existe": true,
-        "bytes": 3327,
-        "sha256": "e316632e8aef933f8ac4524d4aedab9cadc56bf77a69d900715196f190a65a01"
+        "bytes": 3784,
+        "sha256": "678af76279961351e1dfc505d887ed09ad15e8645d7a0f6f8fc887b181f6c281"
       },
       {
         "ruta": "data/manifests/splits.json",
         "existe": true,
-        "bytes": 9361,
-        "sha256": "d37bf0ec83bbe9fb5362479677cf1b1f289e96a86c18c899fbc6741faf14fc9f"
+        "bytes": 10978,
+        "sha256": "5af97fef4275fa9e41255e1678ae6e9e8b9846077dae14500c087607c1616916"
       }
     ]
   },
