@@ -1,5 +1,5 @@
 {
-  "generado_en": "2026-09-20T20:19:37+00:00",
+  "generado_en": "2026-09-20T20:24:50+00:00",
   "run_id": "v3",
   "origen_datos": "ieee_cis_real",
   "advertencia_datos": "Resultados sobre IEEE-CIS (particion train).",
@@ -170,14 +170,14 @@
       {
         "ruta": "reports/informe_final.md",
         "existe": true,
-        "bytes": 31146,
-        "sha256": "796050a05bbaecb77cd5ef10982f1277b63beee1a07eac1fffd1c6d2b43fb815"
+        "bytes": 31593,
+        "sha256": "c896facc3342291d0810abb1df69ccd8dbf42f2a72cfb04d0ed628b6fbc3c485"
       },
       {
         "ruta": "reports/informe_final.pdf",
         "existe": true,
-        "bytes": 916317,
-        "sha256": "f790e641df4501d245c270c72d97ae0299d784bd2b0b412e7b3c220f86687145"
+        "bytes": 914491,
+        "sha256": "ce465822c4cc67e89f3fa6e0dc3bdd5c3464ff96e57d7962039177ef3a8a75dd"
       },
       {
         "ruta": "reports/infografia.svg",
@@ -194,8 +194,8 @@
       {
         "ruta": "reports/guion_presentacion.md",
         "existe": true,
-        "bytes": 16889,
-        "sha256": "a8f43896589407fb95fa562213167ac72b696be72f28423477eca36411df9152"
+        "bytes": 17263,
+        "sha256": "e6bfec044ebd6e5477e21ab408786866c68137969314a65223ee5c7687120288"
       },
       {
         "ruta": "reports/indice_evidencia.csv",

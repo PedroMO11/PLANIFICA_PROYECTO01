@@ -15,7 +15,7 @@ El reparto siguiente asigna turnos, no áreas de conocimiento.
 | 2:00 a 4:30 | Datos, integración y señales de drift | B |
 | 4:30 a 6:30 | Cortes temporales y ausencia de fuga | B y C |
 | 6:30 a 9:00 | Tres modelos, calibración y política económica | C |
-| 9:00 a 12:30 | Experimento central y resultado negativo | D |
+| 9:00 a 12:30 | Experimento central y magnitud del drift | D |
 | 12:30 a 15:00 | Demo del replay y propuesta de despliegue | E |
 | 15:00 a 17:00 | Infografía, equidad operativa y límites | A y E |
 | 17:00 a 18:00 | Conclusión y validación futura | A |
@@ -199,13 +199,18 @@ funcione en el futuro.
 
 # Hoja de respuestas
 
-### El resultado es negativo. ¿El proyecto falló?
+### ¿El proyecto falló al no encontrar mejora con las ventanas deslizantes?
 
-No. El objetivo era medir si el olvido compensa bajo restricciones reales, no
-demostrar que compensa. El protocolo fue prerregistrado, la ventana se eligió en
-desarrollo y el resultado se reporta como salió. Un resultado negativo obtenido
-con rigor aporta más que uno positivo obtenido ajustando umbrales después de ver
-el test.
+No, y conviene precisar qué quedó medido. El trabajo cuantifica el drift de
+IEEE-CIS y separa sus dos componentes: la distribución de entrada es estable y la
+relación entre features y fraude cambia, con un costo de {EFECTO_FRESCURA} UM/tx
+por cada 30 días de antigüedad. También mide que esa magnitud queda por debajo de
+lo que cuesta entrenar con menos muestra.
+
+Lo que no se confirmó es la hipótesis concreta que el enunciado plantea, que el
+olvido por ventanas fijas reduzca el costo. El protocolo fue prerregistrado y la
+ventana se eligió en desarrollo, de modo que ese resultado se reporta como salió en
+lugar de ajustar umbrales después de ver el test.
 
 ### ¿Cómo saben que no hay fuga temporal?
 
@@ -266,11 +271,11 @@ es exactamente lo que aquí hace el bloque de antigüedad variable, y da el mism
 signo. La diferencia de magnitud se explica porque su modelo congelado acumula
 cinco meses de antigüedad y el de aquí retrocede 30 días.
 
-La distinción que este trabajo agrega es que reentrenar no es olvidar. Lo que ellos
+Este trabajo agrega la distinción entre reentrenar y descartar histórico. Lo que ellos
 llaman reentrenamiento usa todos los datos disponibles. Aquí la estrategia
 expansiva, que reentrena sin descartar, es la más barata de las siete, y ninguna
-ventana deslizante la supera. La evidencia sostiene reentrenar seguido; no sostiene
-tirar histórico.
+ventana deslizante la supera. La evidencia sostiene reentrenar con frecuencia y no
+sostiene descartar histórico.
 
 ### Los costos son supuestos. ¿Qué validez tienen las conclusiones?
 

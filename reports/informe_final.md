@@ -4,19 +4,20 @@
 **Dataset** IEEE-CIS Fraud Detection, partición `train`, 590 540 transacciones en 182 días
 **Semilla** 42. **Retraso de etiqueta** L = 30 días. **Cadencia** 15 días
 
-> **Resultado principal.** IEEE-CIS tiene concept drift y no tiene data drift. P(X) es estable, con un AUC
-de 0,551 en el domain classifier, mientras P(y|X) cambia: a volumen constante de
-46 días, retroceder el corte 30 días encarece 0,1059 UM/tx, y es la única
-comparación controlada que resiste 18 combinaciones de semilla y bloque. Ese
-drift no justifica descartar histórico. La estrategia que reentrena sin olvidar
-es la más barata de las siete y ninguna ventana deslizante se distingue del
-modelo estático de forma estable.
+> **Resultado principal.** IEEE-CIS presenta concept drift sin presentar data drift. La distribución de
+entrada se mantiene estable, con un AUC de 0,551 en el domain classifier,
+mientras que la relación entre features y fraude sí cambia: a volumen constante
+de 46 días, retroceder el corte 30 días encarece 0,1059 UM/tx, y es la única
+comparación controlada que resiste 18 combinaciones de semilla y bloque. Esa
+magnitud queda por debajo de lo que cuesta entrenar con menos muestra, de modo
+que la estrategia expansiva resulta la más barata de las siete y ninguna ventana
+deslizante se distingue del modelo estático de forma estable.
 
 ---
 
 ## Página 1. El problema de decisión
 
-### Predecir no basta
+### Por qué la predicción no agota el problema
 
 El sistema decide, para cada transacción, entre aprobar, enviar a revisión o
 bloquear. Cuatro restricciones definen qué significa un buen modelo en este
@@ -98,15 +99,17 @@ más en los montos bajos y de menos en los altos. Sobre la reserva de desarrollo
 regla de dos umbrales cuesta 1,9696 UM/tx frente a 1,5895 de la
 económica, y eso que los umbrales se eligen minimizando sobre esa misma ventana.
 
-Revisar no siempre es lo más barato. Con montos bajos el costo fijo `c_R` supera la
-pérdida esperada. Esa es la razón de que exista una tercera acción.
+Con montos bajos el costo fijo `c_R` supera la pérdida esperada, de modo que la
+revisión deja de ser la acción de menor costo. Esa es la razón de que el sistema
+tenga una tercera acción y no una decisión binaria.
 
-**Los dos parámetros de la política se derivan, no se fijan.** `c_FP` no es
-observable, pero la fracción de legítimas rechazadas sí lo es y es lo que la
-operación restringe: se declara el objetivo del 1 % y se busca el menor `c_FP` que
-lo cumple, que resulta 25 UM y alcanza un 0,89 %. `λ` es el
-multiplicador de Lagrange del cupo, que raciona una plaza escasa: se calibra por
-bisección como el menor valor que ajusta la demanda diaria a las 150
+Los dos parámetros de la política se derivan de una cantidad observable en lugar
+de fijarse por criterio. El costo de un falso positivo no es observable, pero la
+fracción de transacciones legítimas rechazadas sí lo es y es lo que la operación
+restringe, de modo que se declara el objetivo del 1 % y se busca el menor `c_FP`
+que lo cumple, que resulta 25 UM y alcanza un 0,89 %. El parámetro
+`λ` es el multiplicador de Lagrange del cupo y raciona una plaza escasa. Se calibra
+por bisección como el menor valor que ajusta la demanda diaria a las 150
 plazas, la deja en 150 exactas y resulta 7,86 UM.
 
 Ninguna de las dos calibraciones mira el costo observado. `c_FP` se ajusta contra
@@ -190,7 +193,7 @@ de historial sobre un test temporal, cada clave por separado alcanza AP de 0,166
 0,1671, y juntas 0,1829: la gruesa aporta soporte estadístico y la fina resolución
 por tarjeta. Un proxy agrupa comportamiento y no identifica personas.
 
-**Los conteos expansivos quedan fuera del predictor.** Acumulan desde el primer
+Los conteos expansivos quedan fuera del predictor porque acumulan desde el primer
 evento, de modo que crecen con el calendario y sustituyen al día absoluto, que el
 protocolo prohíbe. La media de `card_cnt_expansivo` pasa de 138,78 en `[0,60)` a
 707,43 en `[150,182)`, mientras `card_cnt_7d` no correlaciona con el día. Una
@@ -243,7 +246,7 @@ experimento evalúa: W30 pasa de 9 a 16 días de fit.
 Las dos reservas son idénticas para todas las estrategias. Esa igualdad permite
 atribuir una diferencia de costo al tamaño de ventana.
 
-**El experimento separa volumen de frescura.** Variar solo `W` cambiaba a la vez
+El experimento separa volumen de frescura por diseño. Variar solo `W` cambiaba a la vez
 cuántos días entrena el modelo y cuán reciente es su información, de modo que
 ninguna diferencia era atribuible. El diseño vigente añade un bloque de antigüedad
 variable con volumen constante.
@@ -405,16 +408,18 @@ estable. El efecto de la antigüedad no es monótono: tomar los 46 primeros día
 del histórico no se distingue de la ventana más fresca, con 0,0084. La
 correlación entre días de fit y costo es de −0,7412.
 
-**Hay concept drift y no hay data drift.** Son afirmaciones distintas y la
-evidencia las separa. P(X) es estable: el domain classifier obtiene un AUC de
-0,551 frente a un umbral de alerta de 0,75, y en la validación adversarial
-por feature ninguna columna original supera 0,61. P(y|X) sí cambia: ADWIN registra
-49 detecciones sobre el error individual, y el efecto de frescura medido a
-volumen constante solo puede venir de ahí, porque las entradas no se mueven.
+El dataset presenta concept drift sin presentar data drift, y la evidencia separa
+ambas afirmaciones. La distribución de entrada se mantiene estable, con un AUC de
+0,551 en el domain classifier frente a un umbral de alerta de 0,75 y
+ninguna columna original por encima de 0,61 en la validación adversarial por
+feature. La relación entre features y fraude sí cambia, y lo registran las
+49 detecciones de ADWIN sobre el error individual. El efecto de frescura
+medido a volumen constante solo puede provenir de ese cambio, dado que las entradas
+permanecen estables.
 
-Lo que ese drift no justifica es descartar histórico. Su magnitud, 0,1059
-UM/tx por 30 días de antigüedad, queda por debajo de lo que cuesta entrenar con
-menos muestra.
+La magnitud de ese drift, 0,1059 UM/tx por cada 30 días de antigüedad,
+queda por debajo de lo que cuesta entrenar con menos muestra. Esa es la razón de
+que descartar histórico no resulte rentable en este dataset.
 
 ### Contraste con la literatura sobre el mismo dataset
 
@@ -431,19 +436,20 @@ anterior. Su tabla por familia no lo hace.
 | Logística | 0,29 | 0,30 | −3 % |
 | **Este trabajo**, LightGBM congelado 136 días | **0,3769** | **0,4240** | **−11 %** |
 
-El colapso se concentra en los dos boosters. Un recall de 0,03 a FPR del 5 % es
-peor que el 0,05 que da una moneda, de modo que esos dos modelos no están
-degradados sino rotos. La deriva degradaría a las cuatro familias en proporción
-parecida, y no lo hace: Random Forest y la logística caen un 24 % y un 3 %, que es
-el orden de magnitud medido aquí.
+El colapso se concentra en los dos boosters, cuyo recall de 0,03 y 0,04 a FPR del
+5 % queda por debajo del 0,05 que produciría una asignación aleatoria. Una deriva
+del fenómeno degradaría a las cuatro familias en proporción parecida, y Random
+Forest y la logística caen un 24 % y un 3 %, que es el orden de magnitud medido
+aquí.
 
 La medición de aquí es directa. La estrategia congelada en los días 0 a 46 y usada
 hasta el 182 conserva su AP, con 0,5077 en B1 y 0,5103 en B4, de modo que 136 días
 de antigüedad no la degradan bajo este panel de features.
 
-Queda además una distinción que su diseño no necesita hacer. **Reentrenar no es
-olvidar.** Su método de reentrenamiento usa todos los datos disponibles, y aquí la
-estrategia expansiva, que reentrena sin descartar, es la más barata de las siete.
+El diseño de aquí permite además una distinción que el suyo no necesita hacer,
+entre reentrenar y descartar histórico. Su método de reentrenamiento usa todos los
+datos disponibles, y en este trabajo la estrategia expansiva, que reentrena cada 15
+días sin descartar, resulta la más barata de las siete.
 
 ---
 
@@ -574,19 +580,19 @@ tras observar el test.
 ### Conclusión
 
 El sistema reduce el costo observado de 5,40 a 1,98 UM por transacción frente a
-aprobar todo, una mejora del 63,2 %. Ese resultado proviene del modelo y de la
-política económica, no de la adaptación.
+aprobar todo, una mejora del 63,2 %. Esa reducción proviene del modelo y de la
+política económica; la adaptación por ventanas no contribuye a ella.
 
-El olvido por ventanas fijas no aporta mejora. La estrategia más barata es E15,
-que usa todo el histórico, y la más cara es R46_medio. Ninguna de las 6
-diferencias frente al modelo estático resiste el control de robustez.
+La estrategia más barata es E15, que reentrena sobre todo el histórico, y la más
+cara es R46_medio. Ninguna de las 6 diferencias frente al modelo estático
+resiste el control de robustez.
 
-Las comparaciones controladas sí encuentran señal, y del signo contrario al que
-podría esperarse. Retroceder el corte 30 días con el volumen fijo en 46 encarece
-0,1059 UM/tx, única comparación que resiste las 18 combinaciones de semilla y
-bloque. El efecto del volumen, 0,1257 entre 16 y 76 días, es de magnitud
-parecida pero no alcanza ese criterio. Ambos factores importan poco: el rango
-completo de las siete estrategias va de 1,98 a 2,21 UM/tx, un 11,6 %.
+Las comparaciones controladas sí encuentran señal. Retroceder el corte 30 días
+con el volumen fijo en 46 encarece 0,1059 UM/tx, única comparación que resiste
+las 18 combinaciones de semilla y bloque. El efecto del volumen, 0,1257 entre 16
+y 76 días, es de magnitud parecida pero no alcanza ese criterio. Ambos factores
+importan poco: el rango completo de las siete estrategias va de 1,98 a 2,21
+UM/tx, un 11,6 %.
 
 La recomendación operativa es reentrenar con todo el histórico disponible y
 monitoreo activo. W60 fue la ventana elegida en desarrollo entre las tres

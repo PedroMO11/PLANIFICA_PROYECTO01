@@ -116,11 +116,11 @@ volumen casi constante y mueve solo la antigüedad, que es lo que aquí hace el 
 de antigüedad variable, y da el mismo signo. La magnitud difiere porque su modelo
 congelado acumula cinco meses de antigüedad y el de aquí retrocede 30 días.
 
-La distinción que este diseño permite y el suyo no necesita hacer es que
-**reentrenar no es olvidar**. Su método de reentrenamiento usa todos los datos
+El diseño de aquí permite además distinguir entre reentrenar y descartar
+histórico, distinción que el suyo no necesita hacer. Su método de reentrenamiento usa todos los datos
 disponibles, y aquí la estrategia expansiva, que reentrena sin descartar, es la más
-barata de las siete. La evidencia sostiene reentrenar seguido, no descartar
-histórico.
+barata de las siete. La evidencia sostiene reentrenar con frecuencia y no sostiene
+descartar histórico.
 
 [^1]: *Handling Concept Drift in Fraud Detection: A Replication Study*, 38th
 Canadian Conference on Artificial Intelligence, Calgary, 2025.
