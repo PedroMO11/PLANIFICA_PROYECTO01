@@ -455,7 +455,9 @@ def run_replay(
     amounts = subset["TransactionAmt"].to_numpy()
     days = subset["dia"].to_numpy()
     costs = cost_model.expected_costs(calibrated, amounts)
-    zones = policy.zone(calibrated)
+    # La regla real. Con `zone` el replay decidia por umbrales y sus revisiones
+    # eran solo el cupo diario, no las que la politica habria propuesto.
+    zones = policy.propose(calibrated, costs)
 
     latencies: list[float] = []
     records: list[dict[str, Any]] = []

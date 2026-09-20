@@ -209,9 +209,11 @@ def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | 
         probability = np.array([calibrated])
         amount = np.array([request.amount])
         expected_costs = cost_model.expected_costs(probability, amount)
-        proposed = str(policy.zone(probability)[0])
+        # La regla real, que usa el monto y el precio del cupo. `zone` solo mira `p`
+        # y con la politica vigente mandaria todo a revision.
+        proposed = str(policy.propose(probability, expected_costs)[0])
 
-        action, reason = proposed, "zona_" + proposed
+        action, reason = proposed, "%s_%s" % (policy.rule, proposed)
         if proposed == REVISAR:
             if request.capacity_context.remaining_reviews > 0:
                 reason = "revision_propuesta_cupo_disponible"

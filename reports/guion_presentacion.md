@@ -91,17 +91,18 @@ que el predictor no cambia.
 La familia se elige por costo y no por AP. Son criterios distintos.
 
 La calibración admite una demostración cuantitativa. La configuración ganadora de
-la logística usa `class_weight=balanced` e infla los puntajes hasta un Brier de
-0,1499 y un ECE de 0,2939. Platt los corrige a 0,0317 y 0,0044, una mejora del ECE
-por un factor de 67. Sin esa corrección, `p * monto` produciría un exceso de
-bloqueos que el AP no reflejaría.
+la logística usa `class_weight=balanced` e infla los puntajes hasta un ECE de
+0,28501. Platt lo corrige a 0,00440, una mejora por un factor
+de 65. Sin esa corrección, `p × monto` produciría un exceso de bloqueos
+que el AP no reflejaría.
 
 Conviene dedicar un minuto a la política, porque es donde este trabajo se aparta
 del plan. La acción no sale de dos umbrales sobre `p`, sale del mínimo de los tres
 costos esperados. El motivo es que el punto de indiferencia entre aprobar y
 bloquear es `p* = c_FP / (monto + c_FP)` y depende del monto, de modo que ningún
-corte fijo puede ser óptimo. La diferencia medida es de 1,9696 a
-1,5895 UM/tx, con las mismas revisiones y menos bloqueo de legítimas.
+corte fijo puede ser óptimo. La diferencia medida sobre la reserva de desarrollo es
+de 1,9696 a 1,5895 UM/tx, y la comparación va en contra de la regla
+económica, porque los umbrales se eligen minimizando sobre esa misma ventana.
 
 `c_FP` tampoco se fija a mano. Con el valor de 5 UM que proponía el plan, el
 sistema rechaza al 11,17 % de las transacciones legítimas, que ninguna
@@ -145,8 +146,9 @@ la única comparación controlada que resiste las 18 combinaciones de semilla y
 bloque. Variar el volumen entre 16 y 76 días con el mismo corte da 0,1257, de
 magnitud parecida pero menos estable.
 
-La conclusión correcta no es que el olvido perjudique por olvidar, sino que
-perjudica por entrenar con menos datos.
+La conclusión correcta es la contraria a la que sugería el diseño confundido. Lo
+que produce un efecto medible es la antigüedad, no el volumen. Y aun así el efecto
+es pequeño: ninguna estrategia se distingue del modelo estático de forma estable.
 
 El tercero es la explicación. Las covariables son estables, con un AUC de S1 de
 0,551, mientras que ADWIN sí registra deriva en el error. Existe deriva,
@@ -190,11 +192,11 @@ recursos creados.
 
 Mostrar `reports/infografia.pdf`.
 
-Equidad operativa. De 14 segmentos con soporte suficiente, 6 superan el umbral de
-2 puntos porcentuales. La mayor diferencia corresponde a `DeviceType` desktop con
-6,88 puntos. Conviene precisar que se trata de disparidad operativa sobre
-variables de negocio y no de una auditoría demográfica, porque IEEE-CIS no
-contiene atributos protegidos verificables.
+Equidad operativa. De 14 segmentos con soporte suficiente, 2 superan el umbral
+de 2 puntos porcentuales. La mayor diferencia corresponde a `DeviceType` mobile
+con 2,20 puntos. Conviene precisar que se trata de disparidad operativa sobre
+variables de negocio y no de una auditoría demográfica, porque IEEE-CIS no contiene
+atributos protegidos verificables.
 
 Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
 promover. No es que los gates no discriminen, sino que el gate social ya no

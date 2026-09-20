@@ -204,6 +204,32 @@ def test_paridad_entre_el_servicio_y_el_calculo_offline(client, package_dir):
     assert body["p_raw"] == pytest.approx(offline_raw, rel=1e-9)
     assert body["p_calibrated"] == pytest.approx(offline_calibrated, rel=1e-9)
 
+    # La paridad de probabilidad no basta. El servicio debe emitir la MISMA accion
+    # que el calculo offline: comparar solo `p` dejo pasar que el servicio decidiera
+    # por umbrales mientras el backtest decidia por costo esperado.
+    from fraud_adaptive.decision import CostModel, Policy, policy_from_dict
+
+    policy = policy_from_dict(
+        json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))["policy"])
+    costs = CostModel(**COSTOS).expected_costs(
+        np.array([offline_calibrated]), np.array([250.0]))
+    assert body["action"] == str(policy.propose(np.array([offline_calibrated]), costs)[0])
+    for accion, valor in body["expected_costs"].items():
+        assert valor == pytest.approx(float(costs[accion][0]), rel=1e-9)
+
+
+def test_el_servicio_usa_el_precio_del_cupo(client, package_dir):
+    """Con `tau_low=0` y `tau_high=1`, una regla de umbrales mandaria todo a
+    revision. La accion debe depender del monto y del precio del cupo."""
+    barata = client.post("/predict", json=_payload(
+        features={"TransactionAmt": 1.0, "monto_log": 0.7, "ProductCD": "C"},
+        amount=1.0)).json()
+    cara = client.post("/predict", json=_payload(
+        features={"TransactionAmt": 5000.0, "monto_log": 8.5, "ProductCD": "C"},
+        amount=5000.0)).json()
+    assert barata["action"] == "aprobar", barata
+    assert barata["action"] != cara["action"], (barata, cara)
+
 
 # --------------------------------------------------------------------------- rollback
 

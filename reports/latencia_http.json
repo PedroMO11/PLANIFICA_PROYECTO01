@@ -1,0 +1,12 @@
+{
+ "n": 1000,
+ "p50_ms": 54.49229999794625,
+ "p95_ms": 90.06608499767026,
+ "p99_ms": 99.07461799390146,
+ "acciones": {
+  "aprobar": 951,
+  "revisar": 38,
+  "bloquear": 11
+ },
+ "modo": "HTTP al contenedor, una fila por peticion"
+}
