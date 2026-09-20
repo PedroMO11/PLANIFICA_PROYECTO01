@@ -108,6 +108,23 @@ Mantener el volumen en 46 días y retroceder el corte 30 días encarece la decis
 El diseño confundido llevaba a la conclusión opuesta, que el volumen dominaba y la
 frescura no producía efecto medible.
 
+**Contraste con la literatura.** Topal, Bozanta, Erer y Başar comparan sobre este
+mismo dataset modelos congelados tras los primeros 16 días contra modelos
+reentrenados a diario sobre los últimos 23, con un recall a FPR del 5 % de 0,03
+frente a 0,37, y concluyen que existe concept drift.[^1] Su comparación mantiene el
+volumen casi constante y mueve solo la antigüedad, que es lo que aquí hace el bloque
+de antigüedad variable, y da el mismo signo. La magnitud difiere porque su modelo
+congelado acumula cinco meses de antigüedad y el de aquí retrocede 30 días.
+
+La distinción que este diseño permite y el suyo no necesita hacer es que
+**reentrenar no es olvidar**. Su método de reentrenamiento usa todos los datos
+disponibles, y aquí la estrategia expansiva, que reentrena sin descartar, es la más
+barata de las siete. La evidencia sostiene reentrenar seguido, no descartar
+histórico.
+
+[^1]: *Handling Concept Drift in Fraud Detection: A Replication Study*, 38th
+Canadian Conference on Artificial Intelligence, Calgary, 2025.
+
 El efecto de la frescura no es monótono. Retroceder 30 días encarece, pero tomar
 los 46 primeros días del histórico no se distingue de la ventana más fresca. La
 correlación entre días de fit y costo cae de −0,9916 en el diseño confundido a

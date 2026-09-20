@@ -255,6 +255,24 @@ una respuesta posible a esa deriva y resulta que no la corrige en este dataset. 
 deriva se concentra en P(y|X) mientras P(X) permanece estable, y una ventana corta
 sobre P(X) estable solo reduce el tamaño de muestra.
 
+### Hay trabajo publicado sobre IEEE-CIS que sí encuentra que adaptarse sirve. ¿Se contradicen?
+
+No, y conviene tener la referencia a mano. Topal, Bozanta, Erer y Başar presentaron
+en el Canadian AI 2025 una replicación sobre este mismo dataset. Comparan un modelo
+congelado tras los primeros 16 días contra uno reentrenado a diario sobre los
+últimos 23, y obtienen un recall a FPR del 5 % de 0,03 frente a 0,37.
+
+Esa comparación mantiene el volumen casi constante y mueve solo la antigüedad, que
+es exactamente lo que aquí hace el bloque de antigüedad variable, y da el mismo
+signo. La diferencia de magnitud se explica porque su modelo congelado acumula
+cinco meses de antigüedad y el de aquí retrocede 30 días.
+
+La distinción que este trabajo agrega es que reentrenar no es olvidar. Lo que ellos
+llaman reentrenamiento usa todos los datos disponibles. Aquí la estrategia
+expansiva, que reentrena sin descartar, es la más barata de las siete, y ninguna
+ventana deslizante la supera. La evidencia sostiene reentrenar seguido; no sostiene
+tirar histórico.
+
 ### Los costos son supuestos. ¿Qué validez tienen las conclusiones?
 
 Los supuestos están declarados y se somete el resultado a tres escenarios

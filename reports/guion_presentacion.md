@@ -200,12 +200,11 @@ variables de negocio y no de una auditoría demográfica, porque IEEE-CIS no con
 atributos protegidos verificables.
 
 Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
-promover. No es que los gates no discriminen, sino que el gate social ya no
-tiene nada que bloquear. Con `c_FP` calibrado contra el objetivo de bloqueo, la
-brecha máxima entre segmentos es de 0,70 puntos porcentuales frente a un umbral
-de 2. En la versión anterior, con `c_FP` fijado en 5 UM, ese mismo gate
-bloqueaba a todas las estrategias en T = 135 con brechas de hasta 4,69 puntos.
-La actividad del gate era un síntoma del costo mal especificado, no de deriva.
+promover. El gate social ya no tiene nada que bloquear, porque con `c_FP`
+calibrado la brecha máxima entre segmentos es de 0,70 puntos frente a un umbral
+de 2. Con `c_FP` fijado en 5 UM ese mismo gate bloqueaba a todas las estrategias
+en T = 135 con brechas de hasta 4,69 puntos: su actividad era un síntoma del
+costo mal especificado, no de deriva.
 
 La restricción dominante es la capacidad. La demanda de revisión supera de forma
 sistemática los 150 casos diarios, de modo que mejorar el AP presenta rendimientos
@@ -295,6 +294,24 @@ No. ADWIN observa deriva en el error, que existe. El olvido por ventanas fijas e
 una respuesta posible a esa deriva y resulta que no la corrige en este dataset. La
 deriva se concentra en P(y|X) mientras P(X) permanece estable, y una ventana corta
 sobre P(X) estable solo reduce el tamaño de muestra.
+
+### Hay trabajo publicado sobre IEEE-CIS que sí encuentra que adaptarse sirve. ¿Se contradicen?
+
+No, y conviene tener la referencia a mano. Topal, Bozanta, Erer y Başar presentaron
+en el Canadian AI 2025 una replicación sobre este mismo dataset. Comparan un modelo
+congelado tras los primeros 16 días contra uno reentrenado a diario sobre los
+últimos 23, y obtienen un recall a FPR del 5 % de 0,03 frente a 0,37.
+
+Esa comparación mantiene el volumen casi constante y mueve solo la antigüedad, que
+es exactamente lo que aquí hace el bloque de antigüedad variable, y da el mismo
+signo. La diferencia de magnitud se explica porque su modelo congelado acumula
+cinco meses de antigüedad y el de aquí retrocede 30 días.
+
+La distinción que este trabajo agrega es que reentrenar no es olvidar. Lo que ellos
+llaman reentrenamiento usa todos los datos disponibles. Aquí la estrategia
+expansiva, que reentrena sin descartar, es la más barata de las siete, y ninguna
+ventana deslizante la supera. La evidencia sostiene reentrenar seguido; no sostiene
+tirar histórico.
 
 ### Los costos son supuestos. ¿Qué validez tienen las conclusiones?
 

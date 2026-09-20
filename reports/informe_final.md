@@ -395,22 +395,35 @@ tomar los 46 primeros días del histórico no se distingue de la ventana más
 fresca, con 0,0084. La correlación entre días de fit y costo cae de −0,9916 en
 el diseño confundido a −0,7412 en el controlado.
 
-Las señales de drift explican por qué el efecto que sobrevive es el de frescura. El
-domain classifier obtiene un AUC de 0,551, por debajo del umbral de alerta
-de 0,75, y ninguna columna original supera 0,61 en la validación adversarial por
-feature: P(X) se mantiene estable durante los 182 días. Sin deriva de covariables,
-deslizar la ventana no aporta distribuciones de entrada nuevas, de modo que el
-efecto de la frescura no puede venir de ahí. Apunta a P(y|X), que es donde ADWIN sí
-registra deriva, y que el protocolo no puede identificar causalmente con datos
-observacionales.
+El efecto de la frescura no viene de las covariables. El domain classifier obtiene
+un AUC de 0,551 y ninguna columna original supera 0,61 en la validación
+adversarial por feature, de modo que P(X) es estable. Apunta a P(y|X), donde ADWIN
+sí registra deriva y que el protocolo no identifica causalmente.
+
+### Contraste con la literatura sobre el mismo dataset
+
+Topal et al. [1] comparan sobre IEEE-CIS modelos congelados tras los primeros 16
+días contra modelos reentrenados a diario sobre los últimos 23, con un recall a FPR
+del 5 % de 0,03 frente a 0,37, y concluyen que existe concept drift.
+
+Ese resultado refuerza el de aquí en lugar de contradecirlo. Su comparación
+mantiene el volumen casi constante y mueve solo la antigüedad, igual que el bloque
+de antigüedad variable de este trabajo, y da el mismo signo. La magnitud difiere
+porque su modelo congelado llega a cinco meses de antigüedad y el de aquí retrocede
+30 días.
+
+Lo que este trabajo añade es una distinción que su diseño no necesita hacer.
+**Reentrenar no es olvidar.** Su método de reentrenamiento usa todos los datos
+disponibles, y aquí la estrategia expansiva, que reentrena sin descartar, es la más
+barata de las siete. La evidencia sostiene reentrenar seguido, no descartar
+histórico.
 
 ### Objetivos diagnósticos, señales y gates
 
 El AP del sistema estático pasa de 0,5257 en B1 a 0,5144 en B4, sin degradación
-monótona. El descenso común en B2, hasta 0,3907, afecta a las siete estrategias
-por igual, incluidas las que se reentrenan, de modo que corresponde a un periodo
-más difícil y no a un modelo que caduca. El detalle por bloque está en
-`reports/tables/adaptacion.csv`.
+monótona. El descenso común en B2, hasta 0,3907, afecta a las siete por igual,
+incluidas las que se reentrenan, de modo que corresponde a un periodo más
+difícil y no a un modelo que caduca.
 
 Los umbrales diagnósticos se eligieron en validación y se aplicaron congelados.
 Ninguna estrategia alcanza el FPR máximo del 1 % ni la precisión mínima del 80 %
@@ -419,20 +432,17 @@ y 82,5 %. El informe reporta el nivel obtenido y no ajusta el umbral,
 porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
 posteriori.
 
-ADWIN registra 49 detecciones repartidas entre las 7 estrategias, todas con
-exactamente 30 días de retraso. Existe deriva en el error real. Las señales sin
-etiqueta generan 2 alertas sobre 497 registros y el domain classifier no se
-acerca a su umbral. El error deriva mientras las covariables se mantienen
-estables, que es justamente el régimen en el que una ventana corta paga el costo
-de tener menos muestra sin cobrar el beneficio de la frescura en P(X).
+ADWIN registra 49 detecciones entre las 7 estrategias, todas con 30 días de
+retraso: existe deriva en el error real. Las señales sin etiqueta generan 2
+alertas sobre 497 registros y el domain classifier no se acerca a su umbral. El
+error deriva mientras las covariables se mantienen estables.
 
 Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
-promover. No es que los gates no discriminen, sino que el gate social ya no
-tiene nada que bloquear. Con `c_FP` calibrado contra el objetivo de bloqueo, la
-brecha máxima entre segmentos es de 0,70 puntos porcentuales frente a un umbral
-de 2. En la versión anterior, con `c_FP` fijado en 5 UM, ese mismo gate
-bloqueaba a todas las estrategias en T = 135 con brechas de hasta 4,69 puntos.
-La actividad del gate era un síntoma del costo mal especificado, no de deriva.
+promover. El gate social ya no tiene nada que bloquear, porque con `c_FP`
+calibrado la brecha máxima entre segmentos es de 0,70 puntos frente a un umbral
+de 2. Con `c_FP` fijado en 5 UM ese mismo gate bloqueaba a todas las estrategias
+en T = 135 con brechas de hasta 4,69 puntos: su actividad era un síntoma del
+costo mal especificado, no de deriva.
 
 ---
 
@@ -584,6 +594,10 @@ sistema funcione en el futuro.
 
 Cada cifra es trazable a un `run_id` y a un artefacto con hash en
 `reports/indice_evidencia.csv`.
+
+[1] Topal, Bozanta, Erer y Başar, *Handling Concept Drift in Fraud Detection: A
+Replication Study*, 38th Canadian Conference on Artificial Intelligence, Calgary,
+2025.
 
 Los antecedentes son `propuesta_proyecto1_final.md`, `concept_drift_findings.md` y
 `concept_drift_benchmark_instructions.md`. El benchmark que seleccionó IEEE-CIS se
