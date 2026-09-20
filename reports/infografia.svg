@@ -171,6 +171,6 @@
     el cupo se garantiza para un orquestador secuencial · es un backtest retrospectivo, no una validación prospectiva.
   </text>
   <text class="nota" x="48" y="1008" font-weight="700" fill="#e34948">
-    Resultado principal. El olvido por ventanas fijas no reduce el costo. A volumen igual, retroceder el corte 30 días encarece 0,106 UM/tx.
+    Resultado principal. IEEE-CIS tiene concept drift y no tiene data drift. A volumen igual, 30 días de antigüedad cuestan 0,106 UM/tx. Reentrenar sirve; olvidar no.
   </text>
 </svg>

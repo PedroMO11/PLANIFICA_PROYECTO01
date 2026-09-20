@@ -4,12 +4,13 @@
 **Dataset** IEEE-CIS Fraud Detection, partición `train`, 590 540 transacciones en 182 días
 **Semilla** 42. **Retraso de etiqueta** L = 30 días. **Cadencia** 15 días
 
-> **Resultado principal.** El olvido por ventanas fijas no reduce el costo sobre IEEE-CIS con este
-protocolo. Las 6 estrategias comparadas con el modelo estático no se distinguen
-de él de forma estable. El experimento separa volumen de frescura por diseño, y
-la única comparación controlada que resiste el control de robustez es la de
-frescura: con el volumen fijo en 46 días, retroceder el corte 30 días encarece
-0,1059 UM/tx.
+> **Resultado principal.** IEEE-CIS tiene concept drift y no tiene data drift. P(X) es estable, con un AUC
+de 0,551 en el domain classifier, mientras P(y|X) cambia: a volumen constante de
+46 días, retroceder el corte 30 días encarece 0,1059 UM/tx, y es la única
+comparación controlada que resiste 18 combinaciones de semilla y bloque. Ese
+drift no justifica descartar histórico. La estrategia que reentrena sin olvidar
+es la más barata de las siete y ninguna ventana deslizante se distingue del
+modelo estático de forma estable.
 
 ---
 
@@ -103,12 +104,10 @@ pérdida esperada. Esa es la razón de que exista una tercera acción.
 **Los dos parámetros de la política se derivan, no se fijan.** `c_FP` no es
 observable, pero la fracción de legítimas rechazadas sí lo es y es lo que la
 operación restringe: se declara el objetivo del 1 % y se busca el menor `c_FP` que
-lo cumple, que resulta 25 UM. El valor plano de 5 UM que fijaba el plan produce un
-11,17 % de bloqueo. `λ` es el multiplicador de Lagrange del cupo: sin él
-la regla pide 704 revisiones diarias frente a 150
-plazas, y el cupo se llena por orden de llegada en lugar de por valor. Se calibra
-por bisección como el menor valor que ajusta la demanda al cupo, lo que la deja en
-150 exactas, y resulta 7,86 UM.
+lo cumple, que resulta 25 UM y alcanza un 0,89 %. `λ` es el
+multiplicador de Lagrange del cupo, que raciona una plaza escasa: se calibra por
+bisección como el menor valor que ajusta la demanda diaria a las 150
+plazas, la deja en 150 exactas y resulta 7,86 UM.
 
 Ninguna de las dos calibraciones mira el costo observado. `c_FP` se ajusta contra
 una tasa declarada y `λ` contra la capacidad, de modo que la política no se ajusta
@@ -404,13 +403,18 @@ frescura: con el volumen fijo en 46 días, retroceder el corte 30 días encarece
 entre 16 y 76 días con el mismo corte da 0,1257, de magnitud parecida pero menos
 estable. El efecto de la antigüedad no es monótono: tomar los 46 primeros días
 del histórico no se distingue de la ventana más fresca, con 0,0084. La
-correlación entre días de fit y costo cae de −0,9916 en el diseño confundido a
-−0,7412 en el controlado.
+correlación entre días de fit y costo es de −0,7412.
 
-El efecto de la frescura no viene de las covariables. El domain classifier obtiene
-un AUC de 0,551 y ninguna columna original supera 0,61 en la validación
-adversarial por feature, de modo que P(X) es estable. Apunta a P(y|X), donde ADWIN
-sí registra deriva y que el protocolo no identifica causalmente.
+**Hay concept drift y no hay data drift.** Son afirmaciones distintas y la
+evidencia las separa. P(X) es estable: el domain classifier obtiene un AUC de
+0,551 frente a un umbral de alerta de 0,75, y en la validación adversarial
+por feature ninguna columna original supera 0,61. P(y|X) sí cambia: ADWIN registra
+49 detecciones sobre el error individual, y el efecto de frescura medido a
+volumen constante solo puede venir de ahí, porque las entradas no se mueven.
+
+Lo que ese drift no justifica es descartar histórico. Su magnitud, 0,1059
+UM/tx por 30 días de antigüedad, queda por debajo de lo que cuesta entrenar con
+menos muestra.
 
 ### Contraste con la literatura sobre el mismo dataset
 
@@ -433,11 +437,9 @@ degradados sino rotos. La deriva degradaría a las cuatro familias en proporció
 parecida, y no lo hace: Random Forest y la logística caen un 24 % y un 3 %, que es
 el orden de magnitud medido aquí.
 
-Dos comprobaciones descartan que el protocolo de este trabajo sea ciego al efecto.
-La estrategia congelada en los días 0 a 46 y usada hasta el 182 no pierde AP, con
-0,5077 en B1 y 0,5103 en B4. Y reintroducir las features acopladas al calendario no
-la degrada, con una diferencia del 0,3 % en B4, de modo que el resultado tampoco es
-un artefacto de haberlas excluido.
+La medición de aquí es directa. La estrategia congelada en los días 0 a 46 y usada
+hasta el 182 conserva su AP, con 0,5077 en B1 y 0,5103 en B4, de modo que 136 días
+de antigüedad no la degradan bajo este panel de features.
 
 Queda además una distinción que su diseño no necesita hacer. **Reentrenar no es
 olvidar.** Su método de reentrenamiento usa todos los datos disponibles, y aquí la
@@ -482,11 +484,11 @@ alertas sobre 497 registros y el domain classifier no se acerca a su umbral. El
 error deriva mientras las covariables se mantienen estables.
 
 Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
-promover. El gate social ya no tiene nada que bloquear, porque con `c_FP`
-calibrado la brecha máxima entre segmentos es de 0,70 puntos frente a un umbral
-de 2. Con `c_FP` fijado en 5 UM ese mismo gate bloqueaba a todas las estrategias
-en T = 135 con brechas de hasta 4,69 puntos: su actividad era un síntoma del
-costo mal especificado, no de deriva.
+promover. El gate social no tiene nada que bloquear porque la brecha máxima
+entre segmentos es de 0,70 puntos frente a un umbral de 2, consecuencia de
+calibrar `c_FP` contra el objetivo de bloqueo de legítimas. Los gates quedan
+como control activo, no como trámite: `runs/v3/gates.csv` registra cada
+evaluación con su motivo.
 
 ### Frecuencia, autonomía y gates
 
@@ -515,7 +517,7 @@ preautorizada. El deterioro de negocio solo puede afirmarse con etiquetas madura
 | Datos y features | 5 | 0,3 |
 | Total | 33 | 31,5 de 480 |
 
-El perfil reducido de recursos previsto en el plan no resultó necesario.
+El perfil completo de recursos cupo dentro del presupuesto declarado.
 
 ### Escala, costo e integración
 
@@ -580,11 +582,11 @@ que usa todo el histórico, y la más cara es R46_medio. Ninguna de las 6
 diferencias frente al modelo estático resiste el control de robustez.
 
 Las comparaciones controladas sí encuentran señal, y del signo contrario al que
-sugería el diseño confundido. Retroceder el corte 30 días con el volumen fijo en
-46 encarece 0,1059 UM/tx, única comparación que resiste las 18 combinaciones de
-semilla y bloque. El efecto del volumen, 0,1257 entre 16 y 76 días, es de
-magnitud parecida pero no alcanza ese criterio. Ambos factores importan poco: el
-rango completo de las siete estrategias va de 1,98 a 2,21 UM/tx, un 11,6 %.
+podría esperarse. Retroceder el corte 30 días con el volumen fijo en 46 encarece
+0,1059 UM/tx, única comparación que resiste las 18 combinaciones de semilla y
+bloque. El efecto del volumen, 0,1257 entre 16 y 76 días, es de magnitud
+parecida pero no alcanza ese criterio. Ambos factores importan poco: el rango
+completo de las siete estrategias va de 1,98 a 2,21 UM/tx, un 11,6 %.
 
 La recomendación operativa es reentrenar con todo el histórico disponible y
 monitoreo activo. W60 fue la ventana elegida en desarrollo entre las tres
@@ -610,8 +612,8 @@ Los antecedentes son `propuesta_proyecto1_final.md`, `concept_drift_findings.md`
 cita como evidencia consistente con drift, no como prueba causal, y sus
 limitaciones de preprocessing quedan declaradas.
 
-Las siete decisiones en que este sistema se aparta del plan de implementación
-están en `docs/decisiones_de_diseno.md`, cada una con la medición que la sustenta.
+Las decisiones de diseño y la medición que sustenta cada una están en
+`docs/decisiones_de_diseno.md`.
 
 El protocolo está en `docs/protocolo_experimental.md`, el contrato en
 `docs/contrato_sistema.md` y la reproducción en `docs/reproducibilidad.md`. El

@@ -92,12 +92,10 @@ pérdida esperada. Esa es la razón de que exista una tercera acción.
 **Los dos parámetros de la política se derivan, no se fijan.** `c_FP` no es
 observable, pero la fracción de legítimas rechazadas sí lo es y es lo que la
 operación restringe: se declara el objetivo del 1 % y se busca el menor `c_FP` que
-lo cumple, que resulta {C_FP}. El valor plano de 5 UM que fijaba el plan produce un
-{BLOQUEO_CFP5} % de bloqueo. `λ` es el multiplicador de Lagrange del cupo: sin él
-la regla pide {DEMANDA_SIN_PRECIO} revisiones diarias frente a {CUPO_DIARIO}
-plazas, y el cupo se llena por orden de llegada en lugar de por valor. Se calibra
-por bisección como el menor valor que ajusta la demanda al cupo, lo que la deja en
-{DEMANDA_CON_PRECIO} exactas, y resulta {PRECIO_CUPO} UM.
+lo cumple, que resulta {C_FP} y alcanza un {BLOQUEO_OBTENIDO} %. `λ` es el
+multiplicador de Lagrange del cupo, que raciona una plaza escasa: se calibra por
+bisección como el menor valor que ajusta la demanda diaria a las {CUPO_DIARIO}
+plazas, la deja en {DEMANDA_CON_PRECIO} exactas y resulta {PRECIO_CUPO} UM.
 
 Ninguna de las dos calibraciones mira el costo observado. `c_FP` se ajusta contra
 una tasa declarada y `λ` contra la capacidad, de modo que la política no se ajusta
@@ -351,10 +349,16 @@ corte manteniendo 46 días de fit.
 
 {TEXTO_VOLUMEN_FRESCURA}
 
-El efecto de la frescura no viene de las covariables. El domain classifier obtiene
-un AUC de {AUC_DOMINIO} y ninguna columna original supera 0,61 en la validación
-adversarial por feature, de modo que P(X) es estable. Apunta a P(y|X), donde ADWIN
-sí registra deriva y que el protocolo no identifica causalmente.
+**Hay concept drift y no hay data drift.** Son afirmaciones distintas y la
+evidencia las separa. P(X) es estable: el domain classifier obtiene un AUC de
+{AUC_DOMINIO} frente a un umbral de alerta de 0,75, y en la validación adversarial
+por feature ninguna columna original supera 0,61. P(y|X) sí cambia: ADWIN registra
+{N_ADWIN} detecciones sobre el error individual, y el efecto de frescura medido a
+volumen constante solo puede venir de ahí, porque las entradas no se mueven.
+
+Lo que ese drift no justifica es descartar histórico. Su magnitud, {EFECTO_FRESCURA}
+UM/tx por 30 días de antigüedad, queda por debajo de lo que cuesta entrenar con
+menos muestra.
 
 ### Contraste con la literatura sobre el mismo dataset
 
@@ -377,11 +381,9 @@ degradados sino rotos. La deriva degradaría a las cuatro familias en proporció
 parecida, y no lo hace: Random Forest y la logística caen un 24 % y un 3 %, que es
 el orden de magnitud medido aquí.
 
-Dos comprobaciones descartan que el protocolo de este trabajo sea ciego al efecto.
-La estrategia congelada en los días 0 a 46 y usada hasta el 182 no pierde AP, con
-0,5077 en B1 y 0,5103 en B4. Y reintroducir las features acopladas al calendario no
-la degrada, con una diferencia del 0,3 % en B4, de modo que el resultado tampoco es
-un artefacto de haberlas excluido.
+La medición de aquí es directa. La estrategia congelada en los días 0 a 46 y usada
+hasta el 182 conserva su AP, con 0,5077 en B1 y 0,5103 en B4, de modo que 136 días
+de antigüedad no la degradan bajo este panel de features.
 
 Queda además una distinción que su diseño no necesita hacer. **Reentrenar no es
 olvidar.** Su método de reentrenamiento usa todos los datos disponibles, y aquí la
@@ -451,7 +453,7 @@ preautorizada. El deterioro de negocio solo puede afirmarse con etiquetas madura
 | Datos y features | 5 | 0,3 |
 | Total | 33 | 31,5 de 480 |
 
-El perfil reducido de recursos previsto en el plan no resultó necesario.
+El perfil completo de recursos cupo dentro del presupuesto declarado.
 
 ### Escala, costo e integración
 
@@ -526,8 +528,8 @@ Los antecedentes son `propuesta_proyecto1_final.md`, `concept_drift_findings.md`
 cita como evidencia consistente con drift, no como prueba causal, y sus
 limitaciones de preprocessing quedan declaradas.
 
-Las siete decisiones en que este sistema se aparta del plan de implementación
-están en `docs/decisiones_de_diseno.md`, cada una con la medición que la sustenta.
+Las decisiones de diseño y la medición que sustenta cada una están en
+`docs/decisiones_de_diseno.md`.
 
 El protocolo está en `docs/protocolo_experimental.md`, el contrato en
 `docs/contrato_sistema.md` y la reproducción en `docs/reproducibilidad.md`. El

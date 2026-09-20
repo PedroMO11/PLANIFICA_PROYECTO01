@@ -96,18 +96,18 @@ la logística usa `class_weight=balanced` e infla los puntajes hasta un ECE de
 de 65. Sin esa corrección, `p × monto` produciría un exceso de bloqueos
 que el AP no reflejaría.
 
-Conviene dedicar un minuto a la política, porque es donde este trabajo se aparta
-del plan. La acción no sale de dos umbrales sobre `p`, sale del mínimo de los tres
-costos esperados. El motivo es que el punto de indiferencia entre aprobar y
+Conviene dedicar un minuto a la política, porque es la pieza que más mueve el
+costo. La acción sale del mínimo de los tres costos esperados, no de umbrales sobre
+`p`. El motivo es que el punto de indiferencia entre aprobar y
 bloquear es `p* = c_FP / (monto + c_FP)` y depende del monto, de modo que ningún
 corte fijo puede ser óptimo. La diferencia medida sobre la reserva de desarrollo es
 de 1,9696 a 1,5895 UM/tx, y la comparación va en contra de la regla
 económica, porque los umbrales se eligen minimizando sobre esa misma ventana.
 
-`c_FP` tampoco se fija a mano. Con el valor de 5 UM que proponía el plan, el
-sistema rechaza al 11,17 % de las transacciones legítimas, que ninguna
-operación de pagos acepta. Se invierte la relación: se declara el objetivo del 1 %
-y se busca el menor `c_FP` que lo cumple, que resulta 25 UM. El orden de las
+`c_FP` tampoco se fija a mano. El costo de un falso positivo no es observable, pero
+la fracción de legítimas rechazadas sí lo es y es lo que la operación restringe. Se
+declara el objetivo del 1 % y se busca el menor `c_FP` que lo cumple, que resulta
+25 UM y alcanza un 0,89 %. El orden de las
 estrategias no depende de ese valor.
 
 ---
@@ -146,9 +146,9 @@ la única comparación controlada que resiste las 18 combinaciones de semilla y
 bloque. Variar el volumen entre 16 y 76 días con el mismo corte da 0,1257, de
 magnitud parecida pero menos estable.
 
-La conclusión correcta es la contraria a la que sugería el diseño confundido. Lo
-que produce un efecto medible es la antigüedad, no el volumen. Y aun así el efecto
-es pequeño: ninguna estrategia se distingue del modelo estático de forma estable.
+Lo que produce un efecto medible es la antigüedad, no el volumen. Y aun así el
+efecto es pequeño: ninguna estrategia se distingue del modelo estático de forma
+estable.
 
 El tercero es la explicación. Las covariables son estables, con un AUC de S1 de
 0,551, mientras que ADWIN sí registra deriva en el error. Existe deriva,
@@ -200,11 +200,11 @@ variables de negocio y no de una auditoría demográfica, porque IEEE-CIS no con
 atributos protegidos verificables.
 
 Ningún gate bloqueó una promoción: las 22 evaluaciones recomendaron activar o
-promover. El gate social ya no tiene nada que bloquear, porque con `c_FP`
-calibrado la brecha máxima entre segmentos es de 0,70 puntos frente a un umbral
-de 2. Con `c_FP` fijado en 5 UM ese mismo gate bloqueaba a todas las estrategias
-en T = 135 con brechas de hasta 4,69 puntos: su actividad era un síntoma del
-costo mal especificado, no de deriva.
+promover. El gate social no tiene nada que bloquear porque la brecha máxima
+entre segmentos es de 0,70 puntos frente a un umbral de 2, consecuencia de
+calibrar `c_FP` contra el objetivo de bloqueo de legítimas. Los gates quedan
+como control activo, no como trámite: `runs/v3/gates.csv` registra cada
+evaluación con su motivo.
 
 La restricción dominante es la capacidad. La demanda de revisión supera de forma
 sistemática los 150 casos diarios, de modo que mejorar el AP presenta rendimientos
@@ -285,8 +285,7 @@ De un objetivo operativo, no de una intuición. El costo de un falso positivo no
 observable, pero la fracción de transacciones legítimas rechazadas sí lo es y es
 lo que la operación restringe. Se declara el objetivo del 1 % y se busca el menor
 `c_FP` que lo cumple, sobre datos de desarrollo. El valor resultante es el precio
-sombra de esa restricción. Con los 5 UM que proponía el plan, el sistema rechazaba
-al 11,17 % de las legítimas.
+sombra de esa restricción, y alcanza un 0,89 % de bloqueo.
 
 ### ADWIN detecta 33 cambios. ¿No contradice que el olvido no sirva?
 

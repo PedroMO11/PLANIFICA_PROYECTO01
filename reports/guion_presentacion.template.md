@@ -92,18 +92,18 @@ la logística usa `class_weight=balanced` e infla los puntajes hasta un ECE de
 de {FACTOR_ECE}. Sin esa corrección, `p × monto` produciría un exceso de bloqueos
 que el AP no reflejaría.
 
-Conviene dedicar un minuto a la política, porque es donde este trabajo se aparta
-del plan. La acción no sale de dos umbrales sobre `p`, sale del mínimo de los tres
-costos esperados. El motivo es que el punto de indiferencia entre aprobar y
+Conviene dedicar un minuto a la política, porque es la pieza que más mueve el
+costo. La acción sale del mínimo de los tres costos esperados, no de umbrales sobre
+`p`. El motivo es que el punto de indiferencia entre aprobar y
 bloquear es `p* = c_FP / (monto + c_FP)` y depende del monto, de modo que ningún
 corte fijo puede ser óptimo. La diferencia medida sobre la reserva de desarrollo es
 de {COSTO_UMBRAL} a {COSTO_ARGMIN} UM/tx, y la comparación va en contra de la regla
 económica, porque los umbrales se eligen minimizando sobre esa misma ventana.
 
-`c_FP` tampoco se fija a mano. Con el valor de 5 UM que proponía el plan, el
-sistema rechaza al {BLOQUEO_CFP5} % de las transacciones legítimas, que ninguna
-operación de pagos acepta. Se invierte la relación: se declara el objetivo del 1 %
-y se busca el menor `c_FP` que lo cumple, que resulta {C_FP}. El orden de las
+`c_FP` tampoco se fija a mano. El costo de un falso positivo no es observable, pero
+la fracción de legítimas rechazadas sí lo es y es lo que la operación restringe. Se
+declara el objetivo del 1 % y se busca el menor `c_FP` que lo cumple, que resulta
+{C_FP} y alcanza un {BLOQUEO_OBTENIDO} %. El orden de las
 estrategias no depende de ese valor.
 
 ---
@@ -129,9 +129,9 @@ cosas, porque una ventana más corta entrena con menos datos y con datos más
 recientes a la vez. El bloque de antigüedad variable mantiene los 46 días de fit y
 solo mueve el corte. {TEXTO_VOLUMEN_CORTO}
 
-La conclusión correcta es la contraria a la que sugería el diseño confundido. Lo
-que produce un efecto medible es la antigüedad, no el volumen. Y aun así el efecto
-es pequeño: ninguna estrategia se distingue del modelo estático de forma estable.
+Lo que produce un efecto medible es la antigüedad, no el volumen. Y aun así el
+efecto es pequeño: ninguna estrategia se distingue del modelo estático de forma
+estable.
 
 El tercero es la explicación. Las covariables son estables, con un AUC de S1 de
 {AUC_DOMINIO}, mientras que ADWIN sí registra deriva en el error. Existe deriva,
@@ -245,8 +245,7 @@ De un objetivo operativo, no de una intuición. El costo de un falso positivo no
 observable, pero la fracción de transacciones legítimas rechazadas sí lo es y es
 lo que la operación restringe. Se declara el objetivo del 1 % y se busca el menor
 `c_FP` que lo cumple, sobre datos de desarrollo. El valor resultante es el precio
-sombra de esa restricción. Con los 5 UM que proponía el plan, el sistema rechazaba
-al {BLOQUEO_CFP5} % de las legítimas.
+sombra de esa restricción, y alcanza un {BLOQUEO_OBTENIDO} % de bloqueo.
 
 ### ADWIN detecta 33 cambios. ¿No contradice que el olvido no sirva?
 
