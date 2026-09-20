@@ -35,7 +35,7 @@ contexto.
 
 | Obj. | Enunciado | Criterio | Resultado obtenido |
 |---|---|---|---|
-| O1 | Menor costo que la política actual y que el modelo estático | Inferior a 5,40 y a 2,09 UM/tx | Parcial. Supera aprobar todo. Ninguna estrategia supera al estático de forma estable |
+| O1 | Menor costo que la política actual y que el modelo estático | Inferior a 5,40 y a 2,09 UM/tx | Cumplido por la estrategia recomendada, con 1,98 UM/tx. La ventaja sobre el estático no es concluyente bajo el control de robustez |
 | O2 | Limitar la caída de PR-AUC | Caída superior al 10 % genera alerta | El AP de S0 pasa de 0,526 a 0,514 entre bloques extremos |
 | O3 | Respetar la capacidad de revisión | 150 casos diarios como máximo | Cumplido sin excepción en 62 días |
 | O4 | Señales sin etiqueta que anticipen la caída | Medir el retraso de cada señal | KS/PSI y S1 el mismo día. ADWIN a 30 días |
@@ -72,11 +72,14 @@ diagrama de los cinco componentes está en `docs/arquitectura.mmd`.*
 ### Componentes
 
 La adquisición integra dos fuentes por left join uno a uno sobre `TransactionID`,
-validado por invariancia del número de filas. El predictor compara regresión
-logística, Random Forest y LightGBM, con el preprocessing ajustado dentro de cada
-fit. La decisión aplica el costo esperado sujeto al cupo de revisión. La
-incertidumbre se trata con calibración de Platt por versión e intervalos por
-bootstrap de bloques.
+validado por invariancia del número de filas. Ambas son tabulares, de modo que el
+sistema realiza integración multi-fuente y no multimodalidad en sentido estricto.
+El diagrama identifica los adaptadores donde entrarían texto de producto e
+historial de sesión, declarados como extensión y no como implementación. El
+predictor compara regresión logística, Random Forest y LightGBM, con el
+preprocessing ajustado dentro de cada fit. La decisión aplica el costo esperado
+sujeto al cupo de revisión. La incertidumbre se trata con calibración de Platt por
+versión e intervalos por bootstrap de bloques.
 
 ### Cálculo de la decisión
 
@@ -339,7 +342,7 @@ y 82,5 %. El informe reporta el nivel obtenido y no ajusta el umbral,
 porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
 posteriori.
 
-### Selección de la ventana desplegable
+### Selección de la ventana y estrategia recomendada
 
 El protocolo exige elegir la ventana con datos de desarrollo. La evaluación se
 realiza sobre la reserva de validación, posterior al predictor y al calibrador de
@@ -352,10 +355,16 @@ cada paquete.
 | W30 | 16 | 2 191 | 2,3501 |
 
 W60 y W90 quedan separadas por un 0,80 %, dentro del margen de desempate del 1 %
-que favorece la ventana menor. W30 queda un 4,33 % por encima. El desarrollo
-anticipa que la ventana más corta es la peor de las tres.
+que favorece la ventana menor. W30 queda un 4,33 % por encima. W60 es por tanto
+la ventana deslizante elegida, y la elección se hizo sin observar el test.
 
-W60 constituye la recomendación operativa y fue elegida sin observar el test.
+El enunciado §3.5 lista el reentrenamiento periódico junto a las ventanas
+deslizantes entre las estrategias de adaptación admisibles. Sobre el test, la
+estrategia expansiva, que reentrena cada 15 días sobre todo el histórico,
+alcanza 1,9840 UM/tx frente a 2,0921 del modelo estático y 2,1087 de la ventana
+elegida, de modo que es la que el informe recomienda operar. Su ventaja sobre el
+estático, del 5,2 %, no alcanza el criterio de robustez, y esa salvedad acompaña
+la recomendación.
 
 ---
 
@@ -368,7 +377,7 @@ mantienen constante en 46 días variando solo la antigüedad.
 
 | Estrategia | Días de fit | AP | Brier | Costo UM/tx con IC 95 % | Δ frente a S0 | Bloqueo legítimas | Versiones |
 |---|---|---|---|---|---|---|---|
-| E15 *(ref.)* | 76 a 121 | 0,4965 | 0,0231 | 1,9840 [1,821 y 2,155] | −0,108 [−0,205 y 0,002] | 1,26 % | 4 |
+| E15 *(recomendada)* | 76 a 121 | 0,4965 | 0,0231 | 1,9840 [1,821 y 2,155] | −0,108 [−0,205 y 0,002] | 1,26 % | 4 |
 | W90 | 76 | 0,4901 | 0,0234 | 2,0573 [1,909 y 2,208] | −0,035 [−0,128 y 0,061] | 1,36 % | 4 |
 | S0 *(ref.)* | 69 | 0,4828 | 0,0233 | 2,0921 [1,911 y 2,256] | referencia | 0,87 % | 1 |
 | **W60** | 46 | 0,4802 | 0,0237 | 2,1087 [1,917 y 2,330] | 0,017 [−0,114 y 0,165] | 1,38 % | 4 |
@@ -594,10 +603,11 @@ y 76 días, es de magnitud parecida pero no alcanza ese criterio. Ambos factores
 importan poco: el rango completo de las siete estrategias va de 1,98 a 2,21
 UM/tx, un 11,6 %.
 
-La recomendación operativa es reentrenar con todo el histórico disponible y
-monitoreo activo. W60 fue la ventana elegida en desarrollo entre las tres
-deslizantes, pero ninguna aporta valor sobre la expansiva. Una revisión
-posterior debería evaluar cadencias y retrasos menores que los 30 días de L.
+La recomendación operativa es el reentrenamiento periódico sobre todo el
+histórico cada 15 días, con monitoreo activo. W60 fue la ventana deslizante
+elegida en desarrollo, y ninguna de las tres aporta valor sobre esa alternativa.
+Una revisión posterior debería evaluar cadencias y retrasos menores que los 30
+días de L, que es el régimen que este protocolo no alcanza.
 
 Este trabajo constituye un backtest retrospectivo. Un backtest no demuestra que el
 sistema funcione en el futuro.

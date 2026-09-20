@@ -59,11 +59,14 @@ diagrama de los cinco componentes está en `docs/arquitectura.mmd`.*
 ### Componentes
 
 La adquisición integra dos fuentes por left join uno a uno sobre `TransactionID`,
-validado por invariancia del número de filas. El predictor compara regresión
-logística, Random Forest y LightGBM, con el preprocessing ajustado dentro de cada
-fit. La decisión aplica el costo esperado sujeto al cupo de revisión. La
-incertidumbre se trata con calibración de Platt por versión e intervalos por
-bootstrap de bloques.
+validado por invariancia del número de filas. Ambas son tabulares, de modo que el
+sistema realiza integración multi-fuente y no multimodalidad en sentido estricto.
+El diagrama identifica los adaptadores donde entrarían texto de producto e
+historial de sesión, declarados como extensión y no como implementación. El
+predictor compara regresión logística, Random Forest y LightGBM, con el
+preprocessing ajustado dentro de cada fit. La decisión aplica el costo esperado
+sujeto al cupo de revisión. La incertidumbre se trata con calibración de Platt por
+versión e intervalos por bootstrap de bloques.
 
 ### Cálculo de la decisión
 
@@ -312,7 +315,7 @@ La regla económica induce un umbral distinto por monto. Con la economía calibr
 porque hacerlo convertiría un objetivo incumplido en un resultado ajustado a
 posteriori.
 
-### Selección de la ventana desplegable
+### Selección de la ventana y estrategia recomendada
 
 El protocolo exige elegir la ventana con datos de desarrollo. La evaluación se
 realiza sobre la reserva de validación, posterior al predictor y al calibrador de

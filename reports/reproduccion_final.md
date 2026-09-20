@@ -1,6 +1,6 @@
 # Reproducción final: qué se verificó
 
-Generado: 2026-09-20T20:24:50+00:00
+Generado: 2026-09-20T20:34:00+00:00
 
 
 > Resultados sobre IEEE-CIS (particion train).
