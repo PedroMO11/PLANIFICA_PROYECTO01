@@ -1,6 +1,6 @@
 # Reproducción final: qué se verificó
 
-Generado: 2026-09-20T09:16:57+00:00
+Generado: 2026-09-20T09:41:47+00:00
 
 
 > Resultados obtenidos sobre un sustituto sintetico: no son cifras de IEEE-CIS.
@@ -53,13 +53,34 @@ un timeout nunca se presenta como un ajuste exitoso.
 
 | Verificación | Cómo | Resultado |
 |---|---|---|
-| Suite de pruebas | `python -m pytest` | 120 pruebas |
+| Suite de pruebas | `python -m pytest` | 127 pruebas (126 pasan, 1 omitida) |
 | Notebooks | Ejecutados de principio a fin con `nbclient` | 3 de 3 |
 | Servicio HTTP | `uvicorn` + peticiones reales a `/health` y `/predict` | Verificado |
 | Replay y ledger | 5 000 eventos, 50 reenvíos | Idempotencia aprobada |
 | Cupo diario | 62 días de backtest | Nunca excedido |
 | Detector ADWIN | Streams sintéticos con cambio conocido | Detecta en 1 055, 0 falsas alarmas |
 | Límite de páginas | Recuento sobre el PDF generado | 8 de 8 |
+
+## 3.b Reproducibilidad verificada entre dos corridas independientes
+
+Se ejecutó la cadena completa dos veces con la misma semilla y los mismos datos, en corridas separadas (`principal` y `reproduccion`).
+
+
+| Comparación | Resultado |
+|---|---|
+| Fits de tuning idénticos | **18 / 18** |
+| Hash de prerregistro | Idéntico (`c6288e32141507c6`) |
+| Costo observado · S0 | Idéntico (1.9596135397 UM/tx) |
+| Costo observado · E15 | Idéntico (1.5476906192 UM/tx) |
+| Costo observado · W30 | Idéntico (1.2833064702 UM/tx) |
+| Costo observado · W60 | Idéntico (1.4340933193 UM/tx) |
+| Costo observado · W90 | Idéntico (1.4899289531 UM/tx) |
+
+Comprobable con: `python -m fraud_adaptive --run-id principal verify --against reproduccion`
+
+
+> Los resultados coinciden pese a que el hash de codigo difiere: los cambios estan en modulos que no participan del entrenamiento. Para una comparacion estricta, ejecutar ambas corridas sin editar el codigo entre ellas.
+
 
 ## 4. Lo que NO pudo verificarse
 

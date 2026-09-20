@@ -238,6 +238,74 @@ class HttpClient:
 
 # --------------------------------------------------------------------------- fixtures
 
+def version_switch_demo(
+    package_dir: str | Path, models_root: str | Path, frame: pd.DataFrame
+) -> dict[str, Any]:
+    """Demuestra el cambio de versión activa y el rollback al paquete anterior.
+
+    Es una **prueba de contrato**, no una promoción de negocio aprobada: comprueba
+    que el registro conmuta de paquete, que la versión reportada cambia y que se
+    puede volver atrás. No afirma que el paquete nuevo sea mejor; eso lo decide el
+    gate sobre H y, después, una persona.
+
+    Si no hay una segunda versión disponible, se reporta así en vez de fabricar
+    una: el plan prohíbe completar ramas inventando evidencia.
+    """
+    from .serving import PackageRegistry
+
+    models_root = Path(models_root)
+    package_dir = Path(package_dir)
+    candidates = sorted(
+        d for d in models_root.iterdir()
+        if d.is_dir() and (d / "manifest.json").exists() and d.name != package_dir.name
+    )
+    if not candidates:
+        return {
+            "demostrado": False,
+            "motivo": "no hay una segunda version disponible en %s" % models_root.as_posix(),
+            "nota": "Se reporta la ausencia en lugar de fabricar un cambio de version.",
+        }
+
+    other = candidates[-1]
+    registry = PackageRegistry(package_dir)
+    inicial = registry.active["manifest"]["version_id"]
+
+    schema = registry.active["pipeline"].schema()
+    columns = [c for c in (list(schema["numeric_columns"]) + list(schema["categorical_columns"]))
+               if c in frame.columns]
+    muestra = frame[columns].head(1)
+
+    def puntuar(reg: PackageRegistry) -> float:
+        raw = reg.active["estimator"].predict_proba(reg.active["pipeline"].transform(muestra))[:, 1]
+        return float(reg.active["calibrator"].transform(raw)[0])
+
+    p_inicial = puntuar(registry)
+
+    registry.load(other)
+    activada = registry.active["manifest"]["version_id"]
+    p_activada = puntuar(registry)
+
+    revertido = registry.rollback()
+    tras_rollback = registry.active["manifest"]["version_id"]
+    p_tras_rollback = puntuar(registry)
+
+    return {
+        "demostrado": True,
+        "version_inicial": inicial,
+        "version_activada": activada,
+        "rollback_ejecutado": revertido,
+        "version_tras_rollback": tras_rollback,
+        "rollback_correcto": tras_rollback == inicial,
+        "p_inicial": p_inicial,
+        "p_version_activada": p_activada,
+        "p_tras_rollback": p_tras_rollback,
+        "score_restaurado": abs(p_inicial - p_tras_rollback) < 1e-12,
+        "naturaleza": "prueba_de_contrato",
+        "nota": ("Cambio técnico de paquete. NO es una promoción de negocio aprobada: "
+                 "esa requiere pasar el gate sobre H y autorización humana registrada."),
+    }
+
+
 def measure_inference_latency(
     package: dict[str, Any], frame: pd.DataFrame, *, warmup: int = 100, measured: int = 1000
 ) -> dict[str, Any]:
@@ -519,6 +587,9 @@ def run_replay(
             "aprobado": bool(idempotent_hits == replayed and quota_stable),
         },
         "ledger": ledger.summary(),
+        "cambio_de_version": version_switch_demo(
+            package_dir, Path(base["paths"]["models"]), subset
+        ),
         "fixtures": fixture_results,
         "limitaciones": [
             "Un unico orquestador secuencial garantiza el cupo; no certifica concurrencia.",

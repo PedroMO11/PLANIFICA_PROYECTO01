@@ -69,8 +69,11 @@ python -m fraud_adaptive all
 | `adapt run` | Backtest de las 5 estrategias sobre los mismos eventos |
 | `selftest adwin` | Prueba el detector contra streams con cambio conocido |
 | `report build` | Tablas, figuras y documentos de evidencia |
+| `package export` | Exporta un paquete desplegable (solo W30/W60/W90) |
 | `serve --package <dir>` | Servicio HTTP local (`/health`, `/predict`) |
 | `replay --package <dir>` | Replay secuencial con ledger SQLite |
+| `verify --against <run>` | Compara dos corridas: ¿salen los mismos números? |
+| `deliver` | Cierra la entrega: notebooks, PDF ≤ 8 páginas y manifiesto |
 | `all` | La cadena completa |
 
 ---
@@ -183,7 +186,7 @@ Firestore, BigQuery y Cloud Scheduler **no** están implementados.
 python -m pytest
 ```
 
-120 pruebas (119 pasan; 1 se omite porque el sustituto reducido de las pruebas no
+127 pruebas (126 pasan; 1 se omite porque el sustituto reducido de las pruebas no
 tiene soporte suficiente en la cola de calibración). Agrupadas por la propiedad que
 protegen:
 
@@ -198,6 +201,21 @@ protegen:
 | `test_checkpoint_resume.py` | Reanudación, presupuesto y escritura atómica |
 | `test_serving_contract.py` | Contrato HTTP, 503 sin modelo, paridad offline/API |
 | `test_replay_idempotency.py` | Idempotencia del ledger y atomicidad del cupo |
+| `test_verification.py` | Que la comparación entre corridas distinga resultados de entorno |
+
+### Reproducibilidad, comprobada
+
+La cadena completa se ejecutó **dos veces en corridas independientes**. Los 18 fits
+de tuning, el hash de prerregistro y el costo observado de las cinco estrategias
+salieron idénticos, y ninguna de las 39 columnas de la tabla de resultados difiere:
+
+```bash
+python -m fraud_adaptive --run-id principal verify --against reproduccion
+```
+
+Dentro de la misma máquina y el mismo entorno. **No** se promete igualdad bit a bit
+entre máquinas distintas: BLAS, versión de CPU y orden de reducción en punto
+flotante pueden diferir.
 
 ---
 

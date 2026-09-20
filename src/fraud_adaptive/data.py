@@ -111,6 +111,15 @@ def kaggle_download_instructions(data_root: str | Path) -> str:
         "\n"
         "Los archivos test_* NO se descargan: no tienen etiqueta y el backtest es temporal interno.\n"
         "El token es individual y nunca se versiona.\n"
+        "\n"
+        "Sin acceso a Kaggle\n"
+        "-------------------\n"
+        "     fraud-adaptive data surrogate --scale 1.0\n"
+        "\n"
+        "Genera un dataset SUSTITUTO sintetico con el mismo esquema, eje temporal y\n"
+        "prevalencia, con drift de parametros conocidos. Sirve para ejecutar y verificar\n"
+        "el pipeline completo, pero NINGUNA de sus cifras describe el fraude real: cada\n"
+        "artefacto queda marcado con data_source=sintetico_sustituto.\n"
     )
 
 

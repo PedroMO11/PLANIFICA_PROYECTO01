@@ -78,7 +78,7 @@ validación. Las tres reservas de 7 días son **idénticas** para todas las
 estrategias: eso es lo que hace que una diferencia de costo sea atribuible al
 tamaño de ventana y no a otra cosa.
 
-**Si preguntan cómo saben que no hay fuga:** no es una afirmación, son 120 pruebas.
+**Si preguntan cómo saben que no hay fuga:** no es una afirmación, son 127 pruebas.
 La decisiva: se invierten todas las etiquetas que aún no han madurado y se comprueba
 que el predictor no cambia **ni un bit**.
 
@@ -194,7 +194,7 @@ Preguntas probables, con la respuesta corta primero.
 
 ### «¿Cómo saben que no hay fuga temporal?»
 
-No lo afirmamos: lo probamos. 120 pruebas automáticas. Tres decisivas: (1) alterar
+No lo afirmamos: lo probamos. 127 pruebas automáticas. Tres decisivas: (1) alterar
 las filas futuras no mueve las medianas ni el vocabulario del preprocesamiento;
 (2) invertir todas las etiquetas inmaduras no cambia el predictor ni un bit;
 (3) permutar los IDs de eventos con el mismo timestamp deja las features idénticas.

@@ -88,7 +88,11 @@ blockquote {
   break-inside: avoid; page-break-inside: avoid;
 }
 blockquote p { margin-bottom: 3pt; }
-img { max-width: 100%; max-height: 58mm; display: block; margin: 5pt auto; }
+/* Altura generosa: las figuras son paneles 2x2 o 1x3 con ejes y leyendas. Con un
+   tope bajo se encogen hasta que su texto deja de leerse en papel, que es peor
+   que gastar espacio vertical. Las paginas tienen holgura porque cada H2 empieza
+   uno nuevo. */
+img { max-width: 100%; max-height: 80mm; display: block; margin: 5pt auto; }
 em { color: #52514e; }
 hr { border: none; border-top: 0.6pt solid #e3e2de; margin: 6pt 0; }
 h1 + p em, p > em:only-child { display: block; text-align: center; font-size: 7pt; color: #6b6a66; }

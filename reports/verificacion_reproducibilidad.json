@@ -1,0 +1,67 @@
+{
+  "run_a": "principal",
+  "run_b": "reproduccion",
+  "tolerancia": 0.0,
+  "entorno": {
+    "code_hash_igual": false,
+    "config_hash_igual": true,
+    "code_hash_a": "fa45c569df5c0bf3",
+    "code_hash_b": "bc756036e71c272b"
+  },
+  "tuning": {
+    "n_comparados": 18,
+    "n_solo_en_a": 0,
+    "n_solo_en_b": 0,
+    "identicos": true,
+    "diferencias": []
+  },
+  "prerregistro": {
+    "hash_a": "c6288e32141507c6",
+    "hash_b": "c6288e32141507c6",
+    "identico": true
+  },
+  "resultados": {
+    "por_estrategia": [
+      {
+        "estrategia": "S0",
+        "costo_a": 1.9596135396576817,
+        "costo_b": 1.9596135396576817,
+        "delta": 0.0,
+        "identico": true
+      },
+      {
+        "estrategia": "E15",
+        "costo_a": 1.5476906192248234,
+        "costo_b": 1.5476906192248234,
+        "delta": 0.0,
+        "identico": true
+      },
+      {
+        "estrategia": "W30",
+        "costo_a": 1.2833064702120482,
+        "costo_b": 1.2833064702120482,
+        "delta": 0.0,
+        "identico": true
+      },
+      {
+        "estrategia": "W60",
+        "costo_a": 1.4340933193008605,
+        "costo_b": 1.4340933193008605,
+        "delta": 0.0,
+        "identico": true
+      },
+      {
+        "estrategia": "W90",
+        "costo_a": 1.4899289530533217,
+        "costo_b": 1.4899289530533217,
+        "delta": 0.0,
+        "identico": true
+      }
+    ],
+    "todos_identicos": true
+  },
+  "resultados_identicos": true,
+  "entorno_identico": false,
+  "reproducible": true,
+  "advertencia": "Los resultados coinciden pese a que el hash de codigo difiere: los cambios estan en modulos que no participan del entrenamiento. Para una comparacion estricta, ejecutar ambas corridas sin editar el codigo entre ellas."
+}

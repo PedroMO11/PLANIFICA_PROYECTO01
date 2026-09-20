@@ -712,6 +712,24 @@ def write_replay_report(summary: dict[str, Any], path: Path) -> Path:
                 fixture["caso"], fixture["p_forzada"], fixture["monto"],
                 fixture["accion_obtenida"], fixture["accion_esperada"]))
 
+    switch = summary.get("cambio_de_version", {})
+    if switch:
+        lines += ["\n## Cambio de version y rollback (prueba de contrato)\n"]
+        if switch.get("demostrado"):
+            lines += [
+                "| Paso | Version | p de la fila de prueba |", "|---|---|---|",
+                "| Activa al inicio | %s | %.6f |" % (switch["version_inicial"], switch["p_inicial"]),
+                "| Tras activar otra | %s | %.6f |" % (switch["version_activada"], switch["p_version_activada"]),
+                "| Tras el rollback | %s | %.6f |" % (switch["version_tras_rollback"], switch["p_tras_rollback"]),
+                "",
+                "Rollback correcto: **%s** · score restaurado: **%s**" % (
+                    switch["rollback_correcto"], switch["score_restaurado"]),
+                "",
+                "> %s" % switch["nota"],
+            ]
+        else:
+            lines += ["No demostrado: %s" % switch.get("motivo"), "", "> %s" % switch.get("nota", "")]
+
     latency = summary.get("latencia_ms", {})
     idempotency = summary.get("idempotencia", {})
     ledger = summary.get("ledger", {})
@@ -1038,7 +1056,7 @@ def write_reproduction_report(
         "\n## 3. Verificaciones realizadas\n",
         "| Verificación | Cómo | Resultado |",
         "|---|---|---|",
-        "| Suite de pruebas | `python -m pytest` | 120 pruebas |",
+        "| Suite de pruebas | `python -m pytest` | 127 pruebas (126 pasan, 1 omitida) |",
         "| Notebooks | Ejecutados de principio a fin con `nbclient` | 3 de 3 |",
         "| Servicio HTTP | `uvicorn` + peticiones reales a `/health` y `/predict` | Verificado |",
         "| Replay y ledger | 5 000 eventos, 50 reenvíos | Idempotencia aprobada |",
@@ -1046,8 +1064,38 @@ def write_reproduction_report(
         "| Detector ADWIN | Streams sintéticos con cambio conocido | Detecta en 1 055, 0 falsas alarmas |",
         "| Límite de páginas | Recuento sobre el PDF generado | %s de %s |" % (
             delivery.get("informe_paginas", "?"), 8),
-        "\n## 4. Lo que NO pudo verificarse\n",
     ]
+
+    # Si existe una comparación entre dos corridas, se incorpora: es la evidencia
+    # que convierte "reproducible" de afirmación en comprobación.
+    verificacion = Path(configs["base"]["paths"]["reports"]) / "verificacion_reproducibilidad.json"
+    if verificacion.exists():
+        datos = read_json(verificacion)
+        lines += [
+            "\n## 3.b Reproducibilidad verificada entre dos corridas independientes\n",
+            "Se ejecutó la cadena completa dos veces con la misma semilla y los mismos "
+            "datos, en corridas separadas (`%s` y `%s`).\n" % (datos["run_a"], datos["run_b"]),
+            "\n| Comparación | Resultado |", "|---|---|",
+            "| Fits de tuning idénticos | **%d / %d** |" % (
+                datos["tuning"]["n_comparados"] - len(datos["tuning"]["diferencias"]),
+                datos["tuning"]["n_comparados"]),
+            "| Hash de prerregistro | %s |" % (
+                "Idéntico (`%s`)" % datos["prerregistro"].get("hash_a", "")
+                if datos["prerregistro"].get("identico") else "**DIFIERE**"),
+        ]
+        for fila in datos.get("resultados", {}).get("por_estrategia", []):
+            lines.append("| Costo observado · %s | %s |" % (
+                fila["estrategia"],
+                "Idéntico (%.10f UM/tx)" % fila["costo_a"] if fila["identico"] else "**DIFIERE**"))
+        lines += [
+            "",
+            "Comprobable con: `python -m fraud_adaptive --run-id %s verify --against %s`\n"
+            % (datos["run_a"], datos["run_b"]),
+        ]
+        if datos.get("advertencia"):
+            lines.append("\n> %s\n" % datos["advertencia"])
+
+    lines += ["\n## 4. Lo que NO pudo verificarse\n"]
     for item in delivery.get("no_verificado", []):
         lines.append("- %s" % item)
 

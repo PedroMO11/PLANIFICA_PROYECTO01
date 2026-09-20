@@ -3,7 +3,7 @@
 > **Origen de los datos: SUSTITUTO SINTETICO.** Las cifras de este documento NO describen IEEE-CIS. Ver `ieee-fraud-detection/LEEME_DATOS_SUSTITUTOS.txt`.
 
 
-Generado: 2026-09-20T09:16:43+00:00
+Generado: 2026-09-20T09:41:33+00:00
 
 
 ## 1. Fuentes e integridad

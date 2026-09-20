@@ -298,8 +298,15 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     reports_dir = Path(configs["base"]["paths"]["reports"])
     no_verificado: list[str] = []
 
-    print("1/4  Generando notebooks...")
-    notebooks = write_notebooks("notebooks")
+    # Regenerar sin ejecutar borraria las salidas de la corrida anterior y dejaria
+    # notebooks vacios en la entrega, que es peor que no tocarlos.
+    if not args.execute_notebooks:
+        print("1/4  Notebooks: se conservan los existentes (no se regeneran sin ejecutar).")
+        notebooks = {}
+    else:
+        print("1/4  Generando y ejecutando notebooks...")
+        notebooks = write_notebooks("notebooks")
+
     if args.execute_notebooks:
         import nbformat
         from nbclient import NotebookClient
@@ -362,6 +369,26 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     print("\nComputo acumulado: %.1f min de %d" % (
         delivery["computo_minutos"], delivery["computo_limite_minutos"]))
     return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Compara dos corridas para comprobar que el proyecto es reproducible."""
+    from .pipeline import load_configs
+    from .tracking import write_json
+    from .verification import comparar_runs, formatear
+
+    configs = load_configs(args.config_dir)
+    resultado = comparar_runs(
+        args.run_id, args.against,
+        runs_root=configs["base"]["paths"]["runs"],
+        reports_root=configs["base"]["paths"]["reports"],
+    )
+    print(formatear(resultado))
+
+    destino = Path(configs["base"]["paths"]["reports"]) / "verificacion_reproducibilidad.json"
+    write_json(destino, resultado)
+    print("\nInforme guardado en %s" % destino)
+    return 0 if resultado["reproducible"] else 1
 
 
 def cmd_selftest(args: argparse.Namespace) -> int:
@@ -484,6 +511,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_report = sub.add_parser("report", help="tablas y figuras")
     p_report.add_argument("action", choices=["build"], nargs="?", default="build")
     p_report.set_defaults(func=cmd_report)
+
+    p_verify = sub.add_parser("verify", help="compara dos corridas (reproducibilidad)")
+    p_verify.add_argument("--against", required=True,
+                          help="run_id de la segunda corrida a comparar")
+    p_verify.set_defaults(func=cmd_verify)
 
     p_deliver = sub.add_parser("deliver", help="cierra el paquete de entrega")
     p_deliver.add_argument("action", choices=["package"], nargs="?", default="package")

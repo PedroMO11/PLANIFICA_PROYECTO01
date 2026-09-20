@@ -1,6 +1,6 @@
 # Replay local: evidencia de la demo
 
-Generado: 2026-09-20T09:16:53+00:00
+Generado: 2026-09-20T09:41:43+00:00
 
 
 ## Configuracion
@@ -38,13 +38,25 @@ No se movieron umbrales ni se presentan como resultados de fraude.
 | overflow_sin_cupo | 0.3930 | 400.00 | bloquear | automatica |
 | monto_cero | 0.3930 | 0.00 | revisar | revisar |
 
+## Cambio de version y rollback (prueba de contrato)
+
+| Paso | Version | p de la fila de prueba |
+|---|---|---|
+| Activa al inicio | W30_T165 | 0.000055 |
+| Tras activar otra | W90_T165 | 0.000102 |
+| Tras el rollback | W30_T165 | 0.000055 |
+
+Rollback correcto: **True** · score restaurado: **True**
+
+> Cambio técnico de paquete. NO es una promoción de negocio aprobada: esa requiere pasar el gate sobre H y autorización humana registrada.
+
 ## Latencia local (warm)
 
 | Percentil | ms |
 |---|---|
-| p50 | 45.00 |
-| p95 | 66.34 |
-| p99 | 71.03 |
+| p50 | 45.60 |
+| p95 | 66.76 |
+| p99 | 71.87 |
 
 Medicion LOCAL. No representa la latencia de una region cloud ni un SLA.
 

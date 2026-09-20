@@ -402,10 +402,10 @@ bloque y ADWIN al madurar cada etiqueta. Cinco gates: integridad (bloqueante), c
 La regla es de **no inferioridad tolerante a ruido**, no de superioridad: exigir
 mejora en cada ciclo llevaría a no actualizar nunca bajo ruido.
 
-Se separan dos cosas que suelen confundirse: el **rollback técnico** (errores HTTP
-> 1 % o p95 > 300 ms en dos lotes) es inmediato y preautorizado; el **deterioro de
-negocio** solo puede afirmarse con etiquetas maduras, 30 días después, y exige
-revisión humana.
+Se separan dos cosas que suelen confundirse. El **rollback técnico** —tasa de error
+HTTP por encima del 1 %, o p95 por encima de 300 ms en dos lotes consecutivos— es
+inmediato y preautorizado. El **deterioro de negocio** solo puede afirmarse con
+etiquetas maduras, 30 días después, y exige revisión humana explícita.
 
 ### Costo de cómputo
 
@@ -436,7 +436,7 @@ cloud; el prototipo asume identidad **simultánea** y features precomputadas.
 | Afirmación tentadora | Por qué no se sostiene |
 |---|---|
 | "El sistema ahorra un 34,5 % de costo" | Los costos son **simulados** bajo supuestos declarados. No hay ahorro causal medido sobre pagos reales |
-| "Probamos que hay concept drift" | La comparación temporal es **consistente** con un cambio en P(y|X), no lo identifica causalmente |
+| "Probamos que hay concept drift" | La comparación temporal es **consistente** con un cambio en P(y\|X), no lo identifica causalmente |
 | "W30 es la ventana óptima" | Es la mejor entre las tres evaluadas, con esta cadencia y esta semilla. W14 y otras cadencias no se ejecutaron |
 | "El sistema es justo" | Es disparidad **operativa** por variables de negocio, sin atributos protegidos verificables |
 | "Funciona en producción" | El cupo está garantizado para un orquestador secuencial; la demo no certifica concurrencia |
@@ -514,4 +514,4 @@ Cada cifra de este informe es trazable a un `run_id` y a un artefacto con hash e
 - **Despliegue:** `deploy/gcp_runbook.md` y `deploy/promocion_rollback.md`
 - **Contrato de Cloud Run:** documentación oficial de Google Cloud (container
   contract y despliegue de imágenes).
-- **Evidencia ejecutable:** tres notebooks en `notebooks/`, 120 pruebas en `tests/`.
+- **Evidencia ejecutable:** tres notebooks en `notebooks/`, 127 pruebas en `tests/`.
