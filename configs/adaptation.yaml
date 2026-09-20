@@ -21,9 +21,11 @@ strategies:
   - {name: R46_medio,   kind: lagged, fit_days: 46, lag_days: 30, role: diagnostico}
   - {name: R46_antiguo, kind: static, fit_days: 46,               role: diagnostico}
 
-# En T=120 varias estrategias comparten predictor identico. Reutilizar el paquete
-# evita contar el mismo ajuste varias veces en el costo de computo.
-share_initial_package: [S0, E15, W90]
+# En T=120, E15 y W90 comparten el predictor [0,76). Reutilizar el paquete evita
+# contar el mismo ajuste dos veces en el costo de computo. S0 queda fuera porque
+# su fit de desarrollo termina en el dia 69 y por tanto no es el mismo ajuste.
+# La reutilizacion se valida comparando los intervalos, no la lista.
+share_initial_package: [E15, W90]
 
 # W60 es la referencia de 46 dias mas fresca del bloque de antiguedad.
 recency_comparison: [W60, R46_medio, R46_antiguo]
