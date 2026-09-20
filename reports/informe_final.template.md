@@ -405,26 +405,23 @@ días sin descartar, resulta la más barata de las siete.
 
 | Entregado y verificado localmente | Ejecuta el equipo de forma manual |
 |---|---|
-| Paquete versionado con hashes | Publicación de la imagen en Artifact Registry |
-| Imagen Docker construida y probada | Creación del servicio en Cloud Run |
+| Paquete versionado, imagen Docker probada | Publicación de la imagen y creación del servicio |
 | Servicio HTTP con `/health` y `/predict` | Apuntar el replay al endpoint remoto |
 | Replay con ledger SQLite transaccional | Promoción, rollback y cierre de recursos |
 | Runbook y política de promoción | |
 
 Pub/Sub, Firestore, BigQuery, Cloud Scheduler y Vertex AI Pipelines figuran en el
-diagrama como diseño futuro. No existen recursos creados ni código de integración.
+diagrama como diseño futuro, sin recursos creados ni código de integración.
 
 ### Evidencia de la demo local
 
 | Comprobación | Resultado |
 |---|---|
 | Tres acciones sobre datos reales | {ACCIONES_REPLAY} |
-| Cupo respetado | Nunca excedido en 62 días |
-| Idempotencia con 50 reenvíos | Aprobada, sin consumo adicional de cupo |
+| Cupo respetado e idempotencia | Nunca excedido en 62 días, 50 reenvíos sin consumo adicional |
 | Imagen Docker | `linux/amd64`, 1,06 GB, HEALTHCHECK en verde |
 | Paridad contenedor frente a cálculo offline | Probabilidad, costos y acción emitida |
-| Latencia p95 sobre HTTP al contenedor | {P95_HTTP} ms frente a un objetivo de 300 ms |
-| Acciones del contenedor sobre 1 000 peticiones | {ACCIONES_HTTP} |
+| Latencia p95 sobre HTTP | {P95_HTTP} ms frente a un objetivo de 300 ms, con {ACCIONES_HTTP} sobre 1 000 peticiones |
 | Sin paquete montado | `/health` informa `model_unavailable` y `/predict` devuelve 503 |
 | Cambio de versión y rollback | Score restaurado de forma exacta |
 
@@ -436,32 +433,35 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 
 ### Frecuencia, autonomía y gates
 
-El reentrenamiento ocurre cada 15 días con la ventana W60 elegida en desarrollo.
+El reentrenamiento ocurre cada 15 días, y esa cadencia se mide en lugar de
+asumirse. Reentrenar cada 30 o 45 días captura solo el 29 % y el 37 % del
+beneficio, mientras que el costo de las dos actualizaciones adicionales es de
+{COMPUTO_CADENCIA} minutos de cómputo.
+
+{TABLA_CADENCIA}
+
+La cadencia no puede deducirse del EDA, que observa X y la tasa base, ambas
+estables. Un criterio basado en esa evidencia concluiría que no hace falta
+reentrenar, decisión que cuesta un 5,4 % más. El drift que justifica reentrenar
+está en P(y|X), exige etiquetas y esas llegan 30 días tarde. Extrapolar desde el
+efecto de antigüedad tampoco basta, porque predice 0,027 donde lo medido es 0,077.
+Cadencias menores que 15 días quedan sin evaluar.
+
 El monitoreo aplica KS/PSI a diario, S1 por bloque y ADWIN al madurar cada
-etiqueta. Cinco gates controlan la promoción. El primero verifica integridad y
-bloquea la versión ante cualquier leakage. El segundo exige costo inferior al de
-aprobar todo en el arranque. El tercero aplica no inferioridad con costo máximo de
-1,01 veces el del champion, caída de AP no superior a 0,01 y aumento de Brier no
-superior a 0,005. El cuarto limita el aumento del bloqueo de legítimas a 2 puntos
-porcentuales. El quinto exige autorización humana registrada.
+etiqueta. Cinco gates controlan la promoción: integridad frente a leakage, costo
+inferior al de aprobar todo en el arranque, no inferioridad con costo máximo de
+1,01 veces el del champion junto a caída de AP no superior a 0,01 y aumento de
+Brier no superior a 0,005, aumento del bloqueo de legítimas limitado a 2 puntos
+porcentuales, y autorización humana registrada.
 
 El rollback técnico responde a errores HTTP superiores al 1 % o a p95 por encima de
-300 ms en dos lotes consecutivos, y opera de forma inmediata bajo regla
-preautorizada. El deterioro de negocio solo puede afirmarse con etiquetas maduras,
-30 días después, y exige revisión humana.
+300 ms en dos lotes consecutivos, bajo regla preautorizada. El deterioro de negocio
+solo puede afirmarse con etiquetas maduras y exige revisión humana.
 
 ### Costo de cómputo
 
-| Trabajo | Tareas | Minutos |
-|---|---|---|
-| Tuning | 18 | 17,3 |
-| Ajustes finales y de adaptación | 6 | 9,9 |
-| Selección de ventana | 3 | 0,8 |
-| Backtest completo | 1 | 3,2 |
-| Datos y features | 5 | 0,3 |
-| Total | 33 | 31,5 de 480 |
-
-El perfil completo de recursos cupo dentro del presupuesto declarado.
+{TEXTO_COMPUTO} El detalle por tipo de tarea está en
+`reports/tables/costos_computo.csv`.
 
 ### Escala, costo e integración
 
