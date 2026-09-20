@@ -1,0 +1,51 @@
+[project]
+name = "fraud-adaptive"
+version = "1.0.0"
+description = "Sistema adaptativo de decision ante fraude transaccional con olvido por ventanas fijas (UTEC, Planificacion y Toma de Decisiones en IA)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+
+dependencies = [
+    "numpy>=2.0,<3",
+    "pandas>=2.2,<3",
+    "scikit-learn>=1.5,<2",
+    "scipy>=1.13,<2",
+    "lightgbm>=4.5,<5",
+    "pyarrow>=16",
+    "matplotlib>=3.9,<4",
+    "river>=0.21",
+    "pyyaml>=6",
+    "joblib>=1.4",
+]
+
+[project.optional-dependencies]
+serving = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.8",
+]
+dev = [
+    "pytest>=8.3",
+    "jupyter>=1.1",
+    "nbformat>=5.10",
+    "nbclient>=0.10",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+fraud-adaptive = "fraud_adaptive.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fraud_adaptive"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# basetemp local: el directorio temporal del sistema no siempre es accesible en
+# Windows y tmp_path fallaria con PermissionError antes de ejecutar la prueba.
+addopts = "-q --basetemp=.pytest_tmp"
+filterwarnings = ["ignore::DeprecationWarning"]

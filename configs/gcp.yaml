@@ -1,0 +1,39 @@
+# Perfil DOCUMENTAL de despliegue. NO es IaC y no se ejecuta desde este repositorio.
+# El equipo realiza build/push/deploy manualmente. Ninguna factura estimada aqui.
+
+project:
+  id: "<REEMPLAZAR-project-id>"
+  region: us-central1
+  note: "Identidades y billing son entradas operativas del equipo, no decisiones tecnicas pendientes."
+
+cloud_run:
+  service_name: fraud-adaptive-serving
+  ingress: internal            # servicio privado; no exponer decisiones de pago publicamente
+  allow_unauthenticated: false
+  min_instances: 0
+  max_instances: 1             # demo secuencial; el cupo lo garantiza el replay local
+  concurrency: 1
+  cpu: 2
+  memory: 4Gi
+  timeout_seconds: 60
+  port: 8080
+  env:
+    PORT: "8080"
+    PACKAGE_DIR: "/app/package"
+    LOG_FORMAT: "json"
+
+artifact_registry:
+  repository: fraud-adaptive
+  image: "us-central1-docker.pkg.dev/<REEMPLAZAR-project-id>/fraud-adaptive/serving"
+  pin_by_digest: true
+
+# Servicios solo DISENADOS (no implementados ni creados): ver deploy/arquitectura_gcp.mmd
+future_only:
+  - Cloud Storage (paquetes y evidencia)
+  - Cloud Run Jobs / Vertex AI Pipelines (reentrenamiento con gate humano)
+  - Pub/Sub (stream)
+  - Firestore (ledger y cupo distribuido)
+  - BigQuery (cohortes y metricas)
+  - Cloud Monitoring/Logging
+discarded_for_mvp:
+  - Vertex AI Endpoints    # configuracion adicional sin evidencia nueva para la rubrica

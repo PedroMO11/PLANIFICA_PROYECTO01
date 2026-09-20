@@ -1,0 +1,547 @@
+"""Orquestacion de las fases F2-F4: datos, tuning, modelos estaticos y adaptacion.
+
+Cada fase deja artefactos verificados por hash y un checkpoint reanudable. Una
+fase posterior no recalcula lo que ya existe salvo que se pida ``--rebuild``: una
+cache invalida provoca error o reconstruccion explicita, nunca reutilizacion
+silenciosa.
+
+El orden de las fases codifica el prerregistro del plan. La familia, los
+hiperparametros y los umbrales se congelan en ``fit_static`` (que solo ve
+desarrollo) y el hash de esa seleccion se sella ANTES de abrir el periodo de test
+en ``run_adaptation``. Si alguien cambiara la configuracion entre ambas, el hash
+no coincidiria y la corrida falla.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any, Sequence
+
+import numpy as np
+import pandas as pd
+import yaml
+
+from . import data as data_module
+from . import features as features_module
+from .adaptation import authorization_manifest
+from .backtest import run_backtest
+from .calibration import PlattCalibrator, calibration_report
+from .decision import (
+    CapacityLedger, CostModel, Policy, baseline_policies, decide_batch,
+    select_thresholds, simulate_outcomes, total_cost,
+)
+from .metrics import (
+    average_precision, threshold_for_fpr, threshold_for_precision,
+)
+from .models import fit_model, iter_family_configs
+from .splits import Interval, TemporalConfig, build_splits_manifest, mature_training_mask
+from .tracking import RunContext, sha256_obj, write_json
+
+LOGGER = logging.getLogger("fraud_adaptive.pipeline")
+
+
+def load_configs(config_dir: str | Path = "configs") -> dict[str, Any]:
+    config_dir = Path(config_dir)
+    out: dict[str, Any] = {}
+    for name in ("base", "temporal", "decision", "models", "adaptation", "serving", "gcp"):
+        path = config_dir / (name + ".yaml")
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as handle:
+                out[name] = yaml.safe_load(handle)
+    return out
+
+
+# --------------------------------------------------------------------------- F2
+
+def prepare_data(
+    configs: dict[str, Any],
+    run: RunContext,
+    *,
+    rebuild: bool = False,
+    nrows: int | None = None,
+) -> pd.DataFrame:
+    """Carga, valida, integra y genera features causales. Materializa Parquet."""
+    base = configs["base"]
+    paths = base["paths"]
+    data_config = base["data"]
+    processed = Path(paths["processed"])
+    processed.mkdir(parents=True, exist_ok=True)
+    parquet_path = processed / "eventos.parquet"
+
+    if parquet_path.exists() and not rebuild:
+        LOGGER.info("Reutilizando Parquet verificado: %s", parquet_path)
+        return pd.read_parquet(parquet_path)
+
+    sources = data_module.resolve_sources(
+        paths["data_root"], data_config["transactions_file"], data_config["identity_file"]
+    )
+    data_module.assert_no_forbidden_files(paths["data_root"], data_config["forbidden_files"])
+
+    with run.task("cargar_fuentes", kind="datos"):
+        transactions, identity = data_module.load_raw(sources, nrows=nrows)
+
+    with run.task("validar_esquema", kind="datos"):
+        schema_report = data_module.validate_schema(
+            transactions, identity,
+            join_key=data_config["join_key"], target=data_config["target"],
+            time_col=data_config["time_col"], amount_col=data_config["amount_col"],
+        )
+
+    with run.task("join_fuentes", kind="datos"):
+        merged, join_audit = data_module.join_sources(
+            transactions, identity, join_key=data_config["join_key"]
+        )
+        del transactions, identity
+
+    with run.task("derivar_tiempo", kind="datos"):
+        merged = data_module.derive_time_columns(merged, time_col=data_config["time_col"])
+        merged = data_module.order_events(
+            merged, time_col=data_config["time_col"], join_key=data_config["join_key"]
+        )
+
+    with run.task("features_causales", kind="datos"):
+        merged, feature_meta = features_module.prepare_features(
+            merged, time_col=data_config["time_col"], amount_col=data_config["amount_col"]
+        )
+
+    # Los objetos de proxy son texto largo; se conservan como categoricas para
+    # que el Parquet no crezca de forma innecesaria.
+    for column in ("card_proxy", "device_proxy"):
+        if column in merged.columns:
+            merged[column] = merged[column].astype("category")
+
+    merged.to_parquet(parquet_path, index=False)
+    run.register_artifact("eventos_parquet", parquet_path)
+
+    manifest_dir = Path(paths["manifests"])
+    sources_manifest = data_module.build_sources_manifest(
+        sources,
+        extra={
+            "esquema": schema_report,
+            "join": join_audit,
+            "features": feature_meta,
+            "data_source": _detect_data_source(paths["data_root"]),
+        },
+    )
+    write_json(manifest_dir / "sources.json", sources_manifest)
+    run.register_artifact("sources_manifest", manifest_dir / "sources.json")
+
+    temporal = TemporalConfig.from_yaml("configs/temporal.yaml")
+    splits_manifest = build_splits_manifest(
+        temporal, configs["adaptation"]["strategies"], max_day=int(merged["dia"].max())
+    )
+    write_json(manifest_dir / "splits.json", splits_manifest)
+    run.register_artifact("splits_manifest", manifest_dir / "splits.json")
+
+    run.log("datos_preparados", filas=len(merged), columnas=merged.shape[1],
+            dias=int(merged["dia"].max()) + 1)
+    return merged
+
+
+def _detect_data_source(data_root: str | Path) -> str:
+    """Distingue datos reales de sustitutos, para rotular cada artefacto."""
+    if (Path(data_root) / "LEEME_DATOS_SUSTITUTOS.txt").exists():
+        return "sintetico_sustituto"
+    return "ieee_cis_real"
+
+
+# --------------------------------------------------------------------------- F3
+
+def run_tuning(
+    frame: pd.DataFrame,
+    configs: dict[str, Any],
+    run: RunContext,
+    temporal: TemporalConfig,
+    numeric_columns: Sequence[str],
+    categorical_columns: Sequence[str],
+) -> pd.DataFrame:
+    """18 fits: 3 familias x 3 configuraciones x 2 folds forward.
+
+    La seleccion es por AP media de validacion. Los folds son internos: sus
+    metricas nunca se reportan como resultado final.
+    """
+    base = configs["base"]
+    models_config = configs["models"]
+    label_delay = temporal.label_delay_days
+    days = frame["dia"].to_numpy()
+    labels = frame[configs["base"]["data"]["target"]].to_numpy()
+
+    rows: list[dict[str, Any]] = []
+    for fold in temporal.tuning_folds:
+        fit_interval = Interval(*fold["fit"])
+        val_interval = Interval(*fold["val"])
+        # Los folds se reconstruyen como desarrollo en T=120, cuando sus etiquetas
+        # ya maduraron. No simulan una autorizacion instantanea en el dia 30.
+        # La madurez se mide contra el tiempo del job (T), no contra T - L.
+        job_time = temporal.update_times[0]
+        fit_mask = mature_training_mask(days, fit_interval, job_time, label_delay)
+        val_mask = mature_training_mask(days, val_interval, job_time, label_delay)
+
+        fit_frame, fit_labels = frame.loc[fit_mask], labels[fit_mask]
+        val_frame, val_labels = frame.loc[val_mask], labels[val_mask]
+
+        for family, config, model_base in iter_family_configs(models_config):
+            task_name = "tuning_%s_%s_%s" % (family, config["name"], fold["name"])
+            if run.has_checkpoint(task_name):
+                rows.append(run.load_checkpoint(task_name))
+                continue
+
+            max_rows = models_config["resource_caps"]["rf_max_rows"] if family == "random_forest" else None
+            with run.task(task_name, kind="fit_tuning",
+                          limit_seconds=base["budget"]["per_fit_limits_seconds"]["tuning"]) as record:
+                model = fit_model(
+                    family, config, model_base, fit_frame, fit_labels,
+                    numeric_columns, categorical_columns,
+                    seed=base["seed"], n_threads=base["n_threads"], max_rows=max_rows,
+                    encoding=models_config["encoding"],
+                )
+                scores = model.predict_proba(val_frame)
+                ap = average_precision(val_labels, scores)
+
+            row = {
+                "fold": fold["name"], "familia": family, "config": config["name"],
+                "ap_validacion": ap,
+                "n_fit": model.fit_rows, "n_val": int(val_mask.sum()),
+                "prevalencia_fit": model.fit_positives / model.fit_rows if model.fit_rows else np.nan,
+                "segundos": record.get("seconds"),
+                "submuestreado": model.subsampled,
+            }
+            rows.append(row)
+            run.save_checkpoint(task_name, row)
+            LOGGER.info("%s -> AP %.4f (%.1fs)", task_name, ap, record.get("seconds", 0))
+
+    table = pd.DataFrame(rows)
+    summary = (
+        table.groupby(["familia", "config"], as_index=False)
+        .agg(ap_media=("ap_validacion", "mean"), segundos=("segundos", "sum"))
+        .sort_values(["familia", "ap_media"], ascending=[True, False])
+    )
+    run.save_checkpoint("tuning_resumen", {"tabla": summary.to_dict("records")})
+    return summary
+
+
+def select_best_configs(summary: pd.DataFrame) -> dict[str, str]:
+    """Mejor configuracion por familia: AP media, desempate por menor tiempo."""
+    best: dict[str, str] = {}
+    for family, group in summary.groupby("familia"):
+        ordered = group.sort_values(["ap_media", "segundos"], ascending=[False, True])
+        best[family] = str(ordered.iloc[0]["config"])
+    return best
+
+
+def fit_static_models(
+    frame: pd.DataFrame,
+    configs: dict[str, Any],
+    run: RunContext,
+    temporal: TemporalConfig,
+    numeric_columns: Sequence[str],
+    categorical_columns: Sequence[str],
+    best_configs: dict[str, str],
+) -> dict[str, Any]:
+    """Ajusta los tres modelos finales, calibra, elige umbrales y congela la familia.
+
+    Todo ocurre dentro de desarrollo. Al terminar se sella el hash de la seleccion:
+    es el prerregistro que impide retunear despues de ver el test.
+    """
+    base = configs["base"]
+    models_config = configs["models"]
+    decision_config = configs["decision"]
+    target = base["data"]["target"]
+
+    days = frame["dia"].to_numpy()
+    labels = frame[target].to_numpy()
+    # Madurez contra el tiempo del job T, no contra cutoff = T - L: los tramos de
+    # desarrollo terminan en T - L y por tanto ya maduraron cuando el job corre.
+    job_time = temporal.update_times[0]
+
+    fit_mask = mature_training_mask(days, temporal.base_fit, job_time, temporal.label_delay_days)
+    cal_mask = mature_training_mask(days, temporal.calibration, job_time, temporal.label_delay_days)
+    pol_mask = mature_training_mask(days, temporal.policy, job_time, temporal.label_delay_days)
+
+    cost_model = CostModel(
+        c_fp=decision_config["costs"]["c_fp"],
+        c_review=decision_config["costs"]["c_review"],
+        r_h=decision_config["analyst"]["r_h"],
+        f_h=decision_config["analyst"]["f_h"],
+    )
+    capacity = decision_config["capacity"]["daily_reviews"]
+
+    results: dict[str, Any] = {"familias": {}}
+    for family, spec in models_config["families"].items():
+        config = next(c for c in spec["configs"] if c["name"] == best_configs[family])
+        task_name = "estatico_%s" % family
+
+        max_rows = models_config["resource_caps"]["rf_max_rows"] if family == "random_forest" else None
+        with run.task(task_name, kind="fit_final",
+                      limit_seconds=base["budget"]["per_fit_limits_seconds"]["final"]) as record:
+            model = fit_model(
+                family, config, spec.get("base", {}), frame.loc[fit_mask], labels[fit_mask],
+                numeric_columns, categorical_columns,
+                seed=base["seed"], n_threads=base["n_threads"], max_rows=max_rows,
+                encoding=models_config["encoding"],
+            )
+
+            # Platt sobre la cola de calibracion, que el predictor no vio.
+            raw_cal = model.predict_proba(frame.loc[cal_mask])
+            calibrator = PlattCalibrator().fit(
+                raw_cal, labels[cal_mask], **{
+                    k: v for k, v in models_config["calibration"].items()
+                    if k in ("C", "solver", "max_iter")
+                }
+            )
+            report = calibration_report(raw_cal, calibrator.transform(raw_cal), labels[cal_mask])
+
+            # Umbrales por costo sobre la reserva de politica.
+            policy_frame = frame.loc[pol_mask]
+            policy_labels = labels[pol_mask]
+            calibrated_policy = calibrator.transform(model.predict_proba(policy_frame))
+            selection = select_thresholds(
+                calibrated_policy, policy_frame["TransactionAmt"].to_numpy(),
+                policy_frame["dia"].to_numpy(), policy_labels,
+                policy_frame["TransactionID"].tolist(), cost_model,
+                quantiles=decision_config["thresholds"]["grid_quantiles"],
+                daily_capacity=capacity, delta=decision_config["thresholds"]["delta"],
+                seed=base["seed"],
+            )
+
+            # Umbrales diagnosticos, congelados junto con la politica.
+            fpr_threshold = threshold_for_fpr(
+                policy_labels, calibrated_policy, decision_config["diagnostic_targets"]["fpr_target"]
+            )
+            precision_threshold = threshold_for_precision(
+                policy_labels, calibrated_policy,
+                decision_config["diagnostic_targets"]["precision_target"],
+            )
+
+        results["familias"][family] = {
+            "config": config["name"],
+            "modelo": model,
+            "calibrador": calibrator,
+            "policy": selection["policy"],
+            "costo_politica": float(selection["best"]["costo_por_tx"]),
+            "ap_politica": average_precision(policy_labels, calibrated_policy),
+            "calibracion": report,
+            "umbral_fpr": fpr_threshold,
+            "umbral_precision": precision_threshold,
+            "segundos": record.get("seconds"),
+            "n_fit": model.fit_rows,
+            "grid_umbrales": selection["grid"],
+        }
+        LOGGER.info(
+            "Estatico %s (%s): costo %.4f UM/tx, AP %.4f",
+            family, config["name"], selection["best"]["costo_por_tx"],
+            results["familias"][family]["ap_politica"],
+        )
+
+    # Familia adaptativa: menor costo en la reserva de politica.
+    # Desempate a <=1% de costo por menor tiempo de fit.
+    ordered = sorted(
+        results["familias"].items(),
+        key=lambda kv: (kv[1]["costo_politica"], kv[1]["segundos"]),
+    )
+    best_cost = ordered[0][1]["costo_politica"]
+    viable = [(name, info) for name, info in ordered if info["costo_politica"] <= best_cost * 1.01]
+    chosen = min(viable, key=lambda kv: kv[1]["segundos"])[0]
+    results["familia_elegida"] = chosen
+
+    # Baselines simulados, para la comparacion economica del informe.
+    policy_frame = frame.loc[pol_mask]
+    policy_labels = labels[pol_mask]
+    baselines: dict[str, Any] = {}
+    for name, baseline_policy in baseline_policies(capacity).items():
+        neutral = np.full(len(policy_frame), 0.5)
+        decisions = decide_batch(
+            neutral, policy_frame["TransactionAmt"].to_numpy(), policy_frame["dia"].to_numpy(),
+            policy_frame["TransactionID"].tolist(), baseline_policy, cost_model,
+            ledger=CapacityLedger(capacity),
+        )
+        outcomes = simulate_outcomes(decisions, policy_labels, cost_model, seed=base["seed"])
+        baselines[name] = total_cost(outcomes)
+    results["baselines"] = baselines
+
+    # Prerregistro: hash de todo lo que queda congelado antes del test.
+    frozen = {
+        "familia": chosen,
+        "config": results["familias"][chosen]["config"],
+        "policy": results["familias"][chosen]["policy"].to_dict(),
+        "umbral_fpr": results["familias"][chosen]["umbral_fpr"].get("umbral"),
+        "umbral_precision": results["familias"][chosen]["umbral_precision"].get("umbral"),
+        "seed": base["seed"],
+        "label_delay": temporal.label_delay_days,
+        "cadence": temporal.cadence_days,
+    }
+    results["prerregistro"] = {"contenido": frozen, "hash": sha256_obj(frozen)}
+    run.save_checkpoint("prerregistro", results["prerregistro"])
+    LOGGER.info("Familia congelada: %s | hash prerregistro %s",
+                chosen, results["prerregistro"]["hash"][:16])
+    return results
+
+
+# --------------------------------------------------------------------------- F4
+
+def run_adaptation(
+    frame: pd.DataFrame,
+    configs: dict[str, Any],
+    run: RunContext,
+    temporal: TemporalConfig,
+    numeric_columns: Sequence[str],
+    categorical_columns: Sequence[str],
+    static_results: dict[str, Any],
+) -> Any:
+    """Experimento central: cinco estrategias sobre los mismos eventos."""
+    base = configs["base"]
+    models_config = configs["models"]
+    decision_config = configs["decision"]
+    adaptation_config = configs["adaptation"]
+
+    family = static_results["familia_elegida"]
+    chosen = static_results["familias"][family]
+    spec = models_config["families"][family]
+    config = next(c for c in spec["configs"] if c["name"] == chosen["config"])
+
+    # Verificacion de prerregistro: la config congelada debe seguir siendo la misma.
+    expected = run.load_checkpoint("prerregistro")
+    if expected and expected["hash"] != static_results["prerregistro"]["hash"]:
+        raise RuntimeError(
+            "El hash de prerregistro cambio entre la seleccion y el test. "
+            "Eso indica un retuning despues de congelar; la corrida se detiene."
+        )
+
+    cost_model = CostModel(
+        c_fp=decision_config["costs"]["c_fp"], c_review=decision_config["costs"]["c_review"],
+        r_h=decision_config["analyst"]["r_h"], f_h=decision_config["analyst"]["f_h"],
+    )
+
+    # Manifest de autorizacion humana previa (C23).
+    tasks = [
+        {"tarea": "fit_%s_T%d" % (s["name"], t), "tipo": "ajuste_offline"}
+        for s in adaptation_config["strategies"] for t in temporal.update_times
+    ]
+    authorization = authorization_manifest(run.run_id, tasks, authorized_by="equipo (revision previa)")
+    write_json(run.dir / "authorization.json", authorization)
+    run.register_artifact("authorization", run.dir / "authorization.json")
+
+    reference = frame.loc[Interval(*adaptation_config["detectors"]["domain_classifier"]
+                                   ["reference_interval"]).mask(frame["dia"].to_numpy())]
+    monitor_panel = data_module.select_monitor_panel(
+        reference, numeric_columns,
+        max_columns=adaptation_config["detectors"]["ks_psi"]["panel_max_numeric"],
+    )
+    # Variables de negocio siempre presentes en el panel, aunque no ganen por varianza.
+    for column in ("TransactionAmt", "monto_log", "has_identity"):
+        if column in frame.columns and column not in monitor_panel:
+            monitor_panel.append(column)
+    run.save_checkpoint("monitor_panel", {"columnas": monitor_panel})
+
+    with run.task("backtest_adaptacion", kind="backtest"):
+        result = run_backtest(
+            frame,
+            strategies=adaptation_config["strategies"],
+            temporal=temporal,
+            family=family,
+            model_config=config,
+            model_base=spec.get("base", {}),
+            numeric_columns=numeric_columns,
+            categorical_columns=categorical_columns,
+            policy=chosen["policy"],
+            cost_model=cost_model,
+            calibration_params=models_config["calibration"],
+            adaptation_config=adaptation_config,
+            promotion_gates=decision_config["promotion_gates"],
+            monitor_panel=monitor_panel,
+            reference_frame=reference,
+            seed=base["seed"],
+            n_threads=base["n_threads"],
+            max_rows=models_config["resource_caps"]["rf_max_rows"] if family == "random_forest" else None,
+            encoding=models_config["encoding"],
+            target=base["data"]["target"],
+            shared_initial=adaptation_config.get("share_initial_package", []),
+            models_dir=base["paths"]["models"],
+        )
+
+    run.log("backtest_terminado",
+            n_predicciones=len(result.predictions), n_desenlaces=len(result.outcomes))
+    return result
+
+
+# --------------------------------------------------------------------------- F5
+
+def export_package(
+    frame: pd.DataFrame,
+    configs: dict[str, Any],
+    run: RunContext,
+    temporal: TemporalConfig,
+    numeric_columns: Sequence[str],
+    categorical_columns: Sequence[str],
+    static_results: dict[str, Any],
+    *,
+    strategy: str = "W30",
+    update_time: int | None = None,
+) -> dict[str, Any]:
+    """Reconstruye y persiste un paquete desplegable concreto.
+
+    Sirve para dos casos: entregar al equipo el paquete a desplegar sin repetir el
+    backtest completo, y regenerar un artefacto perdido. Usa exactamente los mismos
+    roles, familia, hiperparametros y politica congelados, asi que el paquete es el
+    mismo que produjo las metricas.
+
+    Solo exporta estrategias DESPLEGABLES: S0 y E15 son referencias de comparacion
+    y el plan prohibe entregarlas como sistema.
+    """
+    from .adaptation import build_package
+    from .splits import build_version_roles
+
+    adaptation_config = configs["adaptation"]
+    spec = next((s for s in adaptation_config["strategies"] if s["name"] == strategy), None)
+    if spec is None:
+        raise ValueError("Estrategia desconocida: %s" % strategy)
+    if spec["role"] != "desplegable":
+        raise ValueError(
+            "%s es una referencia no desplegable (%s). Exporta W30, W60 o W90."
+            % (strategy, spec["role"])
+        )
+
+    update_time = update_time if update_time is not None else temporal.update_times[-1]
+    family = static_results["familia_elegida"]
+    chosen = static_results["familias"][family]
+    family_spec = configs["models"]["families"][family]
+    config = next(c for c in family_spec["configs"] if c["name"] == chosen["config"])
+
+    policy_data = chosen["policy"]
+    policy = Policy(
+        tau_low=policy_data["tau_low"], tau_high=policy_data["tau_high"],
+        daily_capacity=policy_data["daily_capacity"], delta=policy_data.get("delta", 0.0),
+        version=policy_data.get("version", "politica_v1"),
+    )
+
+    roles = build_version_roles(
+        strategy, update_time, temporal, window_days=spec.get("window_days"), kind=spec["kind"]
+    )
+
+    with run.task("exportar_paquete_%s" % roles.version_id, kind="fit_adaptivo"):
+        package = build_package(
+            strategy, roles, frame, family=family, model_config=config,
+            model_base=family_spec.get("base", {}), numeric_columns=numeric_columns,
+            categorical_columns=categorical_columns, policy=policy, temporal_config=temporal,
+            calibration_params=configs["models"]["calibration"],
+            seed=configs["base"]["seed"], n_threads=configs["base"]["n_threads"],
+            max_rows=configs["models"]["resource_caps"]["rf_max_rows"] if family == "random_forest" else None,
+            encoding=configs["models"]["encoding"], target=configs["base"]["data"]["target"],
+        )
+
+    if not package.valid:
+        raise RuntimeError("El paquete %s no es valido: %s" % (roles.version_id, package.invalid_reason))
+
+    directory = package.save(configs["base"]["paths"]["models"])
+    run.register_artifact("paquete_%s" % roles.version_id, directory / "manifest.json")
+    LOGGER.info("Paquete exportado a %s", directory)
+    return {
+        "version_id": package.version_id,
+        "directorio": directory.as_posix(),
+        "estrategia": strategy,
+        "familia": family,
+        "roles": roles.to_dict(),
+        "soporte": package.support,
+        "politica": policy.to_dict(),
+    }

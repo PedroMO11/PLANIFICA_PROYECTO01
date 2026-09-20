@@ -1,0 +1,5 @@
+escenario,c_fp,c_review,r_h,f_h,costo_por_tx,n_revisiones,n_bloqueadas,monto_fraude_evitado,estrategia,nota
+bajo,1.0,0.5,0.9,0.02,0.734632997124686,9300,34554,601973.2209999999,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+base,5.0,1.0,0.9,0.02,1.2833064702120482,9300,17669,538988.8019999999,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+alto,10.0,2.0,0.9,0.02,1.704045546788058,9300,12285,488075.49100000004,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+estres_analista,5.0,1.0,0.8,0.05,1.3209484407337844,9300,17669,532703.596,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.

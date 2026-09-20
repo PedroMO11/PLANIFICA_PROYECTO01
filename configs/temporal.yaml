@@ -1,0 +1,42 @@
+# Relojes, particiones y roles temporales. F2 y §"Division temporal y relojes" del plan.
+# Todos los intervalos son en dias relativos y SEMIABIERTOS [inicio, fin).
+
+label_delay_days: 30          # L=30 (C5). available_at = TransactionDT + L*86400
+cadence_days: 15              # unica cadencia del nucleo (C1)
+
+# Regla de elegibilidad de etiqueta: available_at < cutoff_job  (estricto, nunca <=)
+eligibility_strict: true
+
+development:
+  tuning_folds:
+    - {name: fold1, fit: [0, 30],  val: [30, 45]}
+    - {name: fold2, fit: [0, 45],  val: [45, 60]}
+  base_fit: [0, 69]           # fit final de los tres modelos y de S0
+  calibration: [69, 76]       # Platt inicial
+  policy: [76, 83]            # umbrales, familia adaptativa y eleccion de W
+  promotion_validation: [83, 90]   # gate de bootstrap (H inicial)
+
+warmup:
+  interval: [90, 120]         # solo estado X y referencia de covariables; sin scores ni acciones
+
+test_blocks:
+  - {name: B1, interval: [120, 135]}
+  - {name: B2, interval: [135, 150]}
+  - {name: B3, interval: [150, 165]}
+  - {name: B4, interval: [165, 182]}   # se recorta al ultimo dia real de cobertura
+
+# Actualizaciones programadas. c = T - label_delay_days
+update_times: [120, 135, 150, 165]
+
+# Reservas relativas al cutoff c, identicas para todas las estrategias (aisla el efecto de W)
+reserves_days:
+  calibration: [-21, -14]
+  policy: [-14, -7]
+  promotion_validation: [-7, 0]
+predictor_offset_end: -21     # el predictor termina en c-21; usa W-21 dias efectivos
+
+# Soporte minimo por rol; si no se cumple la version se marca no valida (no se amplia W)
+min_support:
+  fit: {fraud: 200, legit: 2000}
+  calibration: {fraud: 50, legit: 500}
+  promotion_validation: {fraud: 50, legit: 500}

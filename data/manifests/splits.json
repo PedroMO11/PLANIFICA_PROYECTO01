@@ -1,0 +1,509 @@
+{
+  "label_delay_days": 30,
+  "cadence_days": 15,
+  "eligibility_rule": "available_at < cutoff (estricto)",
+  "max_day_observado": 181,
+  "development": {
+    "tuning_folds": [
+      {
+        "name": "fold1",
+        "fit": [
+          0,
+          30
+        ],
+        "val": [
+          30,
+          45
+        ]
+      },
+      {
+        "name": "fold2",
+        "fit": [
+          0,
+          45
+        ],
+        "val": [
+          45,
+          60
+        ]
+      }
+    ],
+    "base_fit": [
+      0,
+      69
+    ],
+    "calibration": [
+      69,
+      76
+    ],
+    "policy": [
+      76,
+      83
+    ],
+    "promotion_validation": [
+      83,
+      90
+    ]
+  },
+  "warmup": {
+    "interval": [
+      90,
+      120
+    ],
+    "uso": "solo estado X; sin scores ni acciones"
+  },
+  "test_blocks": [
+    {
+      "name": "B1",
+      "interval": [
+        120,
+        135
+      ],
+      "days": 15
+    },
+    {
+      "name": "B2",
+      "interval": [
+        135,
+        150
+      ],
+      "days": 15
+    },
+    {
+      "name": "B3",
+      "interval": [
+        150,
+        165
+      ],
+      "days": 15
+    },
+    {
+      "name": "B4",
+      "interval": [
+        165,
+        181
+      ],
+      "days": 16
+    }
+  ],
+  "versions": {
+    "S0": [
+      {
+        "version_id": "S0_T120",
+        "strategy": "S0",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": null,
+        "predictor_days": 69,
+        "predictor": [
+          0,
+          69
+        ],
+        "calibration": [
+          69,
+          76
+        ],
+        "policy": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
+        ]
+      }
+    ],
+    "E15": [
+      {
+        "version_id": "E15_T120",
+        "strategy": "E15",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": null,
+        "predictor_days": 69,
+        "predictor": [
+          0,
+          69
+        ],
+        "calibration": [
+          69,
+          76
+        ],
+        "policy": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
+        ]
+      },
+      {
+        "version_id": "E15_T135",
+        "strategy": "E15",
+        "update_time": 135,
+        "cutoff": 105,
+        "window_days": null,
+        "predictor_days": 84,
+        "predictor": [
+          0,
+          84
+        ],
+        "calibration": [
+          84,
+          91
+        ],
+        "policy": [
+          91,
+          98
+        ],
+        "promotion_validation": [
+          98,
+          105
+        ]
+      },
+      {
+        "version_id": "E15_T150",
+        "strategy": "E15",
+        "update_time": 150,
+        "cutoff": 120,
+        "window_days": null,
+        "predictor_days": 99,
+        "predictor": [
+          0,
+          99
+        ],
+        "calibration": [
+          99,
+          106
+        ],
+        "policy": [
+          106,
+          113
+        ],
+        "promotion_validation": [
+          113,
+          120
+        ]
+      },
+      {
+        "version_id": "E15_T165",
+        "strategy": "E15",
+        "update_time": 165,
+        "cutoff": 135,
+        "window_days": null,
+        "predictor_days": 114,
+        "predictor": [
+          0,
+          114
+        ],
+        "calibration": [
+          114,
+          121
+        ],
+        "policy": [
+          121,
+          128
+        ],
+        "promotion_validation": [
+          128,
+          135
+        ]
+      }
+    ],
+    "W30": [
+      {
+        "version_id": "W30_T120",
+        "strategy": "W30",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": 30,
+        "predictor_days": 9,
+        "predictor": [
+          60,
+          69
+        ],
+        "calibration": [
+          69,
+          76
+        ],
+        "policy": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
+        ]
+      },
+      {
+        "version_id": "W30_T135",
+        "strategy": "W30",
+        "update_time": 135,
+        "cutoff": 105,
+        "window_days": 30,
+        "predictor_days": 9,
+        "predictor": [
+          75,
+          84
+        ],
+        "calibration": [
+          84,
+          91
+        ],
+        "policy": [
+          91,
+          98
+        ],
+        "promotion_validation": [
+          98,
+          105
+        ]
+      },
+      {
+        "version_id": "W30_T150",
+        "strategy": "W30",
+        "update_time": 150,
+        "cutoff": 120,
+        "window_days": 30,
+        "predictor_days": 9,
+        "predictor": [
+          90,
+          99
+        ],
+        "calibration": [
+          99,
+          106
+        ],
+        "policy": [
+          106,
+          113
+        ],
+        "promotion_validation": [
+          113,
+          120
+        ]
+      },
+      {
+        "version_id": "W30_T165",
+        "strategy": "W30",
+        "update_time": 165,
+        "cutoff": 135,
+        "window_days": 30,
+        "predictor_days": 9,
+        "predictor": [
+          105,
+          114
+        ],
+        "calibration": [
+          114,
+          121
+        ],
+        "policy": [
+          121,
+          128
+        ],
+        "promotion_validation": [
+          128,
+          135
+        ]
+      }
+    ],
+    "W60": [
+      {
+        "version_id": "W60_T120",
+        "strategy": "W60",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": 60,
+        "predictor_days": 39,
+        "predictor": [
+          30,
+          69
+        ],
+        "calibration": [
+          69,
+          76
+        ],
+        "policy": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
+        ]
+      },
+      {
+        "version_id": "W60_T135",
+        "strategy": "W60",
+        "update_time": 135,
+        "cutoff": 105,
+        "window_days": 60,
+        "predictor_days": 39,
+        "predictor": [
+          45,
+          84
+        ],
+        "calibration": [
+          84,
+          91
+        ],
+        "policy": [
+          91,
+          98
+        ],
+        "promotion_validation": [
+          98,
+          105
+        ]
+      },
+      {
+        "version_id": "W60_T150",
+        "strategy": "W60",
+        "update_time": 150,
+        "cutoff": 120,
+        "window_days": 60,
+        "predictor_days": 39,
+        "predictor": [
+          60,
+          99
+        ],
+        "calibration": [
+          99,
+          106
+        ],
+        "policy": [
+          106,
+          113
+        ],
+        "promotion_validation": [
+          113,
+          120
+        ]
+      },
+      {
+        "version_id": "W60_T165",
+        "strategy": "W60",
+        "update_time": 165,
+        "cutoff": 135,
+        "window_days": 60,
+        "predictor_days": 39,
+        "predictor": [
+          75,
+          114
+        ],
+        "calibration": [
+          114,
+          121
+        ],
+        "policy": [
+          121,
+          128
+        ],
+        "promotion_validation": [
+          128,
+          135
+        ]
+      }
+    ],
+    "W90": [
+      {
+        "version_id": "W90_T120",
+        "strategy": "W90",
+        "update_time": 120,
+        "cutoff": 90,
+        "window_days": 90,
+        "predictor_days": 69,
+        "predictor": [
+          0,
+          69
+        ],
+        "calibration": [
+          69,
+          76
+        ],
+        "policy": [
+          76,
+          83
+        ],
+        "promotion_validation": [
+          83,
+          90
+        ]
+      },
+      {
+        "version_id": "W90_T135",
+        "strategy": "W90",
+        "update_time": 135,
+        "cutoff": 105,
+        "window_days": 90,
+        "predictor_days": 69,
+        "predictor": [
+          15,
+          84
+        ],
+        "calibration": [
+          84,
+          91
+        ],
+        "policy": [
+          91,
+          98
+        ],
+        "promotion_validation": [
+          98,
+          105
+        ]
+      },
+      {
+        "version_id": "W90_T150",
+        "strategy": "W90",
+        "update_time": 150,
+        "cutoff": 120,
+        "window_days": 90,
+        "predictor_days": 69,
+        "predictor": [
+          30,
+          99
+        ],
+        "calibration": [
+          99,
+          106
+        ],
+        "policy": [
+          106,
+          113
+        ],
+        "promotion_validation": [
+          113,
+          120
+        ]
+      },
+      {
+        "version_id": "W90_T165",
+        "strategy": "W90",
+        "update_time": 165,
+        "cutoff": 135,
+        "window_days": 90,
+        "predictor_days": 69,
+        "predictor": [
+          45,
+          114
+        ],
+        "calibration": [
+          114,
+          121
+        ],
+        "policy": [
+          121,
+          128
+        ],
+        "promotion_validation": [
+          128,
+          135
+        ]
+      }
+    ]
+  }
+}

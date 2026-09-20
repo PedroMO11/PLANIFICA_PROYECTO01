@@ -1,0 +1,42 @@
+# Contrato del servicio local. F5 del plan.
+# El endpoint CALCULA la decision; el replay la CONFIRMA y registra (autoridad del estado).
+
+service:
+  host: 0.0.0.0
+  port: 8080                 # contrato Cloud Run: escuchar en $PORT, default 8080
+  workers: 1
+  schema_version: "1.0.0"
+
+endpoints:
+  health: GET /health
+  predict: POST /predict
+
+request_contract:
+  required: [event_id, event_day, amount, features, schema_version, capacity_context]
+  forbidden: [isFraud]       # el servicio nunca recibe la etiqueta
+
+response_contract:
+  fields:
+    - p_raw
+    - p_calibrated
+    - action                 # aprobar | revisar | bloquear
+    - expected_costs         # {aprobar, revisar, bloquear}
+    - reason
+    - model_version
+    - calibrator_version
+    - policy_version
+    - timings_ms
+
+behavior:
+  no_package_status: 503     # C21: model_unavailable, nunca decidir un pago sin paquete valido
+  stateless_quota: true      # el cupo vive en el ledger del replay, no en el servicio
+
+latency_probe:
+  warmup_requests: 100
+  measured_requests: 1000
+  percentiles: [50, 95, 99]
+
+rollback:
+  http_error_rate_max: 0.01       # sobre 100 requests
+  p95_ms_max: 300                 # dos lotes de 100 consecutivos
+  keep_previous_package: true

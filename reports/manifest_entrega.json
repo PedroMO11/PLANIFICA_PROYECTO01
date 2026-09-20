@@ -1,0 +1,315 @@
+{
+  "generado_en": "2026-09-20T09:16:57+00:00",
+  "run_id": "principal",
+  "origen_datos": "sintetico_sustituto",
+  "advertencia_datos": "Resultados obtenidos sobre un sustituto sintetico: no son cifras de IEEE-CIS.",
+  "computo_minutos": 21.91,
+  "computo_limite_minutos": 480,
+  "inventario": {
+    "codigo": [
+      {
+        "ruta": "src/fraud_adaptive/__main__.py",
+        "existe": true,
+        "bytes": 21990,
+        "sha256": "f99a9b758f2f53b56255d422f08363eed6ce5cea10b81d38cbb3b688e0f51a90"
+      },
+      {
+        "ruta": "pyproject.toml",
+        "existe": true,
+        "bytes": 1259,
+        "sha256": "db3165c2416750d625538344d2fc4e5c06b3c531d467ca2f96866c62428f171e"
+      },
+      {
+        "ruta": "requirements.lock",
+        "existe": true,
+        "bytes": 7668,
+        "sha256": "093768a59d8d63db9b394437d2774014969bd0150ef6263f512897a9b930fb43"
+      },
+      {
+        "ruta": "requirements-serving.lock",
+        "existe": true,
+        "bytes": 2425,
+        "sha256": "283226fc13a3562a9764a38ebb21a8cb7d455016df8681b0322a42d28ddb5afc"
+      }
+    ],
+    "configuracion": [
+      {
+        "ruta": "configs/base.yaml",
+        "existe": true,
+        "bytes": 1173,
+        "sha256": "f5f60ea4aec836266c6e3427cc3069d7f0b282fe93fbdca91fb2600801876ff2"
+      },
+      {
+        "ruta": "configs/temporal.yaml",
+        "existe": true,
+        "bytes": 1717,
+        "sha256": "ae03afc9df7e546e75903dfcbb4332031cdcfbf3a00f2d1cc5c2bdc06a36b1dd"
+      },
+      {
+        "ruta": "configs/decision.yaml",
+        "existe": true,
+        "bytes": 2129,
+        "sha256": "5db291c0735e82248ff06b6e109738184ba5671b9e9569420c378de6acad1cdf"
+      },
+      {
+        "ruta": "configs/models.yaml",
+        "existe": true,
+        "bytes": 1968,
+        "sha256": "7c53128c18368c1a739880ef7e100b85009dd044fecf5556a71870c5820041ee"
+      },
+      {
+        "ruta": "configs/adaptation.yaml",
+        "existe": true,
+        "bytes": 2441,
+        "sha256": "ae7fb15938c1965f80282889ea709062cd472fd3ac13becd9987f1b68c8d1056"
+      },
+      {
+        "ruta": "configs/serving.yaml",
+        "existe": true,
+        "bytes": 1242,
+        "sha256": "840e9bf623c54c37f51fef125087e7861586ae64ab44635eaa11730f061e34a2"
+      },
+      {
+        "ruta": "configs/gcp.yaml",
+        "existe": true,
+        "bytes": 1381,
+        "sha256": "89575383043f07cafc80ac22614ab284634cf524bbd246d17f76f89025a37179"
+      }
+    ],
+    "documentacion": [
+      {
+        "ruta": "README.md",
+        "existe": true,
+        "bytes": 10329,
+        "sha256": "30a581b97e57ec779ed1ebf9057d0546c380cdfb6c94b8b59dbaf02a40d8f604"
+      },
+      {
+        "ruta": "docs/contrato_sistema.md",
+        "existe": true,
+        "bytes": 7130,
+        "sha256": "29e3244751497417f4565dfb1e298e2f1cd32e71c83cabb7b5a80fe01734e389"
+      },
+      {
+        "ruta": "docs/protocolo_experimental.md",
+        "existe": true,
+        "bytes": 8880,
+        "sha256": "fb9b72d4b3dd48c096f2802d86ee5faf48f39546764f0af49155748d989c64d9"
+      },
+      {
+        "ruta": "docs/reproducibilidad.md",
+        "existe": true,
+        "bytes": 5227,
+        "sha256": "2e8d3ef25318186fce8e284b982e75f00b8355fd36f2868abbaa67aacc20cc28"
+      },
+      {
+        "ruta": "docs/decisiones_pendientes.md",
+        "existe": true,
+        "bytes": 9649,
+        "sha256": "28107ef30b3a36b282f4d77432b89ad301943cc57dfde1686bb730169d55826a"
+      },
+      {
+        "ruta": "docs/arquitectura.mmd",
+        "existe": true,
+        "bytes": 2434,
+        "sha256": "6ae0c82ecbd836edb0d8083fb5003f846a9a268b98e8178330faee327de391e0"
+      }
+    ],
+    "despliegue": [
+      {
+        "ruta": "Dockerfile",
+        "existe": true,
+        "bytes": 2120,
+        "sha256": "df35a872b9846376043b31e9679782701f7a2cc045e42fa863d473c1257ccf80"
+      },
+      {
+        "ruta": ".dockerignore",
+        "existe": true,
+        "bytes": 742,
+        "sha256": "6ee6099a181279795397878fc479df41a8e44d04d6e74a8c74e943af33c4c360"
+      },
+      {
+        "ruta": "deploy/gcp_runbook.md",
+        "existe": true,
+        "bytes": 7987,
+        "sha256": "27a8b7ca7855802cbabfdf75797e0f3e9f5a867f6b8c11376b8f651d4f8dd11e"
+      },
+      {
+        "ruta": "deploy/promocion_rollback.md",
+        "existe": true,
+        "bytes": 5373,
+        "sha256": "a662a027c3d9fe2c65fe55ce79d0ae25d256bced9e7a7c6d6d749cbe44263226"
+      },
+      {
+        "ruta": "deploy/arquitectura_gcp.mmd",
+        "existe": true,
+        "bytes": 2026,
+        "sha256": "fb5e0efb0851d8e227d5c8b84fe5c6f6ec5e1cae8e1bcf3d26d0a0648bd825a0"
+      }
+    ],
+    "notebooks": [
+      {
+        "ruta": "notebooks/01_eda_temporal.ipynb",
+        "existe": true,
+        "bytes": 9324,
+        "sha256": "976892667491d9174f48c63d8c97c98f2b01cf333622fdc384321a2e7f65f2b4"
+      },
+      {
+        "ruta": "notebooks/02_modelos_temporales.ipynb",
+        "existe": true,
+        "bytes": 7623,
+        "sha256": "f9afc52af827ae1faf54a343db1eaeca5b3374dedcd5ed5616b4ba2bf4eeaf57"
+      },
+      {
+        "ruta": "notebooks/03_drift_adaptacion.ipynb",
+        "existe": true,
+        "bytes": 12267,
+        "sha256": "e69ecb19cf5ccdd9c2b103840f37932d4c8e5fd1e495ac2d6c57833439e3edb3"
+      }
+    ],
+    "informe": [
+      {
+        "ruta": "reports/informe_final.md",
+        "existe": true,
+        "bytes": 24604,
+        "sha256": "42f122f2f3c7e17de7e5d7a584c6416caaa5f1452d66f758d38454dfd93bb4b5"
+      },
+      {
+        "ruta": "reports/informe_final.pdf",
+        "existe": true,
+        "bytes": 886137,
+        "sha256": "9fd2bad66865f3ca0206c70e3ce4d69a1aace3e8ea07263805217be1bbb6d5b5"
+      },
+      {
+        "ruta": "reports/infografia.svg",
+        "existe": true,
+        "bytes": 11524,
+        "sha256": "18de80224da83c65cc56cf8964fb4f06b482cccf6c0db3b3eecbe27a2a6379c2"
+      },
+      {
+        "ruta": "reports/infografia.pdf",
+        "existe": true,
+        "bytes": 46976,
+        "sha256": "975d0faf64439fc95cc2104be3fc19c4670443e77048dc0c85bd4b39558fbd0f"
+      },
+      {
+        "ruta": "reports/guion_presentacion.md",
+        "existe": true,
+        "bytes": 11300,
+        "sha256": "297aa2efefb129f0a6c84b5e55f5b563de1842488942c9bd87528bbb546bb96c"
+      },
+      {
+        "ruta": "reports/indice_evidencia.csv",
+        "existe": true,
+        "bytes": 5096,
+        "sha256": "2c6ac93d07e142fa09add8f4d325fe522d66cd9a4b26e0aff1728a552bbc0990"
+      }
+    ],
+    "tablas": [
+      {
+        "ruta": "reports/tables/comparacion_modelos.csv",
+        "existe": true,
+        "bytes": 1019,
+        "sha256": "a44cec196dd75236e3b8bf2b9177fc24534c247e52e577032fb388c3bc728781"
+      },
+      {
+        "ruta": "reports/tables/adaptacion.csv",
+        "existe": true,
+        "bytes": 3581,
+        "sha256": "57087036dd624e3b291408aa720f47babc3b07cd3fda60bae02c5ebdee23bffb"
+      },
+      {
+        "ruta": "reports/tables/costos_computo.csv",
+        "existe": true,
+        "bytes": 332,
+        "sha256": "a8918b46216c32e8d70a35a9595e8f257bc81bebd4d1f17df9275c354f422a42"
+      },
+      {
+        "ruta": "reports/tables/segmentos.csv",
+        "existe": true,
+        "bytes": 2119,
+        "sha256": "83358a815c704f2ad2973ad00d534913f973df94ced0c3527088a3e0a69a3fd8"
+      },
+      {
+        "ruta": "reports/tables/adwin_selftest.csv",
+        "existe": true,
+        "bytes": 182,
+        "sha256": "09b9c8d3b210c79dd3447e2de29bbd62841310a533f866a02eec199fc1c5bc8f"
+      },
+      {
+        "ruta": "reports/tables/sensibilidad_economica.csv",
+        "existe": true,
+        "bytes": 681,
+        "sha256": "e985cdef3d64ed585d4850fecd8573bae6e712518deab04703b5ee673b503d2c"
+      }
+    ],
+    "figuras": [
+      {
+        "ruta": "reports/figures/eda_temporal.png",
+        "existe": true,
+        "bytes": 159590,
+        "sha256": "cb11c59b0432f597fce4451ad475f4a447a7966470879ed96e2784fe6ee3a8d3"
+      },
+      {
+        "ruta": "reports/figures/rendimiento_estatico.png",
+        "existe": true,
+        "bytes": 101063,
+        "sha256": "5e68786fe8d387eb32b9cabecd50c42d969bd3311494e826ff6128f67057bff4"
+      },
+      {
+        "ruta": "reports/figures/calibracion_costos.png",
+        "existe": true,
+        "bytes": 102693,
+        "sha256": "d2bdaa28e9b9ae957bb9a41f9ae0aa01f1ca6b918ded840128fe4c84973c12bf"
+      },
+      {
+        "ruta": "reports/figures/drift_adaptacion.png",
+        "existe": true,
+        "bytes": 313876,
+        "sha256": "7ba4b15628cbfa1d9f39a29c316dadd83b9c0ff897dc06a837d938012f2f5fb2"
+      }
+    ],
+    "evidencia": [
+      {
+        "ruta": "reports/datos_temporales.md",
+        "existe": true,
+        "bytes": 5238,
+        "sha256": "f4967be7e126d7ae24bacf036e6c231b66940af5fb5b38550ef238dce2703c7b"
+      },
+      {
+        "ruta": "reports/replay_local.md",
+        "existe": true,
+        "bytes": 1781,
+        "sha256": "0a65dd2312f61f08d8a5d24f83362700e53ad3cf2a54797e7b596197a6deca93"
+      },
+      {
+        "ruta": "data/manifests/sources.json",
+        "existe": true,
+        "bytes": 3337,
+        "sha256": "b6b6e0eb978d84cc55891ecd187fdfa5a97f19bc9f4eec851cfbe7ea89509e14"
+      },
+      {
+        "ruta": "data/manifests/splits.json",
+        "existe": true,
+        "bytes": 9361,
+        "sha256": "d37bf0ec83bbe9fb5362479677cf1b1f289e96a86c18c899fbc6741faf14fc9f"
+      }
+    ]
+  },
+  "faltantes": [],
+  "completo": true,
+  "excluido_deliberadamente": [
+    "ieee-fraud-detection/ (datos crudos, no se versionan)",
+    "data/processed/ (regenerable con `data prepare --rebuild`)",
+    "models/ y runs/ (artefactos de corrida, regenerables)",
+    ".venv/ y credenciales de Kaggle"
+  ],
+  "fuera_de_alcance": [
+    "MLflow, Terraform e IaC",
+    "Recursos cloud creados o facturas estimadas",
+    "Benchmark v2, ablaciones D*, semillas adicionales",
+    "L distintos de 30, cadencias distintas de 15, W14",
+    "Shadow/canary real y feature store online"
+  ],
+  "informe_paginas": 8,
+  "no_verificado": []
+}

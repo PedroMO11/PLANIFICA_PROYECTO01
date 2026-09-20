@@ -1,0 +1,114 @@
+{
+  "generated_at": "2026-09-20T08:29:30+00:00",
+  "sources": {
+    "transactions": {
+      "path": "ieee-fraud-detection/train_transaction.csv",
+      "role": "tabla base, una fila por evento",
+      "exists": true,
+      "bytes": 1039921241,
+      "sha256": "02f3d70bceccfc1901fd4c30d172c7a27d1b22f33e4fc88db48219bda45e45ea",
+      "n_columns": 394,
+      "columns_preview": [
+        "TransactionID",
+        "isFraud",
+        "TransactionDT",
+        "TransactionAmt",
+        "ProductCD",
+        "card1",
+        "card2",
+        "card3",
+        "card4",
+        "card5",
+        "card6",
+        "addr1",
+        "addr2",
+        "dist1",
+        "dist2"
+      ]
+    },
+    "identity": {
+      "path": "ieee-fraud-detection/train_identity.csv",
+      "role": "tabla complementaria, cobertura parcial",
+      "exists": true,
+      "bytes": 34967277,
+      "sha256": "c53390150d3b52ec43ed644b88bb1fb4a17c0c080560adb41cd6c019b7bd74da",
+      "n_columns": 41,
+      "columns_preview": [
+        "TransactionID",
+        "id_01",
+        "id_02",
+        "id_03",
+        "id_04",
+        "id_05",
+        "id_06",
+        "id_07",
+        "id_08",
+        "id_09",
+        "id_10",
+        "id_11",
+        "id_12",
+        "id_13",
+        "id_14"
+      ]
+    }
+  },
+  "esquema": {
+    "n_transactions": 581972,
+    "n_identity": 139843,
+    "n_columns_transactions": 394,
+    "n_columns_identity": 41,
+    "prevalencia": 0.03523537214848824,
+    "n_fraudes": 20506,
+    "monto_min": 0.252,
+    "monto_max": 6249.124,
+    "monto_mediana": 39.517,
+    "montos_no_finitos": 0,
+    "dt_min": 88303,
+    "dt_max": 15812799
+  },
+  "join": {
+    "filas_antes": 581972,
+    "filas_despues": 581972,
+    "filas_invariantes": true,
+    "ids_identidad": 139843,
+    "ids_identidad_huerfanos": 0,
+    "cobertura_identidad": 0.24029162915054333,
+    "columnas_identidad": 40,
+    "nota": "La ausencia de identidad es informativa (has_identity), no se imputa ni se descarta la fila."
+  },
+  "features": {
+    "proxies": {
+      "card": {
+        "proxy": "card_proxy",
+        "n_entidades": 10613,
+        "cobertura": 1.0,
+        "eventos_por_entidad_medio": 54.83576745500801,
+        "eventos_por_entidad_p95": 180.0,
+        "entidades_con_un_evento": 2043,
+        "fraccion_singleton": 0.19249976443983793,
+        "top1_share": 0.0003763067638992941,
+        "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
+      },
+      "device": {
+        "proxy": "device_proxy",
+        "n_entidades": 2294,
+        "cobertura": 0.24029162915054333,
+        "eventos_por_entidad_medio": 60.96033129904097,
+        "eventos_por_entidad_p95": 43.34999999999991,
+        "entidades_con_un_evento": 696,
+        "fraccion_singleton": 0.30340017436791633,
+        "top1_share": 0.3857254206503007,
+        "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
+      }
+    },
+    "n_features_historial": 26,
+    "ventanas": {
+      "1h": 3600,
+      "24h": 86400,
+      "7d": 604800
+    },
+    "grupos_de_empate_temporal": 12856,
+    "regla_causal": "features emitidas antes de actualizar estado; empates leen el mismo pasado"
+  },
+  "data_source": "sintetico_sustituto"
+}
