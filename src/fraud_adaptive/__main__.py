@@ -155,6 +155,7 @@ def cmd_train(args: argparse.Namespace) -> int:
                 **{k: v for k, v in calibration.items() if k != "tabla"},
                 "tabla": calibration["tabla"].to_dict("records"),
             },
+            "calibracion_cupo": results["calibracion_cupo"],
             "umbrales_implicados": results["umbrales_implicados"],
             "familias": {
                 name: {

@@ -376,9 +376,9 @@ def contract_fixtures(policy: Policy, cost_model: CostModel) -> pd.DataFrame:
     Los casos se construyen a partir de los umbrales que la regla economica induce
     en cada monto, de modo que ejercitan la decision real y no una aproximacion.
     """
-    bajo = implied_thresholds(cost_model, 25.0)
-    alto = implied_thresholds(cost_model, 900.0)
-    medio = implied_thresholds(cost_model, 400.0)
+    bajo = implied_thresholds(cost_model, 25.0, policy)
+    alto = implied_thresholds(cost_model, 900.0, policy)
+    medio = implied_thresholds(cost_model, 400.0, policy)
     zona_gris = (medio["tau_low"] + medio["tau_high"]) / 2.0
     rows = [
         {"caso": "aprobar_p_baja", "p_forzada": max(0.0, bajo["tau_low"] * 0.5),

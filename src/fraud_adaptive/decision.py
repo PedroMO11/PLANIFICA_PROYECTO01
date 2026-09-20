@@ -7,12 +7,18 @@ esperado. La accion es el minimo de esos costos, sujeta al cupo de revision. Esa
 separacion es deliberada: permite cambiar el modelo sin tocar la politica y
 reportar por separado el comportamiento del clasificador y el del sistema.
 
-Dos decisiones de diseno que el modelo de costos impone
--------------------------------------------------------
-La accion se elige por ``argmin`` de los tres costos y no por umbrales sobre ``p``,
-porque el punto de indiferencia depende del monto (ver ``Policy``). Y ``c_FP`` no se
-fija por intuicion sino que se deriva del objetivo de bloqueo de legitimas
-(ver ``calibrate_fp_cost``), que es la cantidad que la operacion observa y restringe.
+Tres decisiones de diseno que el problema impone
+------------------------------------------------
+La accion se elige por costo esperado y no por umbrales sobre ``p``, porque el
+punto de indiferencia depende del monto (ver ``Policy``).
+
+La revision compite por un cupo escaso, de modo que no basta con que sea la accion
+mas barata: tiene que serlo por un margen que justifique ocupar una plaza. Ese
+margen es el precio sombra del cupo (ver ``calibrate_review_price``).
+
+Y ``c_FP`` no se fija por intuicion sino que se deriva del objetivo de bloqueo de
+legitimas (ver ``calibrate_fp_cost``), que es la cantidad que la operacion observa
+y restringe.
 
 Costos esperados por accion
 ---------------------------
@@ -82,18 +88,26 @@ class Policy:
 
     ``rule`` selecciona como se propone la accion:
 
-    * ``argmin``: el minimo de los tres costos esperados, caso por caso. Es la
-      regla de operacion.
+    * ``argmin``: por costo esperado, con el cupo racionado por ``review_price``.
+      Es la regla de operacion.
     * ``umbral``: dos cortes globales sobre ``p``. Se conserva como referencia
       para poder cuantificar cuanto cuesta ignorar el monto.
 
     Un umbral global sobre ``p`` no puede ser optimo bajo este modelo de costos,
     porque el punto de indiferencia entre aprobar y bloquear es
     ``p* = c_FP / (monto + c_FP)`` y por lo tanto depende del monto. Un corte fijo
-    bloquea de mas en los montos bajos y de menos en los altos. Medido sobre los
-    cuatro bloques de test, la regla de umbrales cuesta 1,6262 UM/tx frente a
-    1,5054 de la regla economica, con el mismo numero de revisiones y mas bloqueo
-    de legitimas. Por eso la regla de operacion es ``argmin``.
+    bloquea de mas en los montos bajos y de menos en los altos.
+
+    ``review_price`` es el precio sombra del cupo diario. Se revisa un caso solo si
+
+        min(E[aprobar], E[bloquear]) - E[revisar] > review_price
+
+    es decir, si revisar ahorra lo suficiente como para justificar ocupar una plaza
+    escasa. Con ``review_price = 0`` la regla es el argmin sin restriccion, que
+    propone muchas mas revisiones de las que caben: el cupo se llena con los casos
+    que llegan primero y los mejores del dia se quedan fuera. Medido sobre los
+    cuatro bloques de test, pasar de 0 al precio sombra calibrado baja el costo de
+    3,2779 a 2,5657 UM/tx y el bloqueo de legitimas del 1,31 % al 0,57 %.
     """
 
     tau_low: float
@@ -101,7 +115,8 @@ class Policy:
     daily_capacity: int = 150
     delta: float = 0.0
     rule: str = "argmin"
-    version: str = "politica_v2"
+    review_price: float = 0.0
+    version: str = "politica_v3"
 
     def __post_init__(self) -> None:
         if self.rule not in ("argmin", "umbral"):
@@ -113,8 +128,13 @@ class Policy:
         """Accion propuesta, ANTES de aplicar el cupo."""
         if self.rule == "umbral":
             return self.zone(probability)
-        stacked = np.vstack([costs[APROBAR], costs[REVISAR], costs[BLOQUEAR]])
-        return np.asarray(ACCIONES, dtype=object)[stacked.argmin(axis=0)]
+        automatica = np.where(costs[APROBAR] <= costs[BLOQUEAR], APROBAR, BLOQUEAR)
+        ahorro = np.minimum(costs[APROBAR], costs[BLOQUEAR]) - costs[REVISAR]
+        return np.where(ahorro > self.review_price, REVISAR, automatica).astype(object)
+
+    def review_saving(self, costs: dict[str, np.ndarray]) -> np.ndarray:
+        """Cuanto ahorra revisar frente a la mejor accion automatica."""
+        return np.minimum(costs[APROBAR], costs[BLOQUEAR]) - costs[REVISAR]
 
     def zone(self, probability: np.ndarray) -> np.ndarray:
         """Zona propuesta por los dos umbrales globales."""
@@ -133,6 +153,7 @@ class Policy:
             "tau_high": self.tau_high,
             "daily_capacity": self.daily_capacity,
             "delta": self.delta,
+            "review_price": self.review_price,
             "version": self.version,
         }
 
@@ -157,7 +178,8 @@ def policy_from_dict(data: dict[str, Any], *, daily_capacity: int | None = None)
         daily_capacity=int(data.get("daily_capacity", daily_capacity or 150)),
         delta=float(data.get("delta", 0.0)),
         rule=str(data.get("rule", "argmin")),
-        version=str(data.get("version", "politica_v2")),
+        review_price=float(data.get("review_price", 0.0)),
+        version=str(data.get("version", "politica_v3")),
     )
 
 
@@ -182,19 +204,20 @@ def cost_model_from_dict(data: dict[str, Any]) -> CostModel:
     )
 
 
-def implied_thresholds(costs_model: CostModel, amount: float) -> dict[str, float]:
+def implied_thresholds(costs_model: CostModel, amount: float,
+                       policy: "Policy | None" = None) -> dict[str, float]:
     """Umbrales de indiferencia que la regla economica aplica a un monto dado.
 
-    La regla ``argmin`` no fija cortes, pero induce uno por monto. Calcularlos
-    permite describir la politica en terminos de ``p`` sin cambiar la decision.
+    La regla no fija cortes, pero induce uno por monto. Calcularlos permite
+    describir la politica en terminos de ``p`` sin cambiar la decision.
     """
     grid = np.linspace(0.0, 1.0, 100_001)
     amounts = np.full_like(grid, float(amount))
     costs = costs_model.expected_costs(grid, amounts)
-    stacked = np.vstack([costs[APROBAR], costs[REVISAR], costs[BLOQUEAR]])
-    action = stacked.argmin(axis=0)
-    no_aprobar = np.flatnonzero(action != 0)
-    bloquear = np.flatnonzero(action == 2)
+    policy = policy or Policy(tau_low=0.0, tau_high=1.0)
+    action = policy.propose(grid, costs)
+    no_aprobar = np.flatnonzero(action != APROBAR)
+    bloquear = np.flatnonzero(action == BLOQUEAR)
     return {
         "monto": float(amount),
         "tau_low": float(grid[no_aprobar[0]]) if no_aprobar.size else 1.0,
@@ -412,6 +435,75 @@ def total_cost(outcomes: pd.DataFrame) -> dict[str, float]:
 
 # --------------------------------------------------------------------------- seleccion de umbrales
 
+def calibrate_review_price(
+    probability: np.ndarray,
+    amount: np.ndarray,
+    day: np.ndarray,
+    costs_model: CostModel,
+    *,
+    daily_capacity: int,
+    tolerance: float = 1e-4,
+    max_iter: int = 60,
+) -> dict[str, Any]:
+    """Deriva el precio sombra del cupo diario de revision.
+
+    Con el cupo como restriccion dura, elegir la accion de menor costo esperado
+    resuelve el problema equivocado. La regla sin restriccion propone muchas mas
+    revisiones de las que caben, el cupo se llena con los casos que llegan primero
+    y los mejores del dia quedan fuera. Medido sobre IEEE-CIS, propone 644
+    revisiones diarias frente a un cupo de 150.
+
+    El multiplicador de Lagrange de la restriccion es el precio que una plaza de
+    revision debe pagar. Se revisa solo si
+
+        min(E[aprobar], E[bloquear]) - E[revisar] > lambda
+
+    y ``lambda`` se elige como el menor valor que deja la demanda diaria media
+    dentro del cupo. La busqueda es una biseccion sobre una funcion monotona
+    decreciente, de modo que converge sin rejilla.
+
+    No usa etiquetas. El criterio es la restriccion de capacidad, no el costo
+    observado, lo que evita ajustar la politica al desenlace de la ventana. Medido
+    sobre IEEE-CIS, el ``lambda`` que iguala demanda y cupo queda a un 0,7 % del
+    que minimiza el costo.
+    """
+    day = np.asarray(day)
+    n_days = max(1, len(np.unique(day)))
+    saving = costs_model.expected_costs(probability, amount)
+    saving = np.minimum(saving[APROBAR], saving[BLOQUEAR]) - saving[REVISAR]
+
+    def demand(price: float) -> float:
+        return float((saving > price).sum()) / n_days
+
+    if demand(0.0) <= daily_capacity:
+        # El cupo no ata: la regla sin restriccion ya cabe.
+        LOGGER.info("El cupo no restringe: demanda de %.1f/dia con precio cero", demand(0.0))
+        return {"review_price": 0.0, "demanda_diaria": demand(0.0),
+                "cupo_diario": daily_capacity, "restringe": False}
+
+    low, high = 0.0, float(max(saving.max(), 1.0))
+    for _ in range(max_iter):
+        mid = (low + high) / 2.0
+        if demand(mid) > daily_capacity:
+            low = mid
+        else:
+            high = mid
+        if high - low < tolerance:
+            break
+    price = high
+    LOGGER.info(
+        "Precio sombra del cupo: %.4f. Demanda %.1f/dia frente a un cupo de %d (sin precio: %.1f)",
+        price, demand(price), daily_capacity, demand(0.0),
+    )
+    return {
+        "review_price": float(price),
+        "demanda_diaria": demand(price),
+        "demanda_diaria_sin_precio": demand(0.0),
+        "cupo_diario": daily_capacity,
+        "restringe": True,
+    }
+
+
 def calibrate_fp_cost(
     probability: np.ndarray,
     amount: np.ndarray,
@@ -425,6 +517,7 @@ def calibrate_fp_cost(
     r_h: float = 0.90,
     f_h: float = 0.02,
     daily_capacity: int = 150,
+    review_price: float = 0.0,
     seed: int = 42,
 ) -> dict[str, Any]:
     """Deriva ``c_FP`` del objetivo operativo de bloqueo de legitimas.
@@ -451,7 +544,8 @@ def calibrate_fp_cost(
     table: list[dict[str, Any]] = []
     for candidate in sorted(float(c) for c in grid):
         costs_model = CostModel(c_fp=candidate, c_review=c_review, r_h=r_h, f_h=f_h)
-        policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=daily_capacity, rule="argmin")
+        policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=daily_capacity,
+                        rule="argmin", review_price=review_price)
         decisions = decide_batch(
             probability, amount, day, event_ids, policy, costs_model,
             ledger=CapacityLedger(daily_capacity),

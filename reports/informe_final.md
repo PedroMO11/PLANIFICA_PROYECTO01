@@ -384,11 +384,7 @@ muestra.
 
 ### AP por bloque
 
-El AP del sistema estático pasa de 0,5255 en B1 a 0,5092 en B4, sin degradación
-monótona. El descenso común en B2, hasta 0,3882, afecta a las cinco estrategias por
-igual, incluidas las que se reentrenan, de modo que corresponde a un periodo más
-difícil y no a un modelo que caduca. El detalle por bloque está en
-`reports/tables/adaptacion.csv`.
+{TEXTO_AP_BLOQUE}
 
 ### Objetivos diagnósticos no alcanzados
 
@@ -441,7 +437,7 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 
 ### Frecuencia, autonomía y gates
 
-El reentrenamiento ocurre cada 15 días con la ventana W60 elegida en desarrollo.
+El reentrenamiento ocurre cada 15 días con la ventana {W_ELEGIDA} elegida en desarrollo.
 El monitoreo aplica KS/PSI a diario, S1 por bloque y ADWIN al madurar cada
 etiqueta. Cinco gates controlan la promoción. El primero verifica integridad y
 bloquea la versión ante cualquier leakage. El segundo exige costo inferior al de

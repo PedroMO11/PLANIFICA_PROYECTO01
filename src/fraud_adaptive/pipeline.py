@@ -29,8 +29,8 @@ from .backtest import run_backtest
 from .calibration import PlattCalibrator, calibration_report
 from .decision import (
     CapacityLedger, CostModel, Policy, baseline_policies, calibrate_fp_cost,
-    cost_model_from_dict, decide_batch, implied_thresholds, policy_from_dict,
-    select_thresholds, simulate_outcomes, total_cost,
+    calibrate_review_price, cost_model_from_dict, decide_batch, implied_thresholds,
+    policy_from_dict, select_thresholds, simulate_outcomes, total_cost,
 )
 from .metrics import (
     average_precision, threshold_for_fpr, threshold_for_precision,
@@ -333,16 +333,40 @@ def fit_static_models(
     # no depende del modelo economico, de modo que la referencia queda fijada por un
     # criterio ajeno al parametro que se esta calibrando.
     reference = max(results["familias"].items(), key=lambda kv: kv[1]["ap_politica"])[0]
+    reference_scores = results["familias"][reference]["p_politica"]
     calibration_spec = decision_config["costs"]["calibracion_c_fp"]
-    with run.task("calibrar_c_fp", kind="politica"):
-        fp_calibration = calibrate_fp_cost(
-            results["familias"][reference]["p_politica"], policy_amount, policy_day,
-            policy_labels, policy_ids,
-            target_block_rate=calibration_spec["objetivo_bloqueo_legitimo"],
-            grid=calibration_spec["grid"], c_review=c_review,
-            r_h=analyst["r_h"], f_h=analyst["f_h"],
-            daily_capacity=capacity, seed=base["seed"],
-        )
+
+    # Los dos parametros se condicionan mutuamente. c_FP fija la escala de los
+    # costos, que determina cuanto ahorra revisar y por tanto el precio sombra del
+    # cupo. Y racionar el cupo cambia cuantos casos terminan bloqueados, que es lo
+    # que c_FP controla. Se alternan hasta que ambos se estabilizan, lo que ocurre
+    # en dos o tres pasadas.
+    review_price = 0.0
+    fp_calibration = None
+    price_calibration = None
+    with run.task("calibrar_politica", kind="politica"):
+        for pasada in range(3):
+            fp_calibration = calibrate_fp_cost(
+                reference_scores, policy_amount, policy_day, policy_labels, policy_ids,
+                target_block_rate=calibration_spec["objetivo_bloqueo_legitimo"],
+                grid=calibration_spec["grid"], c_review=c_review,
+                r_h=analyst["r_h"], f_h=analyst["f_h"],
+                daily_capacity=capacity, review_price=review_price, seed=base["seed"],
+            )
+            candidate = CostModel(c_fp=fp_calibration["c_fp"], c_review=c_review,
+                                  r_h=analyst["r_h"], f_h=analyst["f_h"])
+            price_calibration = calibrate_review_price(
+                reference_scores, policy_amount, policy_day, candidate,
+                daily_capacity=capacity,
+            )
+            nuevo_precio = price_calibration["review_price"]
+            LOGGER.info("Pasada %d: c_FP=%.1f, precio sombra=%.4f",
+                        pasada + 1, fp_calibration["c_fp"], nuevo_precio)
+            if abs(nuevo_precio - review_price) < 1e-3:
+                review_price = nuevo_precio
+                break
+            review_price = nuevo_precio
+
     cost_model = CostModel(c_fp=fp_calibration["c_fp"], c_review=c_review,
                            r_h=analyst["r_h"], f_h=analyst["f_h"])
     results["calibracion_c_fp"] = {
@@ -353,16 +377,17 @@ def fit_static_models(
         "tasa_bloqueo_legitimo": fp_calibration["tasa_bloqueo_legitimo"],
         "tabla": fp_calibration["tabla"],
     }
+    results["calibracion_cupo"] = price_calibration
     results["costos"] = cost_model.to_dict()
-    results["umbrales_implicados"] = [
-        implied_thresholds(cost_model, monto)
-        for monto in (25.0, float(np.median(policy_amount)), 250.0)
-    ]
 
     # Segunda pasada: costo de cada familia bajo la politica ya congelada, y la
     # regla de umbrales como referencia para medir lo que cuesta ignorar el monto.
     operating = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=capacity,
-                       rule=decision_config["rule"])
+                       rule=decision_config["rule"], review_price=review_price)
+    results["umbrales_implicados"] = [
+        implied_thresholds(cost_model, monto, operating)
+        for monto in (25.0, float(np.median(policy_amount)), 250.0)
+    ]
     for family, info in results["familias"].items():
         decisions = decide_batch(
             info["p_politica"], policy_amount, policy_day, policy_ids,

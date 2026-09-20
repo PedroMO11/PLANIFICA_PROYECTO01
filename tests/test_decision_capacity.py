@@ -308,3 +308,70 @@ def test_los_umbrales_no_se_asumen_en_medio_punto(cost_model):
         quantiles=[0.0, 0.5, 0.9, 0.99, 1.0], daily_capacity=150, seed=42,
     )
     assert selection["policy"].tau_high != 0.5
+
+
+# --------------------------------------------------------------- precio del cupo
+
+def test_el_precio_sombra_ajusta_la_demanda_al_cupo(cost_model):
+    """El cupo es una restriccion dura. Sin precio, la regla propone muchas mas
+    revisiones de las que caben y las plazas se las llevan los casos que llegan
+    primero, no los que mas ahorran."""
+    from fraud_adaptive.decision import calibrate_review_price
+
+    rng = np.random.default_rng(11)
+    n_dias, por_dia = 20, 400
+    n = n_dias * por_dia
+    probability = rng.beta(1.2, 10.0, n)
+    amount = rng.lognormal(4.2, 1.0, n)
+    day = np.repeat(np.arange(n_dias), por_dia)
+
+    sin_precio = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
+    costs = cost_model.expected_costs(probability, amount)
+    demanda_sin = (sin_precio.propose(probability, costs) == REVISAR).sum() / n_dias
+    assert demanda_sin > 150, "el escenario debe tener el cupo saturado"
+
+    calibracion = calibrate_review_price(
+        probability, amount, day, cost_model, daily_capacity=150)
+    assert calibracion["restringe"]
+    assert calibracion["review_price"] > 0
+
+    con_precio = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150,
+                        review_price=calibracion["review_price"])
+    demanda_con = (con_precio.propose(probability, costs) == REVISAR).sum() / n_dias
+    assert demanda_con <= 150
+    assert demanda_con > 100, "racionar de mas desperdiciaria cupo"
+
+
+def test_sin_escasez_el_precio_del_cupo_es_cero(cost_model):
+    """Si la demanda cabe, la restriccion no ata y la regla vuelve al argmin."""
+    from fraud_adaptive.decision import calibrate_review_price
+
+    rng = np.random.default_rng(3)
+    n = 200
+    calibracion = calibrate_review_price(
+        rng.beta(1.0, 30.0, n), rng.lognormal(3.0, 0.5, n), np.zeros(n, dtype=int),
+        cost_model, daily_capacity=150)
+    assert calibracion["review_price"] == 0.0
+    assert not calibracion["restringe"]
+
+
+def test_el_precio_del_cupo_solo_quita_las_revisiones_menos_valiosas(cost_model):
+    """Racionar no puede cambiar una accion automatica por otra ni reordenar el
+    valor de las revisiones: solo recorta por abajo."""
+    rng = np.random.default_rng(5)
+    n = 2000
+    probability = rng.beta(1.2, 10.0, n)
+    amount = rng.lognormal(4.2, 1.0, n)
+    costs = cost_model.expected_costs(probability, amount)
+
+    sin_precio = Policy(tau_low=0.0, tau_high=1.0).propose(probability, costs)
+    con_precio = Policy(tau_low=0.0, tau_high=1.0, review_price=5.0).propose(probability, costs)
+
+    revisadas_sin = set(np.flatnonzero(sin_precio == REVISAR))
+    revisadas_con = set(np.flatnonzero(con_precio == REVISAR))
+    assert revisadas_con < revisadas_sin, "el precio solo puede quitar revisiones"
+
+    ahorro = Policy(tau_low=0.0, tau_high=1.0).review_saving(costs)
+    quitadas = revisadas_sin - revisadas_con
+    if quitadas and revisadas_con:
+        assert max(ahorro[list(quitadas)]) <= min(ahorro[list(revisadas_con)])
