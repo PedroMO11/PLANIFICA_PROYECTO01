@@ -914,7 +914,11 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
             dias_de_fit[nombre] = spec.get("fit_days") or temporal.base_fit.days
         elif spec["kind"] == "lagged":
             dias_de_fit[nombre] = spec["fit_days"]
-    confusion = volume_versus_recency(outcomes, dias_de_fit, seed=base["seed"])
+    confusion = volume_versus_recency(
+        outcomes, dias_de_fit,
+        recency_block=configs["adaptation"].get("recency_comparison", ()),
+        seed=base["seed"],
+    )
     out["confusion_volumen_frescura"] = reports_dir / "volumen_vs_frescura.json"
     write_json(out["confusion_volumen_frescura"], confusion)
 
@@ -1226,16 +1230,17 @@ def robustness_check(
 
 
 def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
-                          *, seed: int = 42) -> dict[str, Any]:
+                          *, recency_block: Sequence[str] = (), seed: int = 42) -> dict[str, Any]:
     """Separa el efecto del volumen de entrenamiento del efecto de la frescura.
 
-    El diseno del experimento los confunde, porque cada ventana W reserva 21 dias
-    y por tanto entrena con W-21. Variar W cambia a la vez cuanto entrena el modelo
-    y cuan reciente es su informacion.
+    Son dos preguntas distintas y variar solo el ancho de ventana las confunde,
+    porque cambia a la vez cuantos dias entrena el modelo y cuan reciente es su
+    informacion.
 
-    La comparacion limpia de frescura es S0 frente a W90, que entrenan con el mismo
-    numero de dias y solo difieren en que W90 se desliza. La comparacion limpia de
-    volumen es W30 frente a W90, ambas deslizantes.
+    El experimento las separa por diseno. ``recency_block`` nombra las estrategias
+    que comparten numero de dias de fit y solo difieren en el punto de corte: la
+    diferencia entre ellas solo puede venir de la antiguedad. La comparacion de
+    volumen es W30 frente a W90, ambas con el mismo corte.
     """
     resultado: dict[str, Any] = {"dias_de_fit": dias_de_fit}
 
@@ -1254,7 +1259,20 @@ def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
         r["cruza_cero"] = bool(r["ic_low"] < 0 < r["ic_high"])
         return r
 
-    resultado["efecto_frescura"] = pareado("W90", "S0")
+    # Frescura a volumen constante. La referencia es la mas fresca del bloque.
+    bloque = [e for e in recency_block if e in set(outcomes["estrategia"])]
+    if len(bloque) >= 2:
+        referencia = bloque[0]
+        dias = {dias_de_fit.get(e) for e in bloque}
+        resultado["bloque_frescura"] = {
+            "referencia": referencia,
+            "estrategias": bloque,
+            "dias_de_fit": sorted(d for d in dias if d is not None),
+            "volumen_constante": len(dias) == 1,
+        }
+        resultado["efecto_frescura"] = {
+            e: pareado(e, referencia) for e in bloque[1:]
+        }
     resultado["efecto_volumen"] = pareado("W30", "W90")
 
     # Correlacion entre dias de fit y costo sobre las estrategias de fit fijo.
@@ -1265,7 +1283,8 @@ def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
         costos = np.array([p[1] for p in pares], dtype=float)
         resultado["correlacion_dias_costo"] = float(np.corrcoef(dias, costos)[0, 1])
     resultado["nota"] = (
-        "El efecto de frescura se mide a volumen igual (S0 y W90 usan 69 dias). "
-        "El efecto de volumen se mide a frescura igual (W30 y W90 son deslizantes)."
+        "El efecto de frescura se mide dentro del bloque de antiguedad variable, "
+        "cuyas estrategias comparten el numero de dias de fit. El efecto de volumen "
+        "se mide con W30 frente a W90, que comparten el punto de corte."
     )
     return resultado

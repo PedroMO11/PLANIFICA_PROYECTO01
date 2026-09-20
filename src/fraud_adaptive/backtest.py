@@ -180,7 +180,7 @@ def run_backtest(
                     package = ModelPackage(
                         version_id=roles.version_id, strategy=name, update_time=current_day,
                         roles=roles, model=shared_package.model, calibrator=shared_package.calibrator,
-                        policy=policy, valid=shared_package.valid,
+                        policy=policy, costs=cost_model, valid=shared_package.valid,
                         invalid_reason=shared_package.invalid_reason,
                         support=shared_package.support,
                         diagnostics={**shared_package.diagnostics, "paquete_compartido_con": shared_package.version_id},
@@ -191,6 +191,7 @@ def run_backtest(
                         name, roles, frame, family=family, model_config=model_config,
                         model_base=model_base, numeric_columns=numeric_columns,
                         categorical_columns=categorical_columns, policy=policy,
+                        costs=cost_model,
                         temporal_config=temporal, calibration_params=calibration_params,
                         seed=seed, n_threads=n_threads, max_rows=max_rows, encoding=encoding,
                         target=target, id_column=id_column,
