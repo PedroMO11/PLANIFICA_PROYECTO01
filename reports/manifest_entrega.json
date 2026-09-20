@@ -1,5 +1,5 @@
 {
-  "generado_en": "2026-09-20T15:12:13+00:00",
+  "generado_en": "2026-09-20T15:29:20+00:00",
   "run_id": "ieee_real",
   "origen_datos": "ieee_cis_real",
   "advertencia_datos": "Resultados sobre IEEE-CIS (particion train).",
@@ -80,8 +80,8 @@
       {
         "ruta": "README.md",
         "existe": true,
-        "bytes": 11806,
-        "sha256": "5b708aa40c432b918e53a5aedee57f71c761cca382e353a0c89ade13b9a3811a"
+        "bytes": 11942,
+        "sha256": "3db75e51e19a57695fdb855d9ab72c31c89b07867072ebf2502c849f7119220a"
       },
       {
         "ruta": "docs/contrato_sistema.md",
@@ -170,14 +170,14 @@
       {
         "ruta": "reports/informe_final.md",
         "existe": true,
-        "bytes": 24692,
-        "sha256": "9edefb6b133a2d939322d3721290db979ed7fc98373dd258264759c4256adc6d"
+        "bytes": 26149,
+        "sha256": "c4cf145767379a47ac14de67372046653e2d7f6a99f1c663a4568569a553494b"
       },
       {
         "ruta": "reports/informe_final.pdf",
         "existe": true,
-        "bytes": 837089,
-        "sha256": "2854080fd7474c6617719e752aa2d2443087e87936e60646e3ef135dfa3fc831"
+        "bytes": 836035,
+        "sha256": "c96150168836c4708d4bffe33e217327bb8104ef40b8aee4e7bec8083d6e1e02"
       },
       {
         "ruta": "reports/infografia.svg",
@@ -200,8 +200,8 @@
       {
         "ruta": "reports/indice_evidencia.csv",
         "existe": true,
-        "bytes": 4882,
-        "sha256": "ae81ed1aa0c55c81c7a55982c6882f6c0b708de83d8c55a2581599d292173857"
+        "bytes": 5257,
+        "sha256": "bc0d048b291fe2786c109b3afbfd0f613750869ee9b11826fea7c7091cbf833e"
       }
     ],
     "tablas": [
@@ -226,8 +226,8 @@
       {
         "ruta": "reports/tables/segmentos.csv",
         "existe": true,
-        "bytes": 9194,
-        "sha256": "d0d1e3cda637f16b7213e77563d8f36d2a094628c619d4ac576913bd26c023c8"
+        "bytes": 9188,
+        "sha256": "e1a49d27000835450898082df1c64155484e0f78d64b95383297dbbb00398883"
       },
       {
         "ruta": "reports/tables/adwin_selftest.csv",
@@ -238,8 +238,8 @@
       {
         "ruta": "reports/tables/sensibilidad_economica.csv",
         "existe": true,
-        "bytes": 659,
-        "sha256": "0933fef626943c492ede536691d176e87b34234067440ea4b96ddf4c1cb8af3b"
+        "bytes": 673,
+        "sha256": "75677cc8a67bb2fc10c6bbe50a301c0da90ea79ab4d26428669ba43f8305245e"
       }
     ],
     "figuras": [
@@ -258,8 +258,8 @@
       {
         "ruta": "reports/figures/calibracion_costos.png",
         "existe": true,
-        "bytes": 109828,
-        "sha256": "f1de73a157c9c62bda49417149dc10337f1d1a11e767dde0035ab8b69c9afe65"
+        "bytes": 108924,
+        "sha256": "a3afc26df085e1c8520b4733749fb8781967c2e95a9ca808203e7c81f50d4866"
       },
       {
         "ruta": "reports/figures/drift_adaptacion.png",
@@ -273,13 +273,13 @@
         "ruta": "reports/datos_temporales.md",
         "existe": true,
         "bytes": 5164,
-        "sha256": "461957ae9272b27aeb8f1fe3ac1f7f07ed8c16dbbf3fa4733b2182d9db19f434"
+        "sha256": "d186235150010d87c65782b7afbf6805f6c8408ae03205345c1bf4b873695c95"
       },
       {
         "ruta": "reports/replay_local.md",
         "existe": true,
         "bytes": 2238,
-        "sha256": "70ff01d7693756edded6488503f11c04db9c49c621598cabebe1638934f1de39"
+        "sha256": "a1aa457e28aa7128a0c4de07654b2d02dc1d5ace457073ace16921ff7f405d87"
       },
       {
         "ruta": "data/manifests/sources.json",

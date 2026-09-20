@@ -840,7 +840,7 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
         outcomes, chosen["policy"],
         configs["decision"]["costs"]["scenarios"],
         configs["decision"]["analyst"],
-        strategy=_preferred_strategy(outcomes), seed=base["seed"],
+        strategy=_preferred_strategy(outcomes, run), seed=base["seed"],
     )
     if not sensitivity.empty:
         out["tabla_sensibilidad"] = tables_dir / "sensibilidad_economica.csv"
@@ -877,7 +877,7 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
             frame[["TransactionID", column]].rename(columns={"TransactionID": "event_id"}),
             on="event_id", how="left",
         )
-        champion = merged[merged["estrategia"] == _preferred_strategy(outcomes)]
+        champion = merged[merged["estrategia"] == _preferred_strategy(outcomes, run)]
         if champion.empty:
             continue
         segment_tables.append(segment_disparity(
@@ -889,6 +889,24 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
         segments = pd.concat(segment_tables, ignore_index=True)
         out["tabla_segmentos"] = tables_dir / "segmentos.csv"
         segments.to_csv(out["tabla_segmentos"], index=False)
+
+    # Robustez de cada diferencia frente a otras elecciones de bootstrap.
+    robustez = robustness_check(outcomes, reference="S0")
+    if not robustez.empty:
+        out["tabla_robustez"] = tables_dir / "robustez.csv"
+        robustez.to_csv(out["tabla_robustez"], index=False)
+
+    # Separacion del efecto de volumen y del efecto de frescura.
+    dias_de_fit = {}
+    for spec in configs["adaptation"]["strategies"]:
+        nombre = spec["name"]
+        if spec["kind"] == "sliding":
+            dias_de_fit[nombre] = spec["window_days"] + temporal.predictor_offset_end
+        elif spec["kind"] == "static":
+            dias_de_fit[nombre] = temporal.base_fit.days
+    confusion = volume_versus_recency(outcomes, dias_de_fit, seed=base["seed"])
+    out["confusion_volumen_frescura"] = reports_dir / "volumen_vs_frescura.json"
+    write_json(out["confusion_volumen_frescura"], confusion)
 
     # Costo de computo
     budget = read_json(run.dir / "budget.json")
@@ -1123,10 +1141,121 @@ def write_reproduction_report(
     return path
 
 
-def _preferred_strategy(outcomes: pd.DataFrame) -> str:
-    """Estrategia desplegable para los cortes sociales: la de menor W disponible."""
+def _preferred_strategy(outcomes: pd.DataFrame, run: Any = None) -> str:
+    """Estrategia sobre la que se calculan los cortes sociales y la sensibilidad.
+
+    Debe ser la ventana elegida en desarrollo, no la de menor W. Una version
+    anterior devolvia siempre W30, de modo que el informe describia el
+    comportamiento de una estrategia distinta de la recomendada.
+    """
     available = set(outcomes["estrategia"])
-    for candidate in ("W30", "W60", "W90", "E15", "S0"):
+
+    if run is not None:
+        seleccion = run.load_checkpoint("seleccion_W")
+        elegida = (seleccion or {}).get("elegida")
+        if elegida in available:
+            return str(elegida)
+
+    # Sin seleccion registrada se usa la ventana desplegable de mayor soporte, que
+    # es la opcion conservadora.
+    for candidate in ("W90", "W60", "W30", "E15", "S0"):
         if candidate in available:
             return candidate
     return next(iter(available))
+
+
+def robustness_check(
+    outcomes: pd.DataFrame,
+    reference: str = "S0",
+    *,
+    seeds: Sequence[int] = (1, 7, 17, 42, 99, 123),
+    block_sizes: Sequence[int] = (5, 7, 10),
+    n_resamples: int = 400,
+) -> pd.DataFrame:
+    """Comprueba si cada diferencia de costo sobrevive a otras elecciones de bootstrap.
+
+    Un unico intervalo con una semilla fija puede excluir el cero por azar. Esta
+    funcion repite el bootstrap pareado variando la semilla y el tamano de bloque,
+    y cuenta en cuantas combinaciones el intervalo cruza el cero. Una diferencia
+    que cruza el cero en alguna combinacion no se declara concluyente.
+    """
+    estrategias = [e for e in outcomes["estrategia"].unique() if e != reference]
+    base = outcomes[outcomes["estrategia"] == reference].set_index("event_id")
+    filas = []
+    for estrategia in estrategias:
+        actual = outcomes[outcomes["estrategia"] == estrategia].set_index("event_id")
+        comunes = base.index.intersection(actual.index)
+        if len(comunes) == 0:
+            continue
+        valores_a = actual.loc[comunes, "costo_observado"].to_numpy()
+        valores_b = base.loc[comunes, "costo_observado"].to_numpy()
+        dias = base.loc[comunes, "dia_evento"].to_numpy()
+
+        cruces = 0
+        total = 0
+        for seed in seeds:
+            for block in block_sizes:
+                resultado = paired_block_bootstrap(
+                    valores_a, valores_b, dias, block_days=block,
+                    n_resamples=n_resamples, confidence=0.95, seed=seed,
+                )
+                total += 1
+                if resultado["ic_low"] < 0 < resultado["ic_high"]:
+                    cruces += 1
+        efecto = float(np.mean(valores_a - valores_b))
+        filas.append({
+            "estrategia": estrategia,
+            "referencia": reference,
+            "delta_costo": efecto,
+            "combinaciones": total,
+            "cruzan_cero": cruces,
+            "robusto": cruces == 0,
+            "veredicto": "concluyente" if cruces == 0 else "no concluyente",
+        })
+    return pd.DataFrame(filas).sort_values("delta_costo")
+
+
+def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
+                          *, seed: int = 42) -> dict[str, Any]:
+    """Separa el efecto del volumen de entrenamiento del efecto de la frescura.
+
+    El diseno del experimento los confunde, porque cada ventana W reserva 21 dias
+    y por tanto entrena con W-21. Variar W cambia a la vez cuanto entrena el modelo
+    y cuan reciente es su informacion.
+
+    La comparacion limpia de frescura es S0 frente a W90, que entrenan con el mismo
+    numero de dias y solo difieren en que W90 se desliza. La comparacion limpia de
+    volumen es W30 frente a W90, ambas deslizantes.
+    """
+    resultado: dict[str, Any] = {"dias_de_fit": dias_de_fit}
+
+    def pareado(a: str, b: str) -> dict[str, Any] | None:
+        if a not in set(outcomes["estrategia"]) or b not in set(outcomes["estrategia"]):
+            return None
+        A = outcomes[outcomes["estrategia"] == a].set_index("event_id")
+        B = outcomes[outcomes["estrategia"] == b].set_index("event_id")
+        comunes = A.index.intersection(B.index)
+        r = paired_block_bootstrap(
+            A.loc[comunes, "costo_observado"].to_numpy(),
+            B.loc[comunes, "costo_observado"].to_numpy(),
+            B.loc[comunes, "dia_evento"].to_numpy(), block_days=7,
+            n_resamples=400, seed=seed,
+        )
+        r["cruza_cero"] = bool(r["ic_low"] < 0 < r["ic_high"])
+        return r
+
+    resultado["efecto_frescura"] = pareado("W90", "S0")
+    resultado["efecto_volumen"] = pareado("W30", "W90")
+
+    # Correlacion entre dias de fit y costo sobre las estrategias de fit fijo.
+    pares = [(dias_de_fit[e], float(outcomes[outcomes["estrategia"] == e]["costo_observado"].mean()))
+             for e in dias_de_fit if e in set(outcomes["estrategia"])]
+    if len(pares) >= 3:
+        dias = np.array([p[0] for p in pares], dtype=float)
+        costos = np.array([p[1] for p in pares], dtype=float)
+        resultado["correlacion_dias_costo"] = float(np.corrcoef(dias, costos)[0, 1])
+    resultado["nota"] = (
+        "El efecto de frescura se mide a volumen igual (S0 y W90 usan 69 dias). "
+        "El efecto de volumen se mide a frescura igual (W30 y W90 son deslizantes)."
+    )
+    return resultado

@@ -1,0 +1,5 @@
+estrategia,referencia,delta_costo,combinaciones,cruzan_cero,robusto,veredicto
+E15,S0,-0.03215930294662439,18,0,True,concluyente
+W90,S0,-0.005243093671518999,18,18,False,no concluyente
+W60,S0,0.09796360185911204,18,12,False,no concluyente
+W30,S0,0.26422684348685777,18,0,True,concluyente

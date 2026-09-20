@@ -5,10 +5,10 @@
 **Semilla** 42. **Retraso de etiqueta** L = 30 días. **Cadencia** 15 días
 
 > **Resultado principal.** El olvido por ventanas fijas no reduce el costo sobre
-> IEEE-CIS con este protocolo. La ventana elegida en desarrollo, W60, resulta un
-> 6,4 % más cara que el modelo estático en el periodo de test. La ventana más
-> corta, W30, es la peor de las cinco estrategias. El informe documenta el
-> resultado tal como se obtuvo y analiza por qué ocurre.
+> IEEE-CIS con este protocolo. La ventana de 9 días de fit resulta un 17,3 % más
+> cara que el modelo estático. El factor que explica el ordenamiento es el volumen
+> de entrenamiento, con una correlación de −0,9916 entre días de fit y costo. A
+> volumen igual la frescura no produce efecto medible.
 
 ---
 
@@ -36,7 +36,7 @@ contexto.
 | O2 | Limitar la caída de PR-AUC | Caída superior al 10 % genera alerta | El AP de S0 pasa de 0,526 a 0,509 entre bloques extremos |
 | O3 | Respetar la capacidad de revisión | 150 casos diarios como máximo | Cumplido en 62 días sin excepción |
 | O4 | Señales sin etiqueta que anticipen la caída | Medir el retraso de cada señal | KS/PSI y S1 el mismo día. ADWIN a 30 días |
-| O5 | Limitar la disparidad entre segmentos | Brecha superior a 2 pp genera alerta | 6 de 14 segmentos superan el umbral |
+| O5 | Limitar la disparidad entre segmentos | Brecha superior a 2 pp genera alerta | 7 de 14 segmentos superan el umbral |
 
 ### Familias de métricas
 
@@ -307,64 +307,72 @@ política y la misma familia. 175 998 eventos por estrategia en cuatro bloques.
 bloques contiguos de 7 días con 200 remuestreos. S0 y E15 son referencias no
 desplegables.*
 
-### Interpretación
+### Qué diferencias son concluyentes
 
-El olvido no compensa sobre IEEE-CIS. La ventana más corta resulta la más cara con
-un intervalo que no cruza el cero. La ventana elegida en desarrollo queda un 6,4 %
-por encima del modelo estático, también con intervalo que excluye el cero. Solo la
-referencia expansiva E15 mejora al estático, y su ventaja de 0,032 UM/tx equivale
-al 2,1 %.
+Un intervalo obtenido con una semilla fija puede excluir el cero por azar. Cada
+diferencia se reevaluó con 6 semillas y 3 tamaños de bloque, 18 combinaciones en
+total, contando en cuántas el intervalo cruza el cero.
 
-El ordenamiento observado es inverso al que produciría un escenario de drift
-rápido. La explicación resulta consistente con las señales medidas. El domain
-classifier obtiene un AUC de 0,654, por debajo del umbral de alerta de 0,75, lo
-que indica que P(X) cambia poco a lo largo de los 182 días. En ese régimen el
-costo en varianza de entrenar con 9 días supera cualquier beneficio de frescura.
+| Diferencia | Efecto | Cruzan cero | Veredicto |
+|---|---|---|---|
+| W30 frente a S0 | +0,2642 | 0 de 18 | Concluyente |
+| E15 frente a S0 | −0,0322 | 0 de 18 | Concluyente |
+| W60 frente a S0 | +0,0980 | 12 de 18 | **No concluyente** |
+| W90 frente a S0 | −0,0052 | 18 de 18 | Sin efecto |
+
+Solo dos afirmaciones resisten. La ventana de 9 días de fit es peor que el modelo
+estático. La referencia expansiva es mejor, en un 2,1 %. La diferencia de W60 no se
+distingue del cero de forma estable y el informe no la declara concluyente.
+
+### El experimento confunde volumen con frescura
+
+Cada ventana W reserva 21 días para calibración, política y validación, de modo
+que el predictor entrena con W menos 21 días. Variar W cambia a la vez cuánto
+entrena el modelo y cuán reciente es su información. Las dos comparaciones
+controladas que el propio diseño permite separan ambos factores.
+
+| Comparación | Qué aísla | Efecto | IC 95 % |
+|---|---|---|---|
+| W90 frente a S0, ambos 69 días de fit | Frescura a volumen igual | −0,0052 | [−0,037 y +0,026] cruza cero |
+| W30 frente a W90, ambas deslizantes | Volumen a frescura igual | +0,2695 | [+0,186 y +0,364] |
+
+La correlación entre días de fit y costo sobre las cuatro estrategias de tamaño
+fijo es de −0,9916. El factor que explica el ordenamiento es el volumen de
+entrenamiento, no la frescura.
+
+El resultado es coherente con las señales. El domain classifier obtiene un AUC de
+0,654, por debajo del umbral de alerta de 0,75, de modo que P(X) se mantiene
+estable durante los 182 días. Sin deriva apreciable en las covariables, deslizar la
+ventana no aporta información nueva y reducirla solo resta muestra.
 
 ### AP por bloque
 
-| Estrategia | B1 | B2 | B3 | B4 |
-|---|---|---|---|---|
-| E15 | 0,5255 | 0,3882 | 0,4941 | 0,5366 |
-| W90 | 0,5255 | 0,3882 | 0,4787 | 0,5224 |
-| S0 | 0,5255 | 0,3882 | 0,4727 | 0,5092 |
-| W60 | 0,5102 | 0,3531 | 0,4811 | 0,5173 |
-| W30 | 0,4771 | 0,3238 | 0,4270 | 0,4720 |
-
-El descenso común en B2 afecta a las cinco estrategias por igual, incluidas las
-que se reentrenan. Corresponde a un periodo más difícil y no a un modelo que
-caduca. El sistema estático no muestra degradación monótona.
+El AP del sistema estático pasa de 0,5255 en B1 a 0,5092 en B4, sin degradación
+monótona. El descenso común en B2, hasta 0,3882, afecta a las cinco estrategias por
+igual, incluidas las que se reentrenan, de modo que corresponde a un periodo más
+difícil y no a un modelo que caduca. El detalle por bloque está en
+`reports/tables/adaptacion.csv`.
 
 ### Objetivos diagnósticos no alcanzados
 
-Los umbrales se eligieron en validación y se aplicaron congelados.
+Los umbrales se eligieron en validación y se aplicaron congelados. Ninguna
+estrategia alcanza el FPR máximo del 1 % ni la precisión mínima del 80 % en test.
+El FPR obtenido queda entre 1,34 % y 1,45 % y la precisión entre 70,3 % y 72,7 %.
+El informe reporta el nivel obtenido y no ajusta el umbral, porque hacerlo
+convertiría un objetivo incumplido en un resultado ajustado a posteriori.
 
-| Estrategia | Recall a FPR 1 % | FPR real | Recall a precisión 80 % | Precisión real |
-|---|---|---|---|---|
-| S0 | 0,4216 | 1,34 % | 0,3483 | 72,65 % |
-| E15 | 0,4367 | 1,39 % | 0,3497 | 72,48 % |
-| W60 | 0,4278 | 1,42 % | 0,3337 | 70,34 % |
-
-Ninguna estrategia alcanza el FPR máximo del 1 % ni la precisión mínima del 80 %
-en test. El informe reporta el nivel obtenido y no ajusta el umbral, porque
-hacerlo convertiría un objetivo incumplido en un resultado ajustado a posteriori.
-
-### Señales de drift
+### Señales de drift y gates
 
 ADWIN registra 33 detecciones repartidas entre las cinco estrategias, todas con
-exactamente 30 días de retraso. Existe por tanto deriva en el error real. KS/PSI y
-S2 generan 5 alertas sobre 373 registros, concentradas a partir del día 170. El
-domain classifier no supera su umbral.
+exactamente 30 días de retraso. Existe deriva en el error real. KS/PSI y S2 generan
+5 alertas sobre 373 registros, concentradas a partir del día 170, y el domain
+classifier no supera su umbral. El error deriva mientras las covariables se
+mantienen estables.
 
-La combinación resulta informativa. El error deriva, las covariables se mantienen
-estables y reentrenar con ventanas cortas no corrige esa deriva.
-
-### Gates de promoción
-
-En T igual a 135 las cinco estrategias fueron bloqueadas por el gate social, que
-detecta un aumento del bloqueo de legítimas superior a 2 puntos porcentuales. W30
-falló además el gate de no inferioridad de costo en T igual a 150 y operó con un
-modelo antiguo durante la mayor parte del test. Los gates no son decorativos.
+En T igual a 135 las cinco estrategias fueron bloqueadas por el gate social, con
+brechas de entre 2,76 y 4,69 puntos porcentuales. En T igual a 150 y 165 las
+brechas caen por debajo de 1,3 y las promociones proceden. W30 falló además el gate
+de costo en T igual a 150. Los gates discriminaron.
 
 ---
 
@@ -490,23 +498,30 @@ queda bloqueado por el hash de prerregistro.
 ### Conclusión
 
 El sistema reduce el costo observado de 5,40 a 1,53 UM por transacción frente a
-aprobar todo, lo que representa una mejora del 71,7 %. Ese resultado proviene del
-modelo y de la política económica, no de la adaptación.
+aprobar todo, una mejora del 71,7 %. Ese resultado proviene del modelo y de la
+política económica, no de la adaptación.
 
-El olvido por ventanas fijas no aporta mejora sobre IEEE-CIS con este protocolo. La
-ventana elegida en desarrollo resulta un 6,4 % más cara que el modelo estático en
-test, con un intervalo pareado que excluye el cero. La ventana más corta resulta un
-17,3 % más cara. Únicamente la referencia expansiva mejora al estático, en un 2,1 %.
+El olvido por ventanas fijas no aporta mejora sobre IEEE-CIS con este protocolo.
+Dos afirmaciones resisten el control de robustez. La ventana de 9 días de fit
+resulta un 17,3 % más cara que el modelo estático. La referencia expansiva, que
+usa todo el histórico, resulta un 2,1 % más barata. Las diferencias de W60 y W90
+frente al estático no se distinguen del cero de forma estable.
+
+El factor que explica el ordenamiento es el volumen de entrenamiento, con una
+correlación de −0,9916 entre días de fit y costo. A volumen igual la frescura no
+produce efecto medible. El diseño del protocolo confunde ambos factores porque cada
+ventana reserva 21 días, de modo que reducir W reduce también el training set.
 
 Ninguna estrategia alcanza los objetivos diagnósticos de FPR máximo del 1 % ni de
 precisión mínima del 80 % con los umbrales congelados. La capacidad de revisión
 resulta más limitante que la calidad del modelo.
 
-La recomendación operativa es W60, elegida en desarrollo, acompañada de la
-advertencia de que no supera al modelo estático en el periodo evaluado. Un
-despliegue razonable mantendría el modelo estático con monitoreo activo y
-reevaluaría la ventana cuando las señales de covariables indiquen una deriva mayor
-que la observada.
+La recomendación operativa es conservar el modelo estático con monitoreo activo.
+W60 fue la ventana elegida en desarrollo, pero no mejora al estático en el periodo
+evaluado y el protocolo no ofrece evidencia de que el olvido aporte valor sobre
+este dataset. Una revisión posterior debería evaluar cadencias y retrasos distintos
+antes de descartar el enfoque adaptativo, porque la deriva de IEEE-CIS parece
+operar a una escala temporal mayor que la del protocolo evaluado.
 
 Este trabajo constituye un backtest retrospectivo. Un backtest no demuestra que el
 sistema funcione en el futuro.
@@ -522,6 +537,10 @@ Los antecedentes son `propuesta_proyecto1_final.md`, `concept_drift_findings.md`
 `concept_drift_benchmark_instructions.md`. El benchmark que seleccionó IEEE-CIS se
 cita como evidencia consistente con drift, no como prueba causal, y sus
 limitaciones de preprocessing quedan declaradas.
+
+La auditoría crítica del plan y de la implementación está en
+`docs/auditoria_critica.md`. Documenta un defecto corregido y cinco decisiones
+de diseño que acotan el alcance de las conclusiones.
 
 El protocolo está en `docs/protocolo_experimental.md`, el contrato en
 `docs/contrato_sistema.md` y la reproducción en `docs/reproducibilidad.md`. El

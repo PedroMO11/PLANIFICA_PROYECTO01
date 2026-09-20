@@ -1,5 +1,5 @@
 escenario,c_fp,c_review,r_h,f_h,costo_por_tx,n_revisiones,n_bloqueadas,monto_fraude_evitado,estrategia,nota
-bajo,1.0,0.5,0.9,0.02,0.9620782792986284,9300,64368,845127.935,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
-base,5.0,1.0,0.9,0.02,1.792438283389584,9300,25232,752734.235,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
-alto,10.0,2.0,0.9,0.02,2.3523454243798225,9300,15881,684021.698,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
-estres_analista,5.0,1.0,0.8,0.05,1.839062710939897,9300,25232,745793.429,W30,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+bajo,1.0,0.5,0.9,0.02,0.7990046534619712,9300,58258,867659.5669999999,W60,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+base,5.0,1.0,0.9,0.02,1.626175041761838,9300,24427,777081.233,W60,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+alto,10.0,2.0,0.9,0.02,2.2284647893726066,9300,15819,702984.442,W60,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.
+estres_analista,5.0,1.0,0.8,0.05,1.673095785179377,9300,24427,770013.2760000001,W60,Politica congelada; sin nuevos fits ni reoptimizacion de umbrales.

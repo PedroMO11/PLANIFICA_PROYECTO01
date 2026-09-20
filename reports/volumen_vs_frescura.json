@@ -1,0 +1,26 @@
+{
+  "dias_de_fit": {
+    "S0": 69,
+    "W30": 9,
+    "W60": 39,
+    "W90": 69
+  },
+  "efecto_frescura": {
+    "estimacion": -0.005243093671518999,
+    "ic_low": -0.03743812631957879,
+    "ic_high": 0.025706121998839582,
+    "n_bloques": 9,
+    "n_resamples": 400,
+    "cruza_cero": true
+  },
+  "efecto_volumen": {
+    "estimacion": 0.2694699371583768,
+    "ic_low": 0.1858681110198347,
+    "ic_high": 0.3634546984189627,
+    "n_bloques": 9,
+    "n_resamples": 400,
+    "cruza_cero": false
+  },
+  "correlacion_dias_costo": -0.9915795630772613,
+  "nota": "El efecto de frescura se mide a volumen igual (S0 y W90 usan 69 dias). El efecto de volumen se mide a frescura igual (W30 y W90 son deslizantes)."
+}
