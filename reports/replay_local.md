@@ -1,14 +1,14 @@
 # Replay local: evidencia de la demo
 
-Generado: 2026-09-20T09:41:43+00:00
+Generado: 2026-09-20T15:12:09+00:00
 
 
 ## Configuracion
 
 | Elemento | Valor |
 |---|---|
-| Paquete | models/W30_T165 |
-| Version del modelo | W30_T165 |
+| Paquete | models/W60_T165 |
+| Version del modelo | W60_T165 |
 | Modo | en_proceso |
 | Eventos procesados | 5000 |
 | Dias cubiertos | 2 |
@@ -17,8 +17,8 @@ Generado: 2026-09-20T09:41:43+00:00
 
 | Accion | n |
 |---|---|
-| aprobar | 4294 |
-| bloquear | 406 |
+| aprobar | 4087 |
+| bloquear | 613 |
 | revisar | 300 |
 
 Tres acciones presentes en el replay natural: **si**
@@ -32,19 +32,19 @@ No se movieron umbrales ni se presentan como resultados de fraude.
 
 | Caso | p forzada | Monto | Accion obtenida | Esperado |
 |---|---|---|---|---|
-| aprobar_p_baja | 0.0060 | 25.00 | aprobar | aprobar |
-| bloquear_p_alta | 0.8870 | 900.00 | bloquear | bloquear |
-| revisar_zona_gris | 0.3930 | 400.00 | revisar | revisar |
-| overflow_sin_cupo | 0.3930 | 400.00 | bloquear | automatica |
-| monto_cero | 0.3930 | 0.00 | revisar | revisar |
+| aprobar_p_baja | 0.0034 | 25.00 | aprobar | aprobar |
+| bloquear_p_alta | 0.9521 | 900.00 | bloquear | bloquear |
+| revisar_zona_gris | 0.4554 | 400.00 | revisar | revisar |
+| overflow_sin_cupo | 0.4554 | 400.00 | bloquear | automatica |
+| monto_cero | 0.4554 | 0.00 | revisar | revisar |
 
 ## Cambio de version y rollback (prueba de contrato)
 
 | Paso | Version | p de la fila de prueba |
 |---|---|---|
-| Activa al inicio | W30_T165 | 0.000055 |
-| Tras activar otra | W90_T165 | 0.000102 |
-| Tras el rollback | W30_T165 | 0.000055 |
+| Activa al inicio | W60_T165 | 0.093660 |
+| Tras activar otra | W90_T165 | 0.051010 |
+| Tras el rollback | W60_T165 | 0.093660 |
 
 Rollback correcto: **True** · score restaurado: **True**
 
@@ -54,9 +54,9 @@ Rollback correcto: **True** · score restaurado: **True**
 
 | Percentil | ms |
 |---|---|
-| p50 | 45.60 |
-| p95 | 66.76 |
-| p99 | 71.87 |
+| p50 | 38.96 |
+| p95 | 61.66 |
+| p99 | 67.56 |
 
 Medicion LOCAL. No representa la latencia de una region cloud ni un SLA.
 

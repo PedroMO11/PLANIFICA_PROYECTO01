@@ -35,7 +35,7 @@
   <!-- Encabezado -->
   <text class="titulo" x="48" y="56">Sistema adaptativo de decisión ante fraude transaccional</text>
   <text class="subtitulo" x="48" y="84">
-    Ciclo de vida completo · IEEE-CIS · ventana de olvido W30, cadencia 15 días, etiqueta a 30 días
+    Ciclo de vida completo. IEEE-CIS, 590 540 transacciones en 182 días, etiqueta confirmada a 30 días
   </text>
   <line x1="48" y1="102" x2="1392" y2="102" stroke="#e3e2de" stroke-width="2"/>
 
@@ -57,11 +57,11 @@
   <text class="numero" x="554" y="171" text-anchor="middle">2</text>
   <text class="estacion" x="586" y="170">Datos: dos fuentes, cero fuga</text>
   <text class="cuerpo" x="544" y="202">transacciones + identidad → join 1:1 auditado</text>
-  <text class="dato"   x="544" y="224">581 972 eventos · 182 días · 24 % con identidad</text>
+  <text class="dato"   x="544" y="224">590 540 eventos, 182 días, 24,4 % con identidad</text>
   <text class="cuerpo" x="544" y="250">Features solo del pasado, por proxy de entidad:</text>
   <text class="cuerpo" x="544" y="270">ventanas de 1 h, 24 h y 7 d · emitidas antes de</text>
   <text class="cuerpo" x="544" y="290">actualizar el estado</text>
-  <text class="nota"   x="544" y="314">12 pruebas automáticas verifican la causalidad</text>
+  <text class="nota"   x="544" y="314">137 pruebas automáticas verifican la causalidad</text>
 
   <!-- ====================== ESTACIÓN 3: MODELADO ====================== -->
   <rect class="caja" x="992" y="130" width="400" height="196" stroke="#4a3aa7"/>
@@ -73,7 +73,7 @@
   <text class="cuerpo" x="1016" y="244">ajustado en 7 días que el predictor no vio.</text>
   <text class="dato"   x="1016" y="270">Sin calibrar, p·monto no significa nada</text>
   <text class="cuerpo" x="1016" y="292">Umbrales por costo, nunca 0.5</text>
-  <text class="nota"   x="1016" y="314">ECE 0,0046 → 0,0010 tras calibrar</text>
+  <text class="nota"   x="1016" y="314">ECE de la logística 0,294 → 0,004 tras calibrar</text>
 
   <!-- ====================== CENTRO: LOS DOS RELOJES ====================== -->
   <rect x="404" y="382" width="632" height="176" rx="16" fill="#fff8f2" stroke="#eb6834" stroke-width="3"/>
@@ -122,7 +122,7 @@
   <text class="cuerpo" x="544" y="744">Servicio HTTP + replay con ledger transaccional.</text>
   <text class="cuerpo" x="544" y="768">El servicio calcula; el replay confirma y reserva</text>
   <text class="cuerpo" x="544" y="788">el cupo de forma atómica e idempotente.</text>
-  <text class="dato"   x="544" y="816">p95 = 66 ms · cupo 150/150 · 3 acciones reales</text>
+  <text class="dato"   x="544" y="816">p95 = 87 ms, cupo 150/150, tres acciones reales</text>
   <text class="cuerpo" x="544" y="842">Sin modelo válido: HTTP 503 y pausa.</text>
   <text class="nota"   x="544" y="868">GCP queda como propuesta; el equipo despliega a mano</text>
 
@@ -134,7 +134,7 @@
   <text class="cuerpo" x="1016" y="744"><tspan font-weight="700">Hoy:</tspan> KS/PSI y domain classifier → cambio en P(X)</text>
   <text class="cuerpo" x="1016" y="768"><tspan font-weight="700">A 30 días:</tspan> ADWIN sobre el error real → P(y|X)</text>
   <text class="cuerpo" x="1016" y="796">Reentrenamiento con ventana fija cada 15 días.</text>
-  <text class="dato"   x="1016" y="822">W30 · −34,5 % de costo frente al modelo estático</text>
+  <text class="dato"   x="1016" y="822">W60 elegida en desarrollo. No supera al estático</text>
   <text class="humano" x="1016" y="848">Toda promoción exige aprobación humana</text>
   <text class="nota"   x="1016" y="870">Ninguna alerta despliega por sí sola</text>
 
@@ -171,6 +171,6 @@
     el cupo se garantiza para un orquestador secuencial · es un backtest retrospectivo, no una validación prospectiva.
   </text>
   <text class="nota" x="48" y="1008" font-weight="700" fill="#e34948">
-    Los resultados de esta corrida provienen de un dataset sustituto sintético: no son cifras de IEEE-CIS.
+    Resultado principal. El olvido por ventanas fijas no reduce el costo sobre IEEE-CIS con este protocolo.
   </text>
 </svg>

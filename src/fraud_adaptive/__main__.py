@@ -197,6 +197,18 @@ def cmd_adapt(args: argparse.Namespace) -> int:
     best = select_best_configs(pd.read_csv(summary_path))
     static_results = fit_static_models(frame, configs, run, temporal, numeric, categorical, best)
 
+    # La ventana desplegable se elige en desarrollo, antes de abrir el test.
+    from .pipeline import select_deployable_window
+
+    seleccion = select_deployable_window(
+        frame, configs, run, temporal, numeric, categorical, static_results
+    )
+    write_json(run.dir / "seleccion_ventana.json",
+               {k: (v.to_dict("records") if hasattr(v, "to_dict") else v)
+                for k, v in seleccion.items()})
+    run.register_artifact("seleccion_ventana", run.dir / "seleccion_ventana.json")
+    print("Ventana elegida en desarrollo: %s" % seleccion.get("elegida"))
+
     result = run_adaptation(frame, configs, run, temporal, numeric, categorical, static_results)
 
     runs_dir = run.dir

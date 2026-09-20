@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-20T08:29:30+00:00",
+  "generated_at": "2026-09-20T14:25:53+00:00",
   "sources": {
     "transactions": {
       "path": "ieee-fraud-detection/train_transaction.csv",
       "role": "tabla base, una fila por evento",
       "exists": true,
-      "bytes": 1039921241,
-      "sha256": "02f3d70bceccfc1901fd4c30d172c7a27d1b22f33e4fc88db48219bda45e45ea",
+      "bytes": 683351067,
+      "sha256": "3a5c83ab6b3cc13dcabe5ffa9f522307fd5f7f7b6e6f6a60c32284ca6283d642",
       "n_columns": 394,
       "columns_preview": [
         "TransactionID",
@@ -30,8 +30,8 @@
       "path": "ieee-fraud-detection/train_identity.csv",
       "role": "tabla complementaria, cobertura parcial",
       "exists": true,
-      "bytes": 34967277,
-      "sha256": "c53390150d3b52ec43ed644b88bb1fb4a17c0c080560adb41cd6c019b7bd74da",
+      "bytes": 26529680,
+      "sha256": "b63c725d8377be90a995268d97f347c17d456b95db45807adcf9f59cd603c37c",
       "n_columns": 41,
       "columns_preview": [
         "TransactionID",
@@ -53,26 +53,26 @@
     }
   },
   "esquema": {
-    "n_transactions": 581972,
-    "n_identity": 139843,
+    "n_transactions": 590540,
+    "n_identity": 144233,
     "n_columns_transactions": 394,
     "n_columns_identity": 41,
-    "prevalencia": 0.03523537214848824,
-    "n_fraudes": 20506,
-    "monto_min": 0.252,
-    "monto_max": 6249.124,
-    "monto_mediana": 39.517,
+    "prevalencia": 0.03499000914417313,
+    "n_fraudes": 20663,
+    "monto_min": 0.251,
+    "monto_max": 31937.391,
+    "monto_mediana": 68.769,
     "montos_no_finitos": 0,
-    "dt_min": 88303,
-    "dt_max": 15812799
+    "dt_min": 86400,
+    "dt_max": 15811131
   },
   "join": {
-    "filas_antes": 581972,
-    "filas_despues": 581972,
+    "filas_antes": 590540,
+    "filas_despues": 590540,
     "filas_invariantes": true,
-    "ids_identidad": 139843,
+    "ids_identidad": 144233,
     "ids_identidad_huerfanos": 0,
-    "cobertura_identidad": 0.24029162915054333,
+    "cobertura_identidad": 0.2442391709283029,
     "columnas_identidad": 40,
     "nota": "La ausencia de identidad es informativa (has_identity), no se imputa ni se descarta la fila."
   },
@@ -80,24 +80,24 @@
     "proxies": {
       "card": {
         "proxy": "card_proxy",
-        "n_entidades": 10613,
+        "n_entidades": 43018,
         "cobertura": 1.0,
-        "eventos_por_entidad_medio": 54.83576745500801,
-        "eventos_por_entidad_p95": 180.0,
-        "entidades_con_un_evento": 2043,
-        "fraccion_singleton": 0.19249976443983793,
-        "top1_share": 0.0003763067638992941,
+        "eventos_por_entidad_medio": 13.72774187549398,
+        "eventos_por_entidad_p95": 42.0,
+        "entidades_con_un_evento": 17358,
+        "fraccion_singleton": 0.4035055093216793,
+        "top1_share": 0.016764317404409524,
         "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
       },
       "device": {
         "proxy": "device_proxy",
-        "n_entidades": 2294,
-        "cobertura": 0.24029162915054333,
-        "eventos_por_entidad_medio": 60.96033129904097,
-        "eventos_por_entidad_p95": 43.34999999999991,
-        "entidades_con_un_evento": 696,
-        "fraccion_singleton": 0.30340017436791633,
-        "top1_share": 0.3857254206503007,
+        "n_entidades": 1943,
+        "cobertura": 0.2442391709283029,
+        "eventos_por_entidad_medio": 74.23211528564076,
+        "eventos_por_entidad_p95": 67.89999999999986,
+        "entidades_con_un_evento": 505,
+        "fraccion_singleton": 0.25990735975295937,
+        "top1_share": 0.3308535494651016,
         "nota": "Un proxy agrupa comportamientos, no identifica personas; puede colisionar."
       }
     },
@@ -107,8 +107,8 @@
       "24h": 86400,
       "7d": 604800
     },
-    "grupos_de_empate_temporal": 12856,
+    "grupos_de_empate_temporal": 16741,
     "regla_causal": "features emitidas antes de actualizar estado; empates leen el mismo pasado"
   },
-  "data_source": "sintetico_sustituto"
+  "data_source": "ieee_cis_real"
 }

@@ -378,6 +378,140 @@ def fit_static_models(
     return results
 
 
+def select_deployable_window(
+    frame: pd.DataFrame,
+    configs: dict[str, Any],
+    run: RunContext,
+    temporal: TemporalConfig,
+    numeric_columns: Sequence[str],
+    categorical_columns: Sequence[str],
+    static_results: dict[str, Any],
+) -> dict[str, Any]:
+    """Elige la ventana desplegable por costo, usando SOLO desarrollo.
+
+    Es el paso que convierte el experimento en una recomendacion operativa. Sin
+    el, la unica forma de recomendar una ventana seria mirar el test y quedarse
+    con la que gano, que es precisamente el retuning retrospectivo que el
+    protocolo prohibe (C17, C22).
+
+    Protocolo:
+
+    * se construyen los paquetes iniciales de W30, W60 y W90 en el primer corte;
+    * cada uno se evalua sobre la reserva de politica ``[c-14, c-7)``, que es
+      posterior a su predictor y a su calibrador y anterior al holdout;
+    * se aplica la politica YA CONGELADA, sin reoptimizar umbrales;
+    * gana el menor costo. Desempate a <=1 %: la W mas pequena tecnicamente
+      viable, porque a igualdad de costo la ventana corta reentrena mas barato.
+
+    S0 y E15 no participan: son referencias de comparacion y el plan prohibe
+    entregarlas como sistema.
+    """
+    from .adaptation import build_package
+    from .decision import CapacityLedger, decide_batch, simulate_outcomes, total_cost
+    from .splits import build_version_roles
+
+    adaptation_config = configs["adaptation"]
+    decision_config = configs["decision"]
+    family = static_results["familia_elegida"]
+    chosen = static_results["familias"][family]
+    family_spec = configs["models"]["families"][family]
+    config = next(c for c in family_spec["configs"] if c["name"] == chosen["config"])
+
+    policy_data = chosen["policy"]
+    policy = Policy(
+        tau_low=policy_data["tau_low"], tau_high=policy_data["tau_high"],
+        daily_capacity=policy_data["daily_capacity"], delta=policy_data.get("delta", 0.0),
+    )
+    cost_model = CostModel(
+        c_fp=decision_config["costs"]["c_fp"], c_review=decision_config["costs"]["c_review"],
+        r_h=decision_config["analyst"]["r_h"], f_h=decision_config["analyst"]["f_h"],
+    )
+
+    update_time = temporal.update_times[0]
+    days = frame["dia"].to_numpy()
+    labels = frame[configs["base"]["data"]["target"]].to_numpy()
+    candidatos = [
+        s for s in adaptation_config["strategies"]
+        if s.get("role") == "desplegable" and s.get("window_days")
+    ]
+
+    filas: list[dict[str, Any]] = []
+    for spec in sorted(candidatos, key=lambda s: s["window_days"]):
+        roles = build_version_roles(
+            spec["name"], update_time, temporal,
+            window_days=spec["window_days"], kind=spec["kind"],
+        )
+        with run.task("seleccion_W_%s" % spec["name"], kind="fit_seleccion_W"):
+            package = build_package(
+                spec["name"], roles, frame, family=family, model_config=config,
+                model_base=family_spec.get("base", {}), numeric_columns=numeric_columns,
+                categorical_columns=categorical_columns, policy=policy,
+                temporal_config=temporal, calibration_params=configs["models"]["calibration"],
+                seed=configs["base"]["seed"], n_threads=configs["base"]["n_threads"],
+                max_rows=configs["models"]["resource_caps"]["rf_max_rows"] if family == "random_forest" else None,
+                encoding=configs["models"]["encoding"], target=configs["base"]["data"]["target"],
+            )
+
+        if not package.valid:
+            filas.append({
+                "estrategia": spec["name"], "window_days": spec["window_days"],
+                "valida": False, "motivo": package.invalid_reason,
+                "costo_por_tx": float("inf"),
+            })
+            continue
+
+        # Reserva de politica: posterior al predictor y al calibrador de ESTE paquete.
+        mask = roles.policy.mask(days) & ((days + temporal.label_delay_days) < roles.job_time)
+        subset = frame.loc[mask]
+        subset_labels = labels[mask]
+        _, calibrated = package.score(subset)
+        decisiones = decide_batch(
+            calibrated, subset["TransactionAmt"].to_numpy(), subset["dia"].to_numpy(),
+            subset[configs["base"]["data"]["join_key"]].tolist() if "join_key" in configs["base"]["data"]
+            else subset["TransactionID"].tolist(),
+            policy, cost_model, ledger=CapacityLedger(policy.daily_capacity),
+        )
+        desenlaces = simulate_outcomes(decisiones, subset_labels, cost_model, seed=configs["base"]["seed"])
+        resumen = total_cost(desenlaces)
+        filas.append({
+            "estrategia": spec["name"],
+            "window_days": spec["window_days"],
+            "dias_de_fit": roles.predictor.days,
+            "valida": True,
+            "n_eventos_politica": int(len(subset)),
+            "costo_por_tx": resumen["costo_por_tx"],
+            "n_revisiones": resumen["n_revisiones"],
+            "fraudes_en_fit": package.support["predictor"]["fraud"],
+        })
+
+    tabla = pd.DataFrame(filas).sort_values("costo_por_tx").reset_index(drop=True)
+    validas = tabla[tabla["valida"]]
+    if validas.empty:
+        # C21: sin ventana valida no se activa nada. No se degrada a S0 ni a E15.
+        LOGGER.error("Ninguna ventana desplegable es valida: el sistema quedaria en pausa")
+        return {"elegida": None, "motivo": "ninguna_ventana_valida", "tabla": tabla}
+
+    mejor = float(validas.iloc[0]["costo_por_tx"])
+    empatadas = validas[validas["costo_por_tx"] <= mejor * 1.01]
+    elegida = empatadas.sort_values("window_days").iloc[0]
+
+    resultado = {
+        "elegida": str(elegida["estrategia"]),
+        "window_days": int(elegida["window_days"]),
+        "costo_en_desarrollo": float(elegida["costo_por_tx"]),
+        "tabla": tabla,
+        "criterio": "menor costo en la reserva de politica; desempate a <=1 % por menor W",
+        "evaluado_en": "reserva de politica [c-14, c-7), solo desarrollo",
+        "nota": "Elegida SIN mirar el test. Que otra gane en el test es diagnostico retrospectivo.",
+    }
+    run.save_checkpoint("seleccion_W", {k: v for k, v in resultado.items() if k != "tabla"})
+    LOGGER.info(
+        "Ventana desplegable elegida en desarrollo: %s (%.4f UM/tx)",
+        resultado["elegida"], resultado["costo_en_desarrollo"],
+    )
+    return resultado
+
+
 # --------------------------------------------------------------------------- F4
 
 def run_adaptation(

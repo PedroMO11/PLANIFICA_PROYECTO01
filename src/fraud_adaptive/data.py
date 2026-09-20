@@ -14,6 +14,7 @@ Dos advertencias que el codigo hace explicitas porque el dataset invita al error
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -93,6 +94,53 @@ def assert_no_forbidden_files(data_root: str | Path, forbidden: Sequence[str]) -
         )
 
 
+def load_dotenv(path: str | Path = ".env", *, override: bool = False) -> dict[str, str]:
+    """Carga variables de un archivo ``.env`` al entorno del PROCESO ACTUAL.
+
+    Existe para no obligar a instalar credenciales a nivel de usuario. El cliente
+    de Kaggle lee ``KAGGLE_API_TOKEN`` del entorno, asi que basta con exportarlo
+    aqui: el token vive en el ``.env`` del proyecto (ignorado por git) y nunca
+    toca ``~/.kaggle/``.
+
+    Por defecto NO pisa variables ya definidas: una variable exportada en la shell
+    es una decision mas explicita que un archivo, y debe ganar.
+
+    Devuelve las claves cargadas, nunca sus valores: este diccionario acaba en
+    logs y mensajes.
+    """
+    path = Path(path)
+    loaded: dict[str, str] = {}
+    if not path.exists():
+        return loaded
+
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if not key or not value:
+            continue
+        if override or key not in os.environ:
+            os.environ[key] = value
+        loaded[key] = "<definida>"
+    return loaded
+
+
+def kaggle_credentials_status() -> dict[str, Any]:
+    """Que credenciales de Kaggle estan disponibles, sin revelar ninguna."""
+    home_kaggle = Path.home() / ".kaggle"
+    return {
+        "KAGGLE_API_TOKEN": bool(os.environ.get("KAGGLE_API_TOKEN")),
+        "KAGGLE_USERNAME_y_KEY": bool(
+            os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY")
+        ),
+        "archivo_access_token": (home_kaggle / "access_token").exists(),
+        "archivo_kaggle_json": (home_kaggle / "kaggle.json").exists(),
+    }
+
+
 def kaggle_download_instructions(data_root: str | Path) -> str:
     """Instrucciones de reconstruccion. No ejecuta nada ni maneja credenciales."""
     return (
@@ -100,8 +148,13 @@ def kaggle_download_instructions(data_root: str | Path) -> str:
         "-------------------------------------------------\n"
         "1. Acepta las reglas de la competencia en:\n"
         "   https://www.kaggle.com/competitions/ieee-fraud-detection/rules\n"
-        "2. Crea un token en Kaggle > Settings > API > Create New Token.\n"
-        "   Guarda kaggle.json en %USERPROFILE%\\.kaggle\\kaggle.json (fuera del repositorio).\n"
+        "2. Crea un token en Kaggle > Settings > API Tokens > Generate New Token.\n"
+        "   Guardalo de UNA de estas formas; el cliente acepta las tres:\n"
+        "     a) en el .env del proyecto:  KAGGLE_API_TOKEN=<token>\n"
+        "        Es la opcion que NO instala nada a nivel de usuario. El .env esta\n"
+        "        en .gitignore y el codigo lo carga solo al proceso que descarga.\n"
+        "     b) %USERPROFILE%\\.kaggle\\access_token   (archivo con el token a secas)\n"
+        "     c) %USERPROFILE%\\.kaggle\\kaggle.json    (credenciales legacy)\n"
         "3. Instala el cliente y descarga solo los dos archivos etiquetados:\n"
         "     uv pip install kaggle\n"
         "     kaggle competitions download -c ieee-fraud-detection -f train_transaction.csv -p " + str(data_root) + "\n"

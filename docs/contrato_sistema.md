@@ -14,11 +14,11 @@ convierten en criterios verificables con un artefacto que los sustenta.
 
 | Obj. | Enunciado | Métrica operativa | Criterio | Evidencia |
 |---|---|---|---|---|
-| **O1** | Menor costo que la política actual y que el modelo estático | Costo observado simulado, UM/transacción | `costo_um_tx` < `costo_aprobar_todo` y < el de S0 | `reports/tables/adaptacion.csv` |
+| **O1** | Menor costo que la política actual y que el modelo estático | Costo observado simulado, UM/transacción | Inferior a `costo_aprobar_todo` y al de S0 | Parcial sobre IEEE-CIS. Supera aprobar todo. W60 queda 6,4 % por encima del estático |
 | **O2** | Limitar la caída de PR-AUC frente a una referencia reentrenada | Average Precision por bloque | Caída relativa de AP > 10 % genera alerta **diagnóstica** | `reports/figures/drift_adaptacion.png` |
 | **O3** | Respetar la capacidad diaria de revisión | Revisiones admitidas por día | ≤ 150/día, límite duro | `capacidad.*.excedio_capacidad` = `false` |
 | **O4** | Señales sin etiqueta que anticipen una caída confirmada | Retraso entre día del evento y día de disponibilidad | KS/PSI y S1 disponibles el mismo día; ADWIN a L=30 días | `runs/<run_id>/drift_log.csv` |
-| **O5** | Limitar la disparidad de falsos positivos entre segmentos | Bloqueo de legítimas por grupo | Brecha > 2 pp con ≥ 1 000 legítimas ⇒ alerta | `reports/tables/segmentos.csv` |
+| **O5** | Limitar la disparidad de falsos positivos entre segmentos | Bloqueo de legítimas por grupo | Brecha superior a 2 pp con al menos 1 000 legítimas | 6 de 14 segmentos superan el umbral |
 
 **Lo que O1 no afirma.** El costo observado es *simulado* bajo supuestos
 declarados (c_FP, c_R, r_H, f_H). No es un ahorro causal medido sobre pagos

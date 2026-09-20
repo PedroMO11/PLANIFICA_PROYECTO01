@@ -93,6 +93,25 @@ calibración y H: 50 / 500), la versión se marca **no válida**. No se amplía 
 ventana ni se incorporan etiquetas inmaduras: eso cambiaría en silencio la W que
 se está midiendo.
 
+## 4.b Selección de la ventana desplegable
+
+La ventana se elige con datos de desarrollo, antes de abrir el test. La evaluación
+ocurre sobre la reserva de política `[c−14, c−7)`, posterior al predictor y al
+calibrador de cada paquete.
+
+Compiten únicamente W30, W60 y W90. S0 y E15 quedan excluidas porque son
+referencias de comparación y el plan prohíbe entregarlas como sistema. Gana el
+menor costo observado, con desempate a un 1 % en favor de la ventana menor, porque
+a igualdad de costo la ventana corta reentrena con menos datos.
+
+El comando `fraud-adaptive adapt run` ejecuta esta selección y guarda el resultado
+en `runs/<run_id>/seleccion_ventana.json`. Si ninguna ventana resulta válida el
+sistema queda en pausa y no degrada a S0 ni a E15.
+
+Sobre IEEE-CIS la selección eligió W60 con 1,1909 UM/tx, frente a 1,1963 de W90 y
+1,4743 de W30. Que otra estrategia obtenga mejor costo en el test es un
+diagnóstico retrospectivo y no autoriza a cambiar la recomendación.
+
 ---
 
 ## 5. Controles de fuga verificados

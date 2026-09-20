@@ -1,10 +1,9 @@
-# Guion de exposición — 18 minutos + 5–10 de preguntas
+# Guion de exposición. 18 minutos más 5 a 10 de preguntas
 
-**Escrito para:** los cinco integrantes del equipo que expondrán.
+**Destinatario** los cinco integrantes del equipo que exponen.
 
-**Regla que conviene tener presente todo el rato:** el docente puede pedirle a
-cualquiera que explique cualquier componente. El reparto de abajo es de *turnos*,
-no de conocimiento. Todos deberían poder defender las cinco piezas.
+El docente puede pedir a cualquier integrante que explique cualquier componente.
+El reparto siguiente asigna turnos, no áreas de conocimiento.
 
 ---
 
@@ -12,60 +11,54 @@ no de conocimiento. Todos deberían poder defender las cinco piezas.
 
 | Tiempo | Bloque | Expone |
 |---|---|---|
-| 0:00–2:00 | El problema de decisión y los compromisos del avance | **A** |
-| 2:00–4:30 | Datos, integración y drift observado | **B** |
-| 4:30–6:30 | Cortes temporales y por qué no hay fuga | **B/C** |
-| 6:30–9:00 | Tres modelos, calibración y costo de decisión | **C** |
-| 9:00–12:30 | Ventanas de olvido: el experimento central | **D** |
-| 12:30–15:00 | Demo del replay y propuesta de despliegue | **E** (o **D** si son cuatro) |
-| 15:00–17:00 | Infografía, equidad operativa y límites | **A/E** |
-| 17:00–18:00 | Conclusión cuantitativa y validación futura | **A** |
+| 0:00 a 2:00 | Problema de decisión y compromisos del avance | A |
+| 2:00 a 4:30 | Datos, integración y señales de drift | B |
+| 4:30 a 6:30 | Cortes temporales y ausencia de fuga | B y C |
+| 6:30 a 9:00 | Tres modelos, calibración y política económica | C |
+| 9:00 a 12:30 | Experimento central y resultado negativo | D |
+| 12:30 a 15:00 | Demo del replay y propuesta de despliegue | E |
+| 15:00 a 17:00 | Infografía, equidad operativa y límites | A y E |
+| 17:00 a 18:00 | Conclusión y validación futura | A |
 
-*Variante para cuatro: D asume el bloque de despliegue con revisión de A.*
-
----
-
-## 0:00–2:00 · El problema (A)
-
-**Abrir con la frase que ordena todo lo demás:**
-
-> «Un modelo entrenado hoy deja de servir mañana, y no se entera hasta un mes
-> después. Nuestro proyecto no es un clasificador de fraude: es un sistema que
-> decide bajo esa restricción.»
-
-Tres acciones por transacción — aprobar, revisar, bloquear — bajo cuatro
-restricciones: la etiqueta llega a 30 días, la capacidad humana es de 150
-revisiones/día, los errores cuestan cosas distintas, y la distribución cambia.
-
-Conectar con el avance: los objetivos O1–O5 se mantienen y aquí se convierten en
-criterios verificables.
-
-**Aviso obligatorio, sin esconderlo:** los resultados provienen de un dataset
-sustituto sintético; IEEE-CIS exige un token individual de Kaggle. Los comandos son
-idénticos con los datos reales.
+Con cuatro integrantes, D asume el bloque de despliegue con revisión de A.
 
 ---
 
-## 2:00–4:30 · Datos y drift (B)
+## 0:00 a 2:00. Problema (A)
 
-- Dos fuentes, left join uno-a-uno **con el número de filas invariante**.
-- La ausencia de identidad (24 % de cobertura) **es información**, no un faltante
-  a imputar. Descartar esas filas sesgaría el panel.
-- `TransactionDT` es un delta en segundos, **no una fecha**. La hora derivada es
-  relativa: no identifica hora local ni día laboral.
+El sistema decide entre aprobar, revisar y bloquear bajo cuatro restricciones. La
+etiqueta llega 30 días tarde. La capacidad humana es de 150 revisiones diarias.
+Los errores cuestan cantidades distintas. La distribución cambia con el tiempo.
 
-**Mostrar** `reports/figures/eda_temporal.png`.
+Los objetivos O1 a O5 del avance se conservan y se convierten en criterios
+verificables.
 
-**La observación que vale el bloque:** la prevalencia se mantiene plana en ~3,5 %
-durante los seis meses. Lo que cambia no es *cuánto* fraude hay, sino *qué lo
-predice*. Por eso no basta con vigilar la tasa de fraude.
+Conviene anticipar el resultado principal desde el inicio. El olvido por ventanas
+fijas no mejora el costo sobre IEEE-CIS. Presentarlo al comienzo evita que parezca
+una concesión forzada durante las preguntas.
 
 ---
 
-## 4:30–6:30 · Cortes temporales (B/C)
+## 2:00 a 4:30. Datos y señales (B)
 
-**El bloque más fácil de perder y el que más rigor demuestra.** Dibujar la línea
-temporal en pizarra:
+Dos fuentes integradas por left join uno a uno, con el número de filas invariante
+y cero identificadores huérfanos. La cobertura de identidad es del 24,42 % y su
+ausencia se conserva como información en `has_identity`.
+
+`TransactionDT` es un delta en segundos, no una fecha. La hora derivada es
+relativa y no identifica hora local ni día laboral.
+
+Mostrar `reports/figures/eda_temporal.png`.
+
+El dato que conviene destacar es la estabilidad. El domain classifier obtiene un
+AUC de 0,654, por debajo del umbral de alerta de 0,75. Las covariables cambian
+poco durante los 182 días. Ese hecho explica el resultado del experimento central.
+
+---
+
+## 4:30 a 6:30. Cortes temporales (B y C)
+
+Dibujar la línea temporal.
 
 ```
 0        60   69   76   83   90        120  135  150  165  182
@@ -73,194 +66,211 @@ temporal en pizarra:
  desarrollo   fit  cal  pol   H   warmup   B1   B2   B3   B4
 ```
 
-Cuatro roles por versión, **disjuntos**: predictor → calibrador → política →
-validación. Las tres reservas de 7 días son **idénticas** para todas las
-estrategias: eso es lo que hace que una diferencia de costo sea atribuible al
-tamaño de ventana y no a otra cosa.
+Cuatro roles disjuntos por versión en el orden predictor, calibrador, política y
+validación. Las tres reservas de 7 días son idénticas para todas las estrategias,
+lo que permite atribuir una diferencia de costo al tamaño de ventana.
 
-**Si preguntan cómo saben que no hay fuga:** no es una afirmación, son 127 pruebas.
-La decisiva: se invierten todas las etiquetas que aún no han madurado y se comprueba
-que el predictor no cambia **ni un bit**.
+Ante una pregunta sobre fuga, la respuesta es que existen 137 pruebas
+automáticas. La más directa invierte todas las etiquetas aún inmaduras y comprueba
+que el predictor no cambia.
 
 ---
 
-## 6:30–9:00 · Modelos y decisión (C)
+## 6:30 a 9:00. Modelos y decisión (C)
 
-| Familia | AP | Costo (UM/tx) |
+| Familia | AP | Costo UM/tx |
 |---|---|---|
-| LightGBM | 0,5083 | **0,5945** |
-| Logística | 0,4547 | 0,6606 |
-| Random Forest | 0,2746 | 1,0135 |
+| LightGBM `lgbm_31` | 0,6105 | 1,1963 |
+| Random Forest `rf_200_20` | 0,5404 | 1,4957 |
+| Logística `lr_c1_bal` | 0,3986 | 1,5325 |
 
-**La familia se elige por costo, no por AP.** Son criterios distintos y conviene
-decirlo en voz alta.
+La familia se elige por costo y no por AP. Son criterios distintos.
 
-**Por qué calibrar no es un adorno:** la política compara `p·monto` con
-`(1−p)·c_FP`. Esa aritmética solo tiene sentido si `p` es una probabilidad. Un
-modelo con `scale_pos_weight` produce puntajes inflados; usarlos como probabilidad
-haría bloquear de más **sin que el AP lo notara**. El ECE baja de 0,0046 a 0,0010.
+La calibración admite una demostración cuantitativa. La configuración ganadora de
+la logística usa `class_weight=balanced` e infla los puntajes hasta un Brier de
+0,1499 y un ECE de 0,2939. Platt los corrige a 0,0317 y 0,0044, una mejora del ECE
+por un factor de 67. Sin esa corrección, `p * monto` produciría un exceso de
+bloqueos que el AP no reflejaría.
 
-**Los umbrales no son 0,5**: salen de minimizar el costo, y son (0,012 · 0,774).
+Los umbrales resultan de minimizar el costo y no se fijan en 0,5.
 
 ---
 
-## 9:00–12:30 · El experimento central (D)
+## 9:00 a 12:30. Experimento central (D)
 
-**Mostrar** `reports/figures/drift_adaptacion.png`. Cinco estrategias, los mismos
-eventos, la misma semilla, la misma política.
+Mostrar `reports/figures/drift_adaptacion.png`. Cinco estrategias, los mismos
+eventos, la misma semilla y la misma política.
 
-| | AP | Costo UM/tx | Δ vs S0 [IC 95 %] |
+| Estrategia | AP | Costo UM/tx | Δ frente a S0 con IC 95 % |
 |---|---|---|---|
-| **W30** | 0,2955 | **1,2833** | **−0,676** [−0,999 · −0,424] |
-| W60 | 0,2503 | 1,4341 | −0,526 |
-| W90 | 0,2247 | 1,4899 | −0,470 |
-| E15 | 0,2130 | 1,5477 | −0,412 |
-| S0 | 0,1445 | 1,9596 | — |
+| E15 referencia | 0,4870 | 1,4961 | −0,032 [−0,058 y −0,009] |
+| W90 | 0,4775 | 1,5230 | −0,005 [−0,035 y +0,026] |
+| S0 referencia | 0,4799 | 1,5282 | referencia |
+| W60 elegida | 0,4636 | 1,6262 | +0,098 [+0,009 y +0,196] |
+| W30 | 0,4267 | 1,7924 | +0,264 [+0,174 y +0,367] |
 
-**El mensaje:** bajo drift, la frescura vale más que el volumen. W30 entrena con
-solo 9 días y gana a W90, que usa 69. El orden es monótono, y el intervalo pareado
-no cruza el cero.
+El mensaje central es que el olvido no compensa en este dataset. La ventana
+elegida en desarrollo resulta un 6,4 % más cara que el modelo estático. La ventana
+más corta es la peor de las cinco.
 
-**Decir lo que no funcionó, sin que lo tengan que preguntar:** ninguna estrategia
-alcanzó el FPR ≤ 1 % ni la precisión ≥ 80 % en test con los umbrales congelados.
-W30 obtuvo 1,85 % de FPR y 48,9 % de precisión. No se corrigió moviendo el umbral:
-eso convertiría un objetivo incumplido en un resultado ajustado a posteriori.
+Conviene explicar dos puntos con cuidado.
 
-**Los dos relojes, empíricamente:** KS/PSI generó 29 alertas disponibles el mismo
-día; ADWIN detectó 2 cambios en S0 y ninguno en las estrategias que se reentrenan,
-y su evidencia llega 30 días después. Esa distancia es la respuesta a O4.
+El primero es que la ventana se eligió en desarrollo, sobre la reserva de política,
+sin observar el test. W60 obtuvo 1,1909 UM/tx frente a 1,1963 de W90 y 1,4743 de
+W30. El desarrollo ya identificó que la ventana corta era la peor opción. Lo que
+no pudo anticipar es que ninguna superaría al estático.
+
+El segundo es la explicación del resultado. Las covariables son estables, con un
+AUC de S1 de 0,654, mientras que ADWIN registra 33 detecciones de deriva en el
+error. Existe deriva, pero reentrenar con ventanas cortas no la corrige. W30
+entrena con 1 291 fraudes frente a los 8 269 de W90, de modo que el costo en
+varianza supera el beneficio de frescura.
+
+Conviene mencionar también que ninguna estrategia alcanzó el FPR máximo del 1 % ni
+la precisión mínima del 80 % en test con los umbrales congelados. El umbral no se
+ajustó porque hacerlo convertiría un objetivo incumplido en un resultado ajustado
+a posteriori.
 
 ---
 
-## 12:30–15:00 · Demo y despliegue (E)
+## 12:30 a 15:00. Demo y despliegue (E)
 
-**Ejecutar en vivo** (tener capturas de respaldo):
+Ejecutar en vivo, con capturas de respaldo disponibles.
 
 ```bash
-python -m fraud_adaptive replay --package models/W30_T165 --max-events 5000 --fixtures
+python -m fraud_adaptive replay --package models/W60_T165 --max-events 5000 --fixtures
 ```
 
-Señalar: las tres acciones aparecen en datos reales (4 294 / 406 / 300), el cupo se
-respeta (150/150), la idempotencia pasa y la latencia p95 es de 66 ms.
+Señalar que las tres acciones aparecen sobre datos reales, que el cupo se respeta
+en 150 de 150 y que la prueba de idempotencia pasa.
 
-**La distinción que conviene explicar bien:** el servicio *calcula* la decisión; el
-replay la *confirma* y reserva el cupo. Un cliente arbitrario podría mentir sobre
-el cupo, así que la demo exige un único orquestador confiable. Hacer el cupo
-autoritativo en el servicio requeriría estado distribuido, que es el diseño futuro
-con Firestore.
+La separación de responsabilidades merece explicación. El servicio calcula la
+decisión. El replay la confirma y reserva el cupo. Un cliente arbitrario podría
+declarar un cupo falso, por lo que la demo exige un único orquestador. Hacer el
+cupo autoritativo dentro del servicio requeriría estado distribuido, que figura
+como diseño futuro.
 
-**La imagen Docker está construida y probada**, no solo escrita: arranca en verde,
-devuelve las mismas probabilidades que el cálculo offline (5/5 idénticas), p95 de
-87 ms sobre HTTP, y sin paquete montado responde 503 en vez de decidir el pago.
-Lo que queda para el equipo es el `push` al registro y el `deploy`, no el build.
+La imagen Docker está construida y verificada. Arranca con HEALTHCHECK en verde,
+devuelve probabilidades idénticas al cálculo offline en 5 de 5 casos, alcanza un
+p95 de 87 ms sobre HTTP y responde 503 sin paquete montado. Al equipo le queda la
+publicación en el registro y el despliegue, no la construcción.
 
-Pub/Sub, BigQuery y Cloud Scheduler están en el diagrama como diseño, **sin
-recursos creados**.
-
----
-
-## 15:00–17:00 · Infografía y límites (A/E)
-
-**Mostrar** `reports/infografia.pdf`: las seis estaciones y el centro — *X es
-observable hoy; y se confirma 30 días después*.
-
-Equidad operativa: 13 segmentos con soporte, 0 alertas de brecha. **Decir que no es
-una auditoría demográfica**: IEEE-CIS no tiene atributos protegidos verificables.
-
-**El hallazgo operativo más útil:** la demanda de revisión es de 600–1 300
-casos/día frente a un cupo de 150. El cuello de botella dominante es la capacidad,
-no el modelo. Mejorar el AP tiene rendimientos decrecientes mientras el 90 % de la
-zona gris caiga a una acción automática por falta de gente.
+Pub/Sub, BigQuery y Cloud Scheduler figuran en el diagrama como diseño, sin
+recursos creados.
 
 ---
 
-## 17:00–18:00 · Conclusión (A)
+## 15:00 a 17:00. Infografía y límites (A y E)
 
-> «Bajo el drift inyectado, olvidar compensa y compensa más cuanto más corta es la
-> ventana: W30 reduce el costo un 34,5 % frente al estático y un 64,3 % frente a
-> aprobar todo, con un intervalo que no cruza el cero.
->
-> Al mismo tiempo, ninguna estrategia alcanzó los objetivos de FPR ni de precisión
-> en test, y la capacidad de revisión resultó más limitante que la calidad del
-> modelo.
->
-> Esto es un backtest, no una validación prospectiva. Un backtest no prueba que
-> mañana funcione.»
+Mostrar `reports/infografia.pdf`.
+
+Equidad operativa. De 14 segmentos con soporte suficiente, 6 superan el umbral de
+2 puntos porcentuales. La mayor diferencia corresponde a `DeviceType` desktop con
+6,88 puntos. Conviene precisar que se trata de disparidad operativa sobre
+variables de negocio y no de una auditoría demográfica, porque IEEE-CIS no
+contiene atributos protegidos verificables.
+
+El gate social bloqueó la promoción de las cinco estrategias en T igual a 135. Los
+gates no son decorativos.
+
+La restricción dominante es la capacidad. La demanda de revisión supera de forma
+sistemática los 150 casos diarios, de modo que mejorar el AP presenta rendimientos
+decrecientes.
+
+---
+
+## 17:00 a 18:00. Conclusión (A)
+
+El sistema reduce el costo de 5,40 a 1,53 UM por transacción frente a aprobar
+todo, una mejora del 71,7 %. Ese resultado proviene del modelo y de la política
+económica.
+
+El olvido por ventanas fijas no aporta mejora sobre IEEE-CIS con este protocolo.
+La ventana elegida en desarrollo resulta un 6,4 % más cara que el estático y la
+más corta un 17,3 % más cara. Solo la referencia expansiva mejora al estático, en
+un 2,1 %.
+
+La recomendación operativa es W60 con la advertencia de que no supera al estático
+en el periodo evaluado. Un despliegue razonable mantendría el modelo estático con
+monitoreo activo.
+
+Este trabajo constituye un backtest retrospectivo y no demuestra que el sistema
+funcione en el futuro.
 
 ---
 
 # Hoja de respuestas
 
-Preguntas probables, con la respuesta corta primero.
+### El resultado es negativo. ¿El proyecto falló?
 
-### «¿Cómo saben que no hay fuga temporal?»
+No. El objetivo era medir si el olvido compensa bajo restricciones reales, no
+demostrar que compensa. El protocolo fue prerregistrado, la ventana se eligió en
+desarrollo y el resultado se reporta como salió. Un resultado negativo obtenido
+con rigor aporta más que uno positivo obtenido ajustando umbrales después de ver
+el test.
 
-No lo afirmamos: lo probamos. 127 pruebas automáticas. Tres decisivas: (1) alterar
-las filas futuras no mueve las medianas ni el vocabulario del preprocesamiento;
-(2) invertir todas las etiquetas inmaduras no cambia el predictor ni un bit;
-(3) permutar los IDs de eventos con el mismo timestamp deja las features idénticas.
+### ¿Cómo saben que no hay fuga temporal?
 
-### «¿Por qué W30 gana si entrena con solo 9 días?»
+Mediante 137 pruebas automáticas. Tres resultan decisivas. Alterar las filas
+futuras no modifica medianas ni vocabulario del preprocesamiento. Invertir todas
+las etiquetas inmaduras no cambia el predictor. Permutar los identificadores de
+eventos con el mismo timestamp deja las features idénticas.
 
-Porque bajo drift la frescura vale más que el volumen. El vector que genera el
-fraude rota con el tiempo; un modelo de 69 días promedia regímenes que ya no
-existen. El límite es el soporte: W30 tiene 959 fraudes en su fit, por encima del
-mínimo de 200. Con menos datos, se marcaría no válida.
+### ¿Por qué W30 rinde peor si es la más fresca?
 
-### «¿No estarán sobreajustando al elegir W?»
+Porque entrena con 9 días, 1 291 fraudes, frente a los 69 días y 8 269 fraudes de
+W90. Bajo covariables estables, con un AUC de S1 de 0,654, el costo en varianza
+supera el beneficio de frescura. El desarrollo ya lo detectó y por eso W30 no fue
+la ventana elegida.
 
-La ventana se elige en `[76,83)`, que es desarrollo, y se congela con un hash antes
-de abrir el test. Si alguien cambiara la configuración después, la corrida aborta.
-Que W30 también gane en el test es una confirmación, no el criterio.
+### ¿No estarán sobreajustando al elegir la ventana?
 
-### «Los costos son inventados, ¿no?»
+La ventana se eligió sobre la reserva de política, que pertenece a desarrollo, y
+quedó congelada mediante hash antes de abrir el test. Si la configuración cambiara
+entre la selección y el test, la corrida se detiene.
 
-Sí, y lo decimos en el informe. Son supuestos declarados (c_FP=5, c_R=1). Por eso
-hay una sensibilidad de tres escenarios: el costo va de 0,73 a 1,70 UM/tx y **el
-ordenamiento entre estrategias no cambia**. Lo que no afirmamos es un ahorro causal.
+### ADWIN detecta 33 cambios. ¿No contradice que el olvido no sirva?
 
-### «¿Por qué no usan el veredicto del analista para entrenar?»
+No. ADWIN observa deriva en el error, que existe. El olvido por ventanas fijas es
+una respuesta posible a esa deriva y resulta que no la corrige en este dataset. La
+deriva se concentra en P(y|X) mientras P(X) permanece estable, y una ventana corta
+sobre P(X) estable solo reduce el tamaño de muestra.
 
-Porque no es la verdad, es una opinión con recall 0,90. Y porque solo lo conocemos
-cuando la etiqueta ya maduró: usarlo antes sería fuga. Se calcula en el evaluador y
-nunca cambia una decisión ya emitida.
+### Los costos son supuestos. ¿Qué validez tienen las conclusiones?
 
-### «¿Qué pasa con las transacciones que bloquearon? Nunca sabrán si eran fraude.»
+Los supuestos están declarados y se somete el resultado a tres escenarios
+económicos. El ordenamiento entre estrategias no cambia. Lo que no se afirma es un
+ahorro causal sobre pagos reales.
 
-Correcto, y es la limitación más seria: *selective labels*. En el benchmark usamos
-full-information —toda etiqueta madura aunque la acción fuera bloquear— porque el
-dataset la tiene. En producción no sería así, y las etiquetas disponibles estarían
-sesgadas por las propias decisiones del sistema. La corrección con *masked-label*
-quedó fuera del alcance.
+### ¿Por qué no usan el veredicto del analista para entrenar?
 
-### «¿Por qué 150 revisiones y no más?»
+Porque no constituye la verdad, sino una opinión con recall de 0,90. Además solo
+se conoce cuando la etiqueta ya maduró, de modo que usarlo antes sería fuga. Se
+calcula en el evaluador y no modifica ninguna decisión emitida.
 
-Es la restricción dada, no un parámetro. Y resultó ser el cuello de botella
-dominante: la demanda es de 600 a 1 300 casos/día. Ampliar el equipo humano mejoraría
-más el costo que mejorar el modelo.
+### ¿Qué ocurre con las transacciones bloqueadas?
 
-### «¿Esto funcionaría en producción?»
+Constituye la limitación más seria, conocida como selective labels. El benchmark
+usa información completa porque el dataset la contiene. En producción las
+etiquetas disponibles estarían sesgadas por las decisiones previas del sistema. La
+corrección mediante masked label quedó fuera del alcance.
 
-Con tres salvedades: el cupo solo está garantizado para un orquestador secuencial;
-la latencia es local y no representa una región cloud; y es un backtest
-retrospectivo. Además, la selección previa del dataset ya había mirado periodos
-tardíos, y lo declaramos.
+### ¿Por qué Platt y no calibración isotónica?
 
-### «¿Por qué Platt y no isotónica?»
+La cola de calibración es de 7 días. La isotónica requiere más datos para no
+sobreajustar escalones y produciría una función inestable entre versiones. Platt
+tiene dos parámetros y degrada de forma predecible. La elección quedó congelada
+antes del test.
 
-La cola de calibración son 7 días. La isotónica necesita más datos para no
-sobreajustar escalones, y con 50–300 fraudes daría una función escalonada inestable
-entre versiones. Platt tiene dos parámetros y degrada de forma predecible. La
-elección se congeló antes del test para que no fuera un grado de libertad.
+### ¿Funcionaría en producción?
 
-### «El benchmark anterior probaba que hay concept drift, ¿no?»
+Con tres salvedades. El cupo está garantizado solo para un orquestador secuencial.
+La latencia medida es local y no representa una región cloud. Se trata de un
+backtest retrospectivo, y la selección previa del dataset ya examinó periodos
+tardíos.
 
-Es evidencia **consistente** con drift, no una prueba causal. Además, su
-preprocesamiento ajustaba categorías sobre toda la ventana, lo cual es una
-limitación que arrastramos y declaramos en vez de repararla retroactivamente.
+### ¿Qué harían distinto con más tiempo?
 
-### «¿Y si los datos reales dan otro resultado?»
-
-Es posible y sería un resultado legítimo. La contribución es el método: el
-protocolo temporal, los controles de fuga, la política económica y los gates. Los
-comandos son idénticos: basta colocar los CSV reales y ejecutar con `--rebuild`.
+Evaluar cadencias distintas de 15 días, retrasos distintos de 30 y ventanas
+mayores que 90. El resultado sugiere que la deriva de IEEE-CIS opera a una escala
+temporal mayor que la del protocolo evaluado.

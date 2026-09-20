@@ -1,9 +1,9 @@
 # Reproducción final: qué se verificó
 
-Generado: 2026-09-20T14:16:01+00:00
+Generado: 2026-09-20T15:12:13+00:00
 
 
-> Resultados obtenidos sobre un sustituto sintetico: no son cifras de IEEE-CIS.
+> Resultados sobre IEEE-CIS (particion train).
 
 
 ## 1. Entorno de la corrida
@@ -14,8 +14,8 @@ Generado: 2026-09-20T14:16:01+00:00
 | Plataforma | Windows-11-10.0.26200-SP0 |
 | Procesador | AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD |
 | CPUs disponibles | 8 (el código se limita a 4 hilos) |
-| Commit | ae5385dca3d2029be686505df956967cfaa9c063 |
-| Hash del código | fa45c569df5c0bf34f633ea19de1094a |
+| Commit | 8018b978dcb312c111eccfb3fe7add23aa2ea20d |
+| Hash del código | 183a7374f33e2fbca04ba91bd8cde877 |
 | Hash de configuración | 0ae2212bbb6d780d408158fd2d329aa5 |
 
 ### Versiones de los paquetes
@@ -35,14 +35,15 @@ Generado: 2026-09-20T14:16:01+00:00
 
 | Tipo de tarea | Tareas | Minutos |
 |---|---|---|
-| fit_tuning | 18 | 9.03 |
-| fit_final | 10 | 6.22 |
-| backtest | 1 | 5.19 |
-| datos | 20 | 1.37 |
-| fit_adaptivo | 1 | 0.09 |
-| **Total** | 50 | **21.91 de 480** |
+| fit_tuning | 18 | 18.36 |
+| fit_final | 6 | 9.84 |
+| backtest | 1 | 3.21 |
+| fit_seleccion_W | 3 | 0.36 |
+| datos | 5 | 0.28 |
+| fit_adaptivo | 2 | 0.26 |
+| **Total** | 35 | **32.32 de 480** |
 
-Tareas fallidas: **1**. Tareas que excedieron su límite: **0**.
+Tareas fallidas: **0**. Tareas que excedieron su límite: **0**.
 
 
 Una tarea fallida o excedida igual consume presupuesto y queda registrada: 
@@ -53,7 +54,7 @@ un timeout nunca se presenta como un ajuste exitoso.
 
 | Verificación | Cómo | Resultado |
 |---|---|---|
-| Suite de pruebas | `python -m pytest` | 127 pruebas (126 pasan, 1 omitida) |
+| Suite de pruebas | `python -m pytest` | 137 pruebas (136 pasan, 1 omitida) |
 | Notebooks | Ejecutados de principio a fin con `nbclient` | 3 de 3 |
 | Servicio HTTP | `uvicorn` + peticiones reales a `/health` y `/predict` | Verificado |
 | Replay y ledger | 5 000 eventos, 50 reenvíos | Idempotencia aprobada |

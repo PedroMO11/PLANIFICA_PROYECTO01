@@ -109,7 +109,7 @@ queda marcada — un timeout nunca se presenta como un fit exitoso.
 | Mismo entorno, mismos datos, misma semilla → mismos resultados | Sí, dentro de la misma máquina |
 | Resultados idénticos bit a bit entre máquinas distintas | **No se promete.** BLAS, versión de CPU y orden de reducción en punto flotante pueden diferir |
 | Trazabilidad de cada cifra a un run y un hash | Sí: `reports/indice_evidencia.csv` |
-| Ausencia de fuga temporal | Verificada por 127 pruebas automáticas |
+| Ausencia de leakage temporal | Verificada por 137 pruebas automáticas |
 
 Semilla 42 en todo el núcleo. Una sola semilla **no** permite afirmar
 variabilidad entre semillas, y el informe no lo hace.

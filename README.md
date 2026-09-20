@@ -41,18 +41,22 @@ python -m fraud_adaptive data surrogate --scale 1.0
 python -m fraud_adaptive all
 ```
 
-> ### ⚠️ Sobre los datos de esta corrida
+> ### Resultado principal
 >
-> Los resultados incluidos se obtuvieron sobre un **dataset sustituto sintético**,
-> porque IEEE-CIS exige un token individual de Kaggle que no puede versionarse.
-> El sustituto replica el esquema (394 columnas), el eje temporal (182 días,
-> ~3 200 tx/día), la prevalencia (~3,5 %) y la cobertura de identidad (~24 %), con
-> drift inyectado de parámetros conocidos.
+> El olvido por ventanas fijas no reduce el costo sobre IEEE-CIS con este
+> protocolo. La ventana elegida en desarrollo, W60, resulta un 6,4 % más cara que
+> el modelo estático en el periodo de test. La ventana más corta, W30, es la peor
+> de las cinco estrategias evaluadas.
 >
-> **Ninguna cifra sobre datos sustitutos describe el fraude real.** Cada artefacto
-> lleva `data_source: sintetico_sustituto` en su manifest y el rótulo impreso en
-> las figuras. Al colocar los CSV reales y ejecutar con `--rebuild`, los mismos
-> comandos producen resultados reales.
+> El sistema sí reduce el costo de 5,40 a 1,53 UM por transacción frente a aprobar
+> todo, una mejora del 71,7 %. Ese resultado proviene del modelo y de la política
+> económica, no de la adaptación.
+>
+> El detalle está en [reports/informe_final.md](reports/informe_final.md).
+>
+> Sin acceso a Kaggle, `data surrogate` genera un dataset sustituto con el mismo
+> esquema para ejecutar y verificar el pipeline. Sus cifras quedan marcadas con
+> `data_source: sintetico_sustituto` y no describen el fraude real.
 
 ---
 
@@ -186,7 +190,7 @@ Firestore, BigQuery y Cloud Scheduler **no** están implementados.
 python -m pytest
 ```
 
-127 pruebas (126 pasan; 1 se omite porque el sustituto reducido de las pruebas no
+137 pruebas (136 pasan; 1 se omite porque el sustituto reducido de las pruebas no
 tiene soporte suficiente en la cola de calibración). Agrupadas por la propiedad que
 protegen:
 
@@ -202,6 +206,7 @@ protegen:
 | `test_serving_contract.py` | Contrato HTTP, 503 sin modelo, paridad offline/API |
 | `test_replay_idempotency.py` | Idempotencia del ledger y atomicidad del cupo |
 | `test_verification.py` | Que la comparación entre corridas distinga resultados de entorno |
+| `test_credentials.py` | Que el token se cargue del `.env` y nunca salga en un log |
 
 ### Reproducibilidad, comprobada
 

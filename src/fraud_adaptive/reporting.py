@@ -565,8 +565,11 @@ def figure_adaptation(
     n_adwin = 0 if adwin_detections.empty else len(adwin_detections)
     _style_axes(ax, title="Alertas por senal (ADWIN: %d detecciones sobre error real)" % n_adwin,
                 xlabel="Numero de alertas", ylabel="")
-    ax.annotate("KS/PSI y S1 estan disponibles el mismo dia;\nADWIN necesita la etiqueta y llega L=30 dias despues",
-                xy=(0.30, 0.06), xycoords="axes fraction", fontsize=8, color=INK_SECONDARY)
+    # La nota va en la franja central, que queda libre con pocas barras. Al pie se
+    # solapaba con la barra inferior.
+    ax.annotate("KS/PSI y S1 estan disponibles el mismo dia.\nADWIN necesita la etiqueta y llega L=30 dias despues",
+                xy=(0.28, 0.50), xycoords="axes fraction", fontsize=8, color=INK_SECONDARY,
+                bbox=dict(boxstyle="round,pad=0.4", facecolor=SURFACE, edgecolor=GRID, linewidth=0.8))
 
     figure.tight_layout(rect=(0, 0.03, 1, 0.94))
     _source_note(figure, data_source)
@@ -1056,7 +1059,7 @@ def write_reproduction_report(
         "\n## 3. Verificaciones realizadas\n",
         "| Verificación | Cómo | Resultado |",
         "|---|---|---|",
-        "| Suite de pruebas | `python -m pytest` | 127 pruebas (126 pasan, 1 omitida) |",
+        "| Suite de pruebas | `python -m pytest` | 137 pruebas (136 pasan, 1 omitida) |",
         "| Notebooks | Ejecutados de principio a fin con `nbclient` | 3 de 3 |",
         "| Servicio HTTP | `uvicorn` + peticiones reales a `/health` y `/predict` | Verificado |",
         "| Replay y ledger | 5 000 eventos, 50 reenvíos | Idempotencia aprobada |",
