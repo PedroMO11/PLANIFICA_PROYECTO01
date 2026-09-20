@@ -1,5 +1,5 @@
 {
-  "generado_en": "2026-09-20T20:47:26+00:00",
+  "generado_en": "2026-09-20T20:49:52+00:00",
   "run_id": "v3",
   "origen_datos": "ieee_cis_real",
   "advertencia_datos": "Resultados sobre IEEE-CIS (particion train).",
@@ -151,19 +151,19 @@
         "ruta": "notebooks/01_eda_temporal.ipynb",
         "existe": true,
         "bytes": 244255,
-        "sha256": "d85dd096d1264e2b5d7214c8386ce8dacd09dd8f00fdc773f60906a91272e0d9"
+        "sha256": "f32162b030b758523464617c7c7234142fbf74f4319018163895800fe3310504"
       },
       {
         "ruta": "notebooks/02_modelos_temporales.ipynb",
         "existe": true,
         "bytes": 332838,
-        "sha256": "0464c5370fe7a35c1e49b98da084cef4193ec147e6408f48eb6613fcac3dd483"
+        "sha256": "e8151640f1b625e0ecb1b3746d6ef3e7b185605bcc5817ed6c4a4b06e49c972f"
       },
       {
         "ruta": "notebooks/03_drift_adaptacion.ipynb",
         "existe": true,
         "bytes": 573276,
-        "sha256": "c8745d70fc2bcff216b8f60eefb46614edce3e8cfb18043d092cf504f439e0ea"
+        "sha256": "536b924d0e79e430f4c2c25a97fa1411ad05bed77bfb58bf850bffbe200b317e"
       }
     ],
     "informe": [
@@ -177,7 +177,7 @@
         "ruta": "reports/informe_final.pdf",
         "existe": true,
         "bytes": 916722,
-        "sha256": "cd4655b46d703d4328502c1d144dcd13a55555a1c2c628bea12367a78de046e2"
+        "sha256": "f886c439a5654da663ec284192ff47b99524d2f1b8964e23ee18aecd7386de6e"
       },
       {
         "ruta": "reports/infografia.svg",
