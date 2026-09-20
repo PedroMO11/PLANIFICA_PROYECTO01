@@ -3,11 +3,13 @@
 **Escrito para:** el integrante del equipo encargado del despliegue (rol E), con
 acceso a un proyecto de GCP y permisos de Artifact Registry y Cloud Run.
 
-**Alcance.** Ningún comando de este documento se ejecutó. No se creó ningún
-recurso, no se estimó ninguna factura y no se ejecutó `gcloud` desde el
-repositorio. Lo que sí está entregado y verificado localmente: el paquete del
-modelo, el `Dockerfile`, el servicio HTTP, el replay con su ledger y las pruebas
-de contrato.
+**Alcance.** Ningún comando `gcloud` de este documento se ejecutó: no se creó
+ningún recurso cloud ni se estimó ninguna factura. Lo que **sí** está entregado y
+verificado localmente: el paquete del modelo, el servicio HTTP, el replay con su
+ledger, las pruebas de contrato y **la imagen Docker, construida y ejecutada**
+(`linux/amd64`, 1,06 GB, arranque en verde, paridad con el cálculo offline y 503
+sin paquete). El paso 2 de abajo es por tanto una repetición comprobada, no un
+salto al vacío.
 
 **La entrega académica no depende de que esto se despliegue.** Si el despliegue
 falla o no hay presupuesto, la demo local es suficiente y la propuesta de §3.4
@@ -199,5 +201,5 @@ el tráfico real del equipo.
 - Estimación de factura mensual
 
 Si Docker no está disponible en tu máquina, el servicio corre de forma nativa
-(`python -m fraud_adaptive serve`). En ese caso el `Dockerfile` se entrega **sin
-build verificado**, y el primer paso manual es construirlo.
+(`python -m fraud_adaptive serve`) y el contrato es el mismo; el `Dockerfile` ya
+está verificado, así que el build solo hay que repetirlo donde vayas a publicarlo.

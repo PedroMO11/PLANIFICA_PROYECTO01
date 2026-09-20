@@ -1,5 +1,5 @@
 {
-  "generado_en": "2026-09-20T09:41:47+00:00",
+  "generado_en": "2026-09-20T14:16:01+00:00",
   "run_id": "principal",
   "origen_datos": "sintetico_sustituto",
   "advertencia_datos": "Resultados obtenidos sobre un sustituto sintetico: no son cifras de IEEE-CIS.",
@@ -80,8 +80,8 @@
       {
         "ruta": "README.md",
         "existe": true,
-        "bytes": 11590,
-        "sha256": "540bba526fc4343c1204a7884fdb3b708f0fdbd180f575c53e51272d608a0346"
+        "bytes": 11596,
+        "sha256": "fc1b8243c58bfa2805151e866c38712710a0f3d14c9b115c0afefa7caf4c960a"
       },
       {
         "ruta": "docs/contrato_sistema.md",
@@ -130,8 +130,8 @@
       {
         "ruta": "deploy/gcp_runbook.md",
         "existe": true,
-        "bytes": 7987,
-        "sha256": "27a8b7ca7855802cbabfdf75797e0f3e9f5a867f6b8c11376b8f651d4f8dd11e"
+        "bytes": 8395,
+        "sha256": "259192d57f15fb73a5e887e792e3d3d17869222ae3ee927754ff2f05a5f7f085"
       },
       {
         "ruta": "deploy/promocion_rollback.md",
@@ -170,14 +170,14 @@
       {
         "ruta": "reports/informe_final.md",
         "existe": true,
-        "bytes": 25182,
-        "sha256": "52f6c602cbd1ad94fa0e601c679cde02145949365037368b7bb3e57f8afa5273"
+        "bytes": 25660,
+        "sha256": "a03482002a0ab962bb877fcd32820d3d2a7f8af86178a4a27f7bb73aaef55c32"
       },
       {
         "ruta": "reports/informe_final.pdf",
         "existe": true,
-        "bytes": 885594,
-        "sha256": "ddde72bf78bf63dfe9a02c9d08924cc56f6f81d4a68b778d41c9e526bb7ff402"
+        "bytes": 895280,
+        "sha256": "8d7c7e2f3808ca24a29c408fe38a983d0256c544f402fba78060dcc0d7c8f39c"
       },
       {
         "ruta": "reports/infografia.svg",
@@ -194,8 +194,8 @@
       {
         "ruta": "reports/guion_presentacion.md",
         "existe": true,
-        "bytes": 11565,
-        "sha256": "d109d2aefa2afb48e4036f24da9d693a6c99ee7946453532332bc1a437d451b8"
+        "bytes": 11649,
+        "sha256": "64939bbd8cc05b0548b658dd480b7ca31001cfd9c3c6b87d8d8e730d0e0cbd5c"
       },
       {
         "ruta": "reports/indice_evidencia.csv",

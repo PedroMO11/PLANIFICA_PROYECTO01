@@ -1,6 +1,6 @@
 # Reproducción final: qué se verificó
 
-Generado: 2026-09-20T09:41:47+00:00
+Generado: 2026-09-20T14:16:01+00:00
 
 
 > Resultados obtenidos sobre un sustituto sintetico: no son cifras de IEEE-CIS.

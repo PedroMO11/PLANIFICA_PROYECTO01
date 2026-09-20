@@ -149,9 +149,10 @@ el cupo, así que la demo exige un único orquestador confiable. Hacer el cupo
 autoritativo en el servicio requeriría estado distribuido, que es el diseño futuro
 con Firestore.
 
-**Ser explícito sobre lo no hecho:** el build de la imagen Docker no se verificó
-(el daemon no estaba activo). El `Dockerfile` se entrega sin comprobar y es el
-primer paso manual del equipo. El servicio sí se verificó nativamente sobre HTTP.
+**La imagen Docker está construida y probada**, no solo escrita: arranca en verde,
+devuelve las mismas probabilidades que el cálculo offline (5/5 idénticas), p95 de
+87 ms sobre HTTP, y sin paquete montado responde 503 en vez de decidir el pago.
+Lo que queda para el equipo es el `push` al registro y el `deploy`, no el build.
 
 Pub/Sub, BigQuery y Cloud Scheduler están en el diagrama como diseño, **sin
 recursos creados**.

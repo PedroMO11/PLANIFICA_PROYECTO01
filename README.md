@@ -170,7 +170,7 @@ ejecuta `gcloud` ni despliega nada.
 | Entregado y verificado aquí | Ejecuta el equipo a mano |
 |---|---|
 | Paquete del modelo con hashes | `docker build` y `push` |
-| `Dockerfile` y contrato de Cloud Run | Crear el servicio en Cloud Run |
+| Imagen Docker construida y probada | `push` al registro y crear el servicio |
 | Servicio HTTP y replay con ledger | Apuntar el replay al endpoint remoto |
 | Runbook y política de promoción | Promover, revertir y cerrar recursos |
 

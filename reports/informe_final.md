@@ -386,11 +386,16 @@ diagrama como **diseño futuro**: no hay recursos creados ni código de integrac
 | `/health` informa versión y hash | `W30_T165`, `4f4b3f06…` |
 | Rechazo de `isFraud` en el payload | HTTP 400 |
 | Fixtures de contrato | 5/5 (rotulados como sintéticos) |
+| Cambio de versión y rollback | W30_T165 → W90_T165 → W30_T165, score restaurado |
+| **Imagen Docker construida y probada** | `linux/amd64`, 1,06 GB, `HEALTHCHECK` en verde |
+| Paridad contenedor vs cálculo offline | **5/5 idénticas** a 1e−12 |
+| Latencia p95 sobre HTTP al contenedor | **87,2 ms** (objetivo ≤ 300 ms) ✔ |
+| Sin paquete montado (C21) | `/health` = `model_unavailable`, `/predict` = HTTP 503 |
 
-**El build de la imagen Docker no pudo verificarse**: el daemon de Docker no estaba
-activo en la máquina de desarrollo. El `Dockerfile` se entrega sin comprobar, y
-construirlo es el primer paso manual del equipo. El servicio **sí** se verificó de
-forma nativa sobre HTTP real.
+La imagen se construyó con `--platform linux/amd64` y se verificó ejecutándola: el
+contenedor arranca en verde, devuelve **exactamente las mismas probabilidades** que
+el cálculo offline, rechaza `isFraud`, una `schema_version` incompatible y un monto
+negativo, y sin paquete montado responde 503 en lugar de decidir el pago.
 
 ### Frecuencia, autonomía y gates
 
