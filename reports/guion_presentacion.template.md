@@ -162,9 +162,10 @@ cupo autoritativo dentro del servicio requeriría estado distribuido, que figura
 como diseño futuro.
 
 La imagen Docker está construida y verificada. Arranca con HEALTHCHECK en verde,
-devuelve probabilidades idénticas al cálculo offline en 5 de 5 casos, alcanza un
-p95 de 87 ms sobre HTTP y responde 503 sin paquete montado. Al equipo le queda la
-publicación en el registro y el despliegue, no la construcción.
+emite la misma acción que el cálculo offline, alcanza un p95 de {P95_HTTP} ms sobre
+HTTP frente a un objetivo de 300 y responde 503 sin paquete montado. Sobre mil
+peticiones devuelve {ACCIONES_HTTP}. Al equipo le queda la publicación en el
+registro y el despliegue, no la construcción.
 
 Pub/Sub, BigQuery y Cloud Scheduler figuran en el diagrama como diseño, sin
 recursos creados.

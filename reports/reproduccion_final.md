@@ -1,6 +1,6 @@
 # Reproducción final: qué se verificó
 
-Generado: 2026-09-20T17:18:41+00:00
+Generado: 2026-09-20T18:02:50+00:00
 
 
 > Resultados sobre IEEE-CIS (particion train).
@@ -63,23 +63,23 @@ un timeout nunca se presenta como un ajuste exitoso.
 
 ## 3.b Reproducibilidad verificada entre dos corridas independientes
 
-Se ejecutó la cadena completa dos veces con la misma semilla y los mismos datos, en corridas separadas (`principal` y `reproduccion`).
+Se ejecutó la cadena completa dos veces con la misma semilla y los mismos datos, en corridas separadas (`v3` y `v3_repro`).
 
 
 | Comparación | Resultado |
 |---|---|
 | Fits de tuning idénticos | **18 / 18** |
-| Hash de prerregistro | Idéntico (`c6288e32141507c6`) |
-| Costo observado · S0 | Idéntico (1.9596135397 UM/tx) |
-| Costo observado · E15 | Idéntico (1.5476906192 UM/tx) |
-| Costo observado · W30 | Idéntico (1.2833064702 UM/tx) |
-| Costo observado · W60 | Idéntico (1.4340933193 UM/tx) |
-| Costo observado · W90 | Idéntico (1.4899289531 UM/tx) |
+| Hash de prerregistro | Idéntico (`7d4c9fac0af4d15f`) |
+| Costo observado · S0 | Idéntico (2.0920721656 UM/tx) |
+| Costo observado · E15 | Idéntico (1.9840124547 UM/tx) |
+| Costo observado · W30 | Idéntico (2.1829591018 UM/tx) |
+| Costo observado · W60 | Idéntico (2.1087130706 UM/tx) |
+| Costo observado · W90 | Idéntico (2.0572772361 UM/tx) |
 
-Comprobable con: `python -m fraud_adaptive --run-id principal verify --against reproduccion`
+Comprobable con: `python -m fraud_adaptive --run-id v3 verify --against v3_repro`
 
 
-> Los resultados coinciden pese a que el hash de codigo difiere: los cambios estan en modulos que no participan del entrenamiento. Para una comparacion estricta, ejecutar ambas corridas sin editar el codigo entre ellas.
+> Los resultados coinciden pese a que el hash de codigo difiere. Eso prueba que los cambios entre las dos corridas fueron neutrales para el resultado, no que no los hubiera: afirmar que estaban fuera del camino de entrenamiento exigiria revisarlos uno a uno. Para una comparacion estricta, ejecutar ambas corridas sin editar el codigo entre ellas.
 
 
 ## 4. Lo que NO pudo verificarse

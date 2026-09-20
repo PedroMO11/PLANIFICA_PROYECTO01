@@ -5,11 +5,11 @@
 **Semilla** 42. **Retraso de etiqueta** L = 30 días. **Cadencia** 15 días
 
 > **Resultado principal.** El olvido por ventanas fijas no reduce el costo sobre IEEE-CIS con este
-protocolo. Ninguna de las 6 estrategias se distingue del modelo estático de
-forma estable. El experimento separa volumen de frescura por diseño, y la única
-comparación controlada que resiste el control de robustez es la de frescura:
-retroceder el corte 30 días con el volumen fijo en 46 días encarece 0,1059
-UM/tx.
+protocolo. Las 6 estrategias comparadas con el modelo estático no se distinguen
+de él de forma estable. El experimento separa volumen de frescura por diseño, y
+la única comparación controlada que resiste el control de robustez es la de
+frescura: con el volumen fijo en 46 días, retroceder el corte 30 días encarece
+0,1059 UM/tx.
 
 ---
 
@@ -455,12 +455,13 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 
 | Comprobación | Resultado |
 |---|---|
-| Tres acciones sobre datos reales | Presentes en el replay |
-| Cupo respetado | 150 de 150, nunca excedido en 62 días |
+| Tres acciones sobre datos reales | 4 678 aprobar, 201 revisar, 121 bloquear |
+| Cupo respetado | Nunca excedido en 62 días |
 | Idempotencia con 50 reenvíos | Aprobada, sin consumo adicional de cupo |
 | Imagen Docker | `linux/amd64`, 1,06 GB, HEALTHCHECK en verde |
-| Paridad contenedor frente a cálculo offline | 5 de 5 idénticas con tolerancia 1e−12 |
-| Latencia p95 sobre HTTP al contenedor | 87,2 ms frente a un objetivo de 300 ms |
+| Paridad contenedor frente a cálculo offline | Probabilidad, costos y acción emitida |
+| Latencia p95 sobre HTTP al contenedor | 90,1 ms frente a un objetivo de 300 ms |
+| Acciones del contenedor sobre 1 000 peticiones | 951 aprobar, 38 revisar, 11 bloquear |
 | Sin paquete montado | `/health` informa `model_unavailable` y `/predict` devuelve 503 |
 | Cambio de versión y rollback | Score restaurado de forma exacta |
 

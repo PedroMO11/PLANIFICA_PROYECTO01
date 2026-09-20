@@ -286,9 +286,19 @@ siete estrategias y comprueba que la economía calibrada llega al manifiesto de 
 paquete persistido. Esa prueba faltaba, y su ausencia dejó pasar un cambio de firma
 que habría roto la corrida real tras cuarenta minutos de tuning.
 
-**Reproducibilidad.** Dos corridas independientes de la cadena completa produjeron
+**Paridad entre servicio y backtest.** `test_paridad_entre_el_servicio_y_el_calculo_offline`
+comparaba solo probabilidades. Eso dejó pasar que el servicio HTTP, el replay y los
+fixtures de contrato propusieran la acción con `Policy.zone`, que ignora el monto y
+el precio del cupo: con los umbrales de referencia en 0 y 1, las tres rutas mandaban
+todas las transacciones a revisión y el cupo las recortaba después, de modo que el
+resultado parecía razonable. La prueba compara ahora la acción emitida y los tres
+costos esperados, y una prueba adicional comprueba que un monto de 1 UM y uno de
+5000 no reciben la misma acción.
+
+**Reproducibilidad.** Dos corridas independientes de la cadena completa producen
 resultados idénticos en los 18 fits de tuning, en el hash de prerregistro y en el
-costo de las estrategias. `fraud-adaptive verify` lo comprueba a demanda.
+costo de las estrategias. `fraud-adaptive verify --against` lo comprueba a demanda y
+`reports/verificacion_reproducibilidad.json` guarda la comparación.
 
 ---
 

@@ -3,7 +3,7 @@
 > Origen de los datos: IEEE-CIS Fraud Detection, particion `train` unicamente.
 
 
-Generado: 2026-09-20T17:00:05+00:00
+Generado: 2026-09-20T18:01:34+00:00
 
 
 ## 1. Fuentes e integridad

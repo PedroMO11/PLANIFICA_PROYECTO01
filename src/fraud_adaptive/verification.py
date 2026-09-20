@@ -141,9 +141,11 @@ def comparar_runs(
     resultado["reproducible"] = resultado["resultados_identicos"]
     if resultado["resultados_identicos"] and not resultado["entorno_identico"]:
         resultado["advertencia"] = (
-            "Los resultados coinciden pese a que el hash de codigo difiere: los cambios "
-            "estan en modulos que no participan del entrenamiento. Para una comparacion "
-            "estricta, ejecutar ambas corridas sin editar el codigo entre ellas."
+            "Los resultados coinciden pese a que el hash de codigo difiere. Eso prueba "
+            "que los cambios entre las dos corridas fueron neutrales para el resultado, "
+            "no que no los hubiera: afirmar que estaban fuera del camino de "
+            "entrenamiento exigiria revisarlos uno a uno. Para una comparacion estricta, "
+            "ejecutar ambas corridas sin editar el codigo entre ellas."
         )
     elif not resultado["resultados_identicos"] and not resultado["entorno_identico"]:
         resultado["advertencia"] = (

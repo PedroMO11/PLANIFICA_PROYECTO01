@@ -1,5 +1,5 @@
 {
-  "generado_en": "2026-09-20T17:18:41+00:00",
+  "generado_en": "2026-09-20T18:02:50+00:00",
   "run_id": "v3",
   "origen_datos": "ieee_cis_real",
   "advertencia_datos": "Resultados sobre IEEE-CIS (particion train).",
@@ -151,57 +151,57 @@
         "ruta": "notebooks/01_eda_temporal.ipynb",
         "existe": true,
         "bytes": 244255,
-        "sha256": "22a3c872e6a6f2c5ef5a7a563c304ff1255aeb6105948a34e9e2d3e6f817390f"
+        "sha256": "d85dd096d1264e2b5d7214c8386ce8dacd09dd8f00fdc773f60906a91272e0d9"
       },
       {
         "ruta": "notebooks/02_modelos_temporales.ipynb",
         "existe": true,
         "bytes": 332838,
-        "sha256": "f6a49de31188e4f5f462b5e5c87f834c7ba523a070b9f5302fd3e36a27edd0b1"
+        "sha256": "0464c5370fe7a35c1e49b98da084cef4193ec147e6408f48eb6613fcac3dd483"
       },
       {
         "ruta": "notebooks/03_drift_adaptacion.ipynb",
         "existe": true,
         "bytes": 573276,
-        "sha256": "2d1f90884bb7bdf13c47364e6c22c2b8b4e42ca1c311366468b865ed6316ad56"
+        "sha256": "c8745d70fc2bcff216b8f60eefb46614edce3e8cfb18043d092cf504f439e0ea"
       }
     ],
     "informe": [
       {
         "ruta": "reports/informe_final.md",
         "existe": true,
-        "bytes": 30150,
-        "sha256": "d37ed9325a2f65327a283c3d17307fd928c701188bb1810917ea736139768d89"
+        "bytes": 30245,
+        "sha256": "823eb8690adbd3cc3ac36848e6cf54e5f7d474aca8384b90fafe0830ad7dde9d"
       },
       {
         "ruta": "reports/informe_final.pdf",
         "existe": true,
-        "bytes": 902888,
-        "sha256": "f5f0cb530d52d3f863a08d524ff9aeb5e71990aa55ece5ede37ee9c002efc041"
+        "bytes": 903706,
+        "sha256": "b3c1a4adf8079ba438f9089c25118ad26ef7629d92796904a245fa4800b11e83"
       },
       {
         "ruta": "reports/infografia.svg",
         "existe": true,
-        "bytes": 11711,
-        "sha256": "61c50387b614a2707e41fdd8484ca92366afa4f469c1557404c68eec05165c72"
+        "bytes": 11762,
+        "sha256": "cfb81d161995d04e9de5048e6657b45b1f13078285b1530fd4b86cc92c179412"
       },
       {
         "ruta": "reports/infografia.pdf",
         "existe": true,
-        "bytes": 46976,
-        "sha256": "975d0faf64439fc95cc2104be3fc19c4670443e77048dc0c85bd4b39558fbd0f"
+        "bytes": 51062,
+        "sha256": "d80d34e815652662205803d24cfb442e9b14d30fd3f31c2a54213e7c678b33f0"
       },
       {
         "ruta": "reports/guion_presentacion.md",
         "existe": true,
-        "bytes": 15831,
-        "sha256": "bbd04b3f12bdce14b5adfd2cfbb5d7e7a30c319239b8a8f3d4ac6b242ff7377a"
+        "bytes": 16103,
+        "sha256": "0982bee86300f1830e7e84328eac1446686a30789a1f1d80f4fcfae3962ba9a8"
       },
       {
         "ruta": "reports/indice_evidencia.csv",
         "existe": true,
-        "bytes": 3950,
-        "sha256": "f22f89ed9d533e2c5246991b6510916a8c0822877456797dfe05c10c92515e1d"
+        "bytes": 4292,
+        "sha256": "a2cbec851d0978b9bebf4500fc4db272baffa78a00ce09f82ea47191e4828de8"
       }
     ],
     "tablas": [
@@ -273,13 +273,13 @@
         "ruta": "reports/datos_temporales.md",
         "existe": true,
         "bytes": 5209,
-        "sha256": "89b38d350f1aac417ca4e8a806a360aa18f0d49e186598b84f9addfb62c3dab6"
+        "sha256": "4fd145ac132a985e62c7f26ee03b63ed325cabf4f5a0731da9908dcead01c224"
       },
       {
         "ruta": "reports/replay_local.md",
         "existe": true,
-        "bytes": 2238,
-        "sha256": "a1aa457e28aa7128a0c4de07654b2d02dc1d5ace457073ace16921ff7f405d87"
+        "bytes": 2244,
+        "sha256": "9096f9e2ecb6ac8584eafb52acce5d99199983576f5dbb9c27b71fd87cae10da"
       },
       {
         "ruta": "data/manifests/sources.json",

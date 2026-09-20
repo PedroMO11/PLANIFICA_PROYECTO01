@@ -385,12 +385,13 @@ diagrama como diseño futuro. No existen recursos creados ni código de integrac
 
 | Comprobación | Resultado |
 |---|---|
-| Tres acciones sobre datos reales | Presentes en el replay |
-| Cupo respetado | 150 de 150, nunca excedido en 62 días |
+| Tres acciones sobre datos reales | {ACCIONES_REPLAY} |
+| Cupo respetado | Nunca excedido en 62 días |
 | Idempotencia con 50 reenvíos | Aprobada, sin consumo adicional de cupo |
 | Imagen Docker | `linux/amd64`, 1,06 GB, HEALTHCHECK en verde |
-| Paridad contenedor frente a cálculo offline | 5 de 5 idénticas con tolerancia 1e−12 |
-| Latencia p95 sobre HTTP al contenedor | 87,2 ms frente a un objetivo de 300 ms |
+| Paridad contenedor frente a cálculo offline | Probabilidad, costos y acción emitida |
+| Latencia p95 sobre HTTP al contenedor | {P95_HTTP} ms frente a un objetivo de 300 ms |
+| Acciones del contenedor sobre 1 000 peticiones | {ACCIONES_HTTP} |
 | Sin paquete montado | `/health` informa `model_unavailable` y `/predict` devuelve 503 |
 | Cambio de versión y rollback | Score restaurado de forma exacta |
 

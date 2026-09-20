@@ -1,6 +1,6 @@
 # Replay local: evidencia de la demo
 
-Generado: 2026-09-20T15:25:53+00:00
+Generado: 2026-09-20T18:02:29+00:00
 
 
 ## Configuracion
@@ -17,9 +17,9 @@ Generado: 2026-09-20T15:25:53+00:00
 
 | Accion | n |
 |---|---|
-| aprobar | 4087 |
-| bloquear | 613 |
-| revisar | 300 |
+| aprobar | 4678 |
+| revisar | 201 |
+| bloquear | 121 |
 
 Tres acciones presentes en el replay natural: **si**
 
@@ -32,19 +32,19 @@ No se movieron umbrales ni se presentan como resultados de fraude.
 
 | Caso | p forzada | Monto | Accion obtenida | Esperado |
 |---|---|---|---|---|
-| aprobar_p_baja | 0.0034 | 25.00 | aprobar | aprobar |
-| bloquear_p_alta | 0.9521 | 900.00 | bloquear | bloquear |
-| revisar_zona_gris | 0.4554 | 400.00 | revisar | revisar |
-| overflow_sin_cupo | 0.4554 | 400.00 | bloquear | automatica |
-| monto_cero | 0.4554 | 0.00 | revisar | revisar |
+| aprobar_p_baja | 0.2036 | 25.00 | aprobar | aprobar |
+| bloquear_p_alta | 0.5683 | 900.00 | bloquear | bloquear |
+| revisar_zona_intermedia | 0.1342 | 400.00 | revisar | revisar |
+| overflow_sin_cupo | 0.1342 | 400.00 | bloquear | automatica |
+| monto_cero | 0.1342 | 0.00 | aprobar | aprobar |
 
 ## Cambio de version y rollback (prueba de contrato)
 
 | Paso | Version | p de la fila de prueba |
 |---|---|---|
-| Activa al inicio | W60_T165 | 0.093660 |
-| Tras activar otra | W90_T165 | 0.051010 |
-| Tras el rollback | W60_T165 | 0.093660 |
+| Activa al inicio | W60_T165 | 0.029034 |
+| Tras activar otra | W90_T165 | 0.023002 |
+| Tras el rollback | W60_T165 | 0.029034 |
 
 Rollback correcto: **True** · score restaurado: **True**
 
@@ -54,9 +54,9 @@ Rollback correcto: **True** · score restaurado: **True**
 
 | Percentil | ms |
 |---|---|
-| p50 | 38.96 |
-| p95 | 61.66 |
-| p99 | 67.56 |
+| p50 | 46.20 |
+| p95 | 74.59 |
+| p99 | 87.00 |
 
 Medicion LOCAL. No representa la latencia de una region cloud ni un SLA.
 
@@ -69,7 +69,7 @@ Medicion LOCAL. No representa la latencia de una region cloud ni un SLA.
 | Sin nueva reserva de cupo | 50 |
 | Cupo estable tras reenvio | True |
 | Prueba aprobada | True |
-| Cupo maximo usado en un dia | 150 de 150 |
+| Cupo maximo usado en un dia | 135 de 150 |
 | Excedio capacidad | False |
 
 ## Limitaciones declaradas

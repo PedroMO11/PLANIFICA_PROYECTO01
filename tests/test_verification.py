@@ -65,7 +65,10 @@ def test_codigo_distinto_no_invalida_resultados_iguales(tmp_path):
     assert resultado["resultados_identicos"] is True
     assert resultado["entorno_identico"] is False
     assert resultado["reproducible"] is True
-    assert "no participan del entrenamiento" in resultado["advertencia"]
+    # La advertencia no debe afirmar que los cambios estaban fuera del camino de
+    # entrenamiento: eso exigiria revisarlos uno a uno y el verificador no lo hace.
+    assert "neutrales para el resultado" in resultado["advertencia"]
+    assert "no participan del entrenamiento" not in resultado["advertencia"]
 
 
 def test_prerregistro_distinto_rompe_la_reproducibilidad(tmp_path):
