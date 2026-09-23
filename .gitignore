@@ -1,5 +1,60 @@
+# ---------------------------------------------------------------- datos crudos
+# No se versionan: IEEE-CIS exige aceptar las reglas de la competencia y un token
+# individual. Se reconstruyen con `fraud-adaptive data instructions` (datos reales)
+# o `fraud-adaptive data surrogate` (sustituto sintetico).
+/ieee-fraud-detection
 /jigsaw-unintended-bias-in-toxicity-classification
 /diabetes+130-us+hospitals+for+years+1999-2008
 /cd_bench
-.venv
-/ieee-fraud-detection
+cd_bench.zip
+
+# ------------------------------------------------------- artefactos regenerables
+# Todo esto se reproduce con `fraud-adaptive all`. Se excluye por tamano, no por
+# ser prescindible: el manifest de entrega registra sus hashes.
+/data/processed/
+/runs/
+/models/
+# Log de consola de una corrida. El registro versionable son los manifests.
+runs_*.log
+
+# ------------------------------------------------------------------- entorno
+.venv/
+.env
+.env.*
+!.env.example
+**/kaggle.json
+**/.kaggle/
+
+# ------------------------------------------------------------------ herramientas
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ------------------------------------------------------------------ intermedios
+# HTML intermedio de la exportacion del informe: el entregable es el PDF.
+reports/*.print.html
+reports/figures/_*.png
+# Decisiones por evento del replay (1 MB, regenerable). El entregable es el
+# resumen en reports/replay_local.md.
+reports/tables/replay_decisiones.csv
+
+# ------------------------------------------------------------------------ SO
+Thumbs.db
+.DS_Store
+
+# =============================================================================
+# SI se versiona, porque es el producto de la entrega:
+#   README.md, pyproject.toml, requirements*.lock, Dockerfile, .dockerignore
+#   src/  configs/  tests/  docs/  deploy/  notebooks/
+#   data/manifests/           (hashes y particiones, no los datos)
+#   reports/                  (informe, infografia, guion, tablas y figuras)
+# =============================================================================
+
+output

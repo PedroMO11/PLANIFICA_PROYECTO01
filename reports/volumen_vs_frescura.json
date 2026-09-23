@@ -1,0 +1,97 @@
+{
+  "dias_de_fit": {
+    "S0": 69,
+    "W30": 16,
+    "W60": 46,
+    "W90": 76,
+    "R46_medio": 46,
+    "R46_antiguo": 46
+  },
+  "bloque_frescura": {
+    "referencia": "W60",
+    "estrategias": [
+      "W60",
+      "R46_medio",
+      "R46_antiguo"
+    ],
+    "dias_de_fit": [
+      46
+    ],
+    "volumen_constante": true
+  },
+  "efecto_frescura": {
+    "R46_medio": {
+      "estimacion": 0.10587824861646157,
+      "ic_low": 0.019492632430641987,
+      "ic_high": 0.1902662771157831,
+      "n_bloques": 9,
+      "n_resamples": 400,
+      "cruza_cero": false
+    },
+    "R46_antiguo": {
+      "estimacion": 0.008371691723769588,
+      "ic_low": -0.13911249587267632,
+      "ic_high": 0.15988504749705812,
+      "n_bloques": 9,
+      "n_resamples": 400,
+      "cruza_cero": true
+    }
+  },
+  "efecto_volumen": {
+    "estimacion": 0.12568186570301934,
+    "ic_low": 2.6451789698609586e-05,
+    "ic_high": 0.2638313984295889,
+    "n_bloques": 9,
+    "n_resamples": 400,
+    "cruza_cero": false
+  },
+  "robustez": [
+    {
+      "estrategia": "R46_antiguo",
+      "referencia": "W60",
+      "delta_costo": 0.008371691723769588,
+      "combinaciones": 18,
+      "cruzan_cero": 18,
+      "robusto": false,
+      "veredicto": "no concluyente"
+    },
+    {
+      "estrategia": "W60",
+      "referencia": "W90",
+      "delta_costo": 0.051435834498119296,
+      "combinaciones": 18,
+      "cruzan_cero": 18,
+      "robusto": false,
+      "veredicto": "no concluyente"
+    },
+    {
+      "estrategia": "W30",
+      "referencia": "W60",
+      "delta_costo": 0.07424603120490006,
+      "combinaciones": 18,
+      "cruzan_cero": 4,
+      "robusto": false,
+      "veredicto": "no concluyente"
+    },
+    {
+      "estrategia": "R46_medio",
+      "referencia": "W60",
+      "delta_costo": 0.10587824861646157,
+      "combinaciones": 18,
+      "cruzan_cero": 0,
+      "robusto": true,
+      "veredicto": "concluyente"
+    },
+    {
+      "estrategia": "W30",
+      "referencia": "W90",
+      "delta_costo": 0.12568186570301934,
+      "combinaciones": 18,
+      "cruzan_cero": 1,
+      "robusto": false,
+      "veredicto": "no concluyente"
+    }
+  ],
+  "correlacion_dias_costo": -0.7412144743187916,
+  "nota": "El efecto de frescura se mide dentro del bloque de antiguedad variable, cuyas estrategias comparten el numero de dias de fit. El efecto de volumen se mide con W30 frente a W90, que comparten el punto de corte."
+}

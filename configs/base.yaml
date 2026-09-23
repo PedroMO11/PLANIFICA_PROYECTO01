@@ -1,0 +1,38 @@
+# Configuracion transversal.
+# Cambiar estos valores modifica el hash de configuracion y del prerregistro.
+
+seed: 42
+n_threads: 4                 # fijo para mantener comparables los tiempos entre maquinas
+
+paths:
+  data_root: ieee-fraud-detection      # CSV crudos de Kaggle (solo train_*)
+  processed: data/processed
+  manifests: data/manifests
+  runs: runs
+  models: models
+  reports: reports
+
+data:
+  transactions_file: train_transaction.csv
+  identity_file: train_identity.csv
+  join_key: TransactionID
+  target: isFraud
+  time_col: TransactionDT
+  amount_col: TransactionAmt
+  # Los test_* de Kaggle no tienen etiqueta y no se usan en el backtest temporal.
+  forbidden_files: [test_transaction.csv, test_identity.csv]
+
+budget:
+  # Tope acumulado de computo de 480 min, reserva incluida.
+  total_minutes: 480
+  planned_minutes: 382
+  reserve_minutes: 98
+  per_fit_limits_seconds:
+    tuning: 240              # 4 min
+    final: 360               # 6 min
+    adaptive: 360            # 6 min
+    domain_classifier: 60    # 1 min
+
+logging:
+  level: INFO
+  jsonl: true

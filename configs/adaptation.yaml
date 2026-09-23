@@ -1,0 +1,85 @@
+# Experimento de adaptacion: estrategias evaluadas sobre los mismos eventos.
+
+# Cada ventana reserva 14 dias para calibracion y validacion, de modo que el
+# predictor entrena con window_days - 14.
+#
+# El bloque de volumen variable mide el efecto del tamano del training set.
+# El bloque de antiguedad variable mantiene 46 dias de fit y mueve el punto de
+# corte, para medir la frescura por separado del tamano de muestra.
+strategies:
+  # Referencias
+  - {name: S0,  kind: static,    window_days: null, role: referencia}
+  - {name: E15, kind: expanding, window_days: null, role: desplegable}
+
+  # Volumen variable, todas igual de frescas (terminan en c-14)
+  - {name: W30, kind: sliding,   window_days: 30,   role: desplegable}   # 16 dias de fit
+  - {name: W60, kind: sliding,   window_days: 60,   role: desplegable}   # 46 dias de fit
+  - {name: W90, kind: sliding,   window_days: 90,   role: desplegable}   # 76 dias de fit
+
+  # Antiguedad variable, todas con 46 dias de fit
+  - {name: R46_medio,   kind: lagged, fit_days: 46, lag_days: 30, role: diagnostico}
+  - {name: R46_antiguo, kind: static, fit_days: 46,               role: diagnostico}
+
+# En T=120, E15 y W90 comparten el predictor [0,76). Reutilizar el paquete evita
+# contar el mismo ajuste dos veces en el costo de computo. S0 queda fuera porque
+# su fit de desarrollo termina en el dia 69 y por tanto no es el mismo ajuste.
+# La reutilizacion se valida comparando los intervalos, no la lista.
+share_initial_package: [E15, W90]
+
+# W60 es la referencia de 46 dias mas fresca del bloque de antiguedad.
+recency_comparison: [W60, R46_medio, R46_antiguo]
+
+detectors:
+  ks_psi:
+    reference: development          # referencia fija de desarrollo
+    window_days: 7                  # ultimos 7 dias de X
+    schedule: daily
+    psi_alert: 0.20
+    ks_alert: 0.10
+    bh_q: 0.05                      # correccion Benjamini-Hochberg
+    panel_max_numeric: 20           # por completitud/varianza en desarrollo
+    consecutive_closes: 2           # alerta requiere dos cierres consecutivos
+    panel_fraction_alert: 0.20      # en >=20% del panel
+    epsilon: 1.0e-6
+
+  domain_classifier:                # S1
+    schedule: per_block             # una ejecucion por T, maximo 4 fits
+    reference_interval: [0, 60]
+    recent_window_days: 7
+    cap_per_domain: 2000
+    inner_split: 0.70               # cronologico dentro de cada dominio
+    auc_alert: 0.75
+    forbidden_features: [isFraud, TransactionID, TransactionDT, dia, semana]
+
+  score_psi:                        # S2
+    reference: own_calibration_scores
+    psi_alert: 0.20
+
+  analyst:                          # S3
+    simulated: true
+    only_after_maturity: true       # el veredicto se calcula al madurar la etiqueta
+    usable_as_ground_truth: false
+
+  adwin:
+    delta: 0.002
+    clock: 32
+    signal: brier_individual        # (p_emitida - y)^2
+    one_detector_per_version: true
+    update_once_per_matured_label: true
+
+adwin_selftest:
+  n_obs: 2000
+  seed: 42
+  streams: [stationary, jump]       # salto conocido de perdidas acotadas
+  jump_at: 1000
+
+bootstrap:
+  n_resamples: 200
+  block_days: 7                     # bloques contiguos, remuestreo pareado
+  confidence: 0.95
+
+# La corrida offline usa una autorizacion humana previa que enumera sus tareas.
+# Una alerta produce una recomendacion, que pasa por el gate humano.
+authorization:
+  require_manifest: true
+  simulated_promotions_labeled: true

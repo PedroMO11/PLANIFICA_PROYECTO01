@@ -1,0 +1,40 @@
+# Datos crudos y derivados: nunca viajan en la imagen de serving.
+ieee-fraud-detection/
+data/
+cd_bench/
+*.csv
+*.parquet
+
+# Evidencia de corridas: pesada y no necesaria para servir.
+runs/
+reports/
+notebooks/
+.pytest_tmp/
+.pytest_cache/
+
+# Modelos: se montan como volumen o se copian de forma explicita en el build,
+# para que la imagen no quede atada a una version concreta del paquete.
+models/
+
+# Credenciales y entorno local.
+.env
+.env.*
+!.env.example
+.venv/
+**/kaggle.json
+**/.kaggle/
+
+# Control de versiones y herramientas.
+.git/
+.github/
+.gitignore
+**/__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Documentacion y fuentes del informe: no aportan al runtime.
+docs/
+deploy/
+*.pdf

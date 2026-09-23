@@ -1,0 +1,327 @@
+{
+  "generado_en": "2026-09-23T06:29:33+00:00",
+  "run_id": "v3",
+  "origen_datos": "ieee_cis_real",
+  "advertencia_datos": "Resultados sobre IEEE-CIS (particion train).",
+  "computo_minutos": 39.48,
+  "computo_limite_minutos": 480,
+  "inventario": {
+    "codigo": [
+      {
+        "ruta": "src/fraud_adaptive/__main__.py",
+        "existe": true,
+        "bytes": 24439,
+        "sha256": "3d44ed92ded2178b71e8d1089d00c902c8cb25aff55cec0f87ad610034954ed0"
+      },
+      {
+        "ruta": "pyproject.toml",
+        "existe": true,
+        "bytes": 1250,
+        "sha256": "af919310503bd7714fe12367222de88af6f2551fd926ef1ca7685772db00f9ba"
+      },
+      {
+        "ruta": "requirements.lock",
+        "existe": true,
+        "bytes": 7727,
+        "sha256": "66c3b3a8c8cc949a26aa1fa8874bba5dedf677a71fa9554d621b6f22b935a679"
+      },
+      {
+        "ruta": "requirements-serving.lock",
+        "existe": true,
+        "bytes": 2425,
+        "sha256": "283226fc13a3562a9764a38ebb21a8cb7d455016df8681b0322a42d28ddb5afc"
+      }
+    ],
+    "configuracion": [
+      {
+        "ruta": "configs/base.yaml",
+        "existe": true,
+        "bytes": 1071,
+        "sha256": "07bd9135530cdb3b514470eba41f58e3bfcfb97ccb3036a0e4e27188e2946a8f"
+      },
+      {
+        "ruta": "configs/temporal.yaml",
+        "existe": true,
+        "bytes": 1811,
+        "sha256": "18e0a5a40b5178bea87e3b6f3d1fcb16c45a50dd52677a2dc9e54db3b023b597"
+      },
+      {
+        "ruta": "configs/decision.yaml",
+        "existe": true,
+        "bytes": 2699,
+        "sha256": "b99a24c5315f7e00051b64ead2933a10e3e9e4438a1ccb3dbd62ff7280003213"
+      },
+      {
+        "ruta": "configs/models.yaml",
+        "existe": true,
+        "bytes": 1941,
+        "sha256": "765ad40ae53ebcd700fd7d86824d7cf3e10e9c253ad51f76b55dd14f72ecbf8c"
+      },
+      {
+        "ruta": "configs/adaptation.yaml",
+        "existe": true,
+        "bytes": 3428,
+        "sha256": "500792d2cf62872a153696c4fb20ca2fbf22c50aebb7d6c90f445d5198011d50"
+      },
+      {
+        "ruta": "configs/serving.yaml",
+        "existe": true,
+        "bytes": 1191,
+        "sha256": "9a4a12e8726f095b5b997b282ecee762a850a9b521ff460e6106256db7f0c278"
+      },
+      {
+        "ruta": "configs/gcp.yaml",
+        "existe": true,
+        "bytes": 1314,
+        "sha256": "e47f06c0931d0e546340db876c1a62e4eac342efe5d95ed5b08ed9338a62b67f"
+      }
+    ],
+    "documentacion": [
+      {
+        "ruta": "README.md",
+        "existe": true,
+        "bytes": 10196,
+        "sha256": "b8534853d2ade294e23e8aa28a3daa4f06099e34c8fdc15ef7acdd8294ff9a53"
+      },
+      {
+        "ruta": "docs/contrato_sistema.md",
+        "existe": true,
+        "bytes": 7724,
+        "sha256": "55c300c162438d69f2597912368176d12467c79bfca4abd4b5f27cc2dc103b5c"
+      },
+      {
+        "ruta": "docs/protocolo_experimental.md",
+        "existe": true,
+        "bytes": 9864,
+        "sha256": "761fb2fe4f1a3d2e80ba44665cc67eb8fc774d6c43eb0bcfb58e49fe0bc51c0f"
+      },
+      {
+        "ruta": "docs/reproducibilidad.md",
+        "existe": true,
+        "bytes": 5292,
+        "sha256": "163ca5cd501b16ee396aad981c3938f54983bca64787b6634a13adec55410e07"
+      },
+      {
+        "ruta": "docs/registro_decisiones.md",
+        "existe": true,
+        "bytes": 7700,
+        "sha256": "cd2c9d1b38f6753189b9459692dbd0cfaab85dca894fc0ae4e9471eb5b48d807"
+      },
+      {
+        "ruta": "docs/arquitectura.dot",
+        "existe": true,
+        "bytes": 3065,
+        "sha256": "ffd976c6ddab5ee2c1e665f87fbaf45841f28463e080a7e83410d793409d958b"
+      },
+      {
+        "ruta": "docs/decisiones_de_diseno.md",
+        "existe": true,
+        "bytes": 11306,
+        "sha256": "b3b32e5fe32e2db5385e5d6dd3e0f1e80303850619a1374f3802c9546be0d6d2"
+      }
+    ],
+    "despliegue": [
+      {
+        "ruta": "Dockerfile",
+        "existe": true,
+        "bytes": 2120,
+        "sha256": "df35a872b9846376043b31e9679782701f7a2cc045e42fa863d473c1257ccf80"
+      },
+      {
+        "ruta": ".dockerignore",
+        "existe": true,
+        "bytes": 708,
+        "sha256": "bc822250696a42b68ecd24cc4c40ba802709b2bbbdae594cec5f6eae6f390f33"
+      },
+      {
+        "ruta": "deploy/gcp_runbook.md",
+        "existe": true,
+        "bytes": 6938,
+        "sha256": "b55e1327d7fecbf9c1306451ae07cf12acc73ef3358fbcd43790b1842a42a066"
+      },
+      {
+        "ruta": "deploy/promocion_rollback.md",
+        "existe": true,
+        "bytes": 4561,
+        "sha256": "ddfd94e9d0455cc045e68fd88321c5b13c7d814ff1092ea64254043cf4ac3980"
+      },
+      {
+        "ruta": "deploy/arquitectura_gcp.mmd",
+        "existe": true,
+        "bytes": 1973,
+        "sha256": "817b432b7be5a8bc0bf824b2e2b966641b117d552c8c142f0d937a0673705b4a"
+      }
+    ],
+    "notebooks": [
+      {
+        "ruta": "notebooks/01_eda_temporal.ipynb",
+        "existe": true,
+        "bytes": 243057,
+        "sha256": "a72ec6946de8f0b7a4fd3ba9fe3caacebe7803c4344f7c82e93d464fce891b75"
+      },
+      {
+        "ruta": "notebooks/02_modelos_temporales.ipynb",
+        "existe": true,
+        "bytes": 331392,
+        "sha256": "a11427fe022fbcd67ef795620382e34e4ddca838a70c125077f23644541f9bd2"
+      },
+      {
+        "ruta": "notebooks/03_drift_adaptacion.ipynb",
+        "existe": true,
+        "bytes": 572096,
+        "sha256": "d1152de7640076da03c04a105f51f8cda0998c871e9a27d49dd1784fc63eb36e"
+      }
+    ],
+    "informe": [
+      {
+        "ruta": "reports/informe_final.md",
+        "existe": true,
+        "bytes": 27828,
+        "sha256": "07b1b216f5b5368e4bf0e2effd482047c2c417c5b742387b9853ae7f3eff8db9"
+      },
+      {
+        "ruta": "reports/informe_final.pdf",
+        "existe": true,
+        "bytes": 1049176,
+        "sha256": "b3a4eba2a7db7ed0b6b9d84e5fd2894781d40d98f427ecdafc77da980b51000e"
+      },
+      {
+        "ruta": "reports/infografia.svg",
+        "existe": true,
+        "bytes": 10757,
+        "sha256": "2205118ad8241c2285fd784d9a9a763917846d9d5dab01a689ae61b8b9000398"
+      },
+      {
+        "ruta": "reports/infografia.pdf",
+        "existe": true,
+        "bytes": 62739,
+        "sha256": "12e53df6ee9933878e9c2e7f0cb536a78e987ad06dc00c3f065fce404c32de88"
+      },
+      {
+        "ruta": "reports/guion_presentacion.md",
+        "existe": true,
+        "bytes": 13713,
+        "sha256": "c5e66b58495da41e6109d5fe33bc5f5efb0fcee7da15c2b45aac5cf4cd188eb5"
+      },
+      {
+        "ruta": "reports/indice_evidencia.csv",
+        "existe": true,
+        "bytes": 4267,
+        "sha256": "6d09fd97af5896939b46d8839c1f0d6763917e73857c8adf5e808966bfcf7ae5"
+      }
+    ],
+    "tablas": [
+      {
+        "ruta": "reports/tables/comparacion_modelos.csv",
+        "existe": true,
+        "bytes": 968,
+        "sha256": "6a93de5ae6078efb9726a62855fb6d2d2d9c32d116987e92cafd47b1ffd5f07b"
+      },
+      {
+        "ruta": "reports/tables/adaptacion.csv",
+        "existe": true,
+        "bytes": 4875,
+        "sha256": "6db1d750322a2229d4236fb890de43054ea14fce21ad637f45609a8025e74d5e"
+      },
+      {
+        "ruta": "reports/tables/costos_computo.csv",
+        "existe": true,
+        "bytes": 358,
+        "sha256": "c6a70e3117a8597fa38d88fc774c3946f9a294fe5c2ef5b6ad19a37474ece9d5"
+      },
+      {
+        "ruta": "reports/tables/segmentos.csv",
+        "existe": true,
+        "bytes": 8784,
+        "sha256": "f93ed067ee0fa89a5437a8dbfce13dac6453c1fd35645d6bdb60616e7f44c453"
+      },
+      {
+        "ruta": "reports/tables/adwin_selftest.csv",
+        "existe": true,
+        "bytes": 179,
+        "sha256": "6054f47099dfa203a5235344a98259f26cda7cc169c1bf29d3f29b3b1b0402d4"
+      },
+      {
+        "ruta": "reports/tables/sensibilidad_economica.csv",
+        "existe": true,
+        "bytes": 647,
+        "sha256": "a711fa6caccc866f4a4b11c752c2c4928e7aac9f3e74d6af88a5000337082396"
+      }
+    ],
+    "figuras": [
+      {
+        "ruta": "reports/figures/eda_temporal.png",
+        "existe": true,
+        "bytes": 159562,
+        "sha256": "0e1b2c48112d9784974d4066b16ddf09de10d885b1f2d07bea930d921e01bdb9"
+      },
+      {
+        "ruta": "reports/figures/rendimiento_estatico.png",
+        "existe": true,
+        "bytes": 114592,
+        "sha256": "ddc781ecc42c306c7a1ca746d30365cef8d5c6ec193194ffac098e3d989fffe0"
+      },
+      {
+        "ruta": "reports/figures/calibracion_costos.png",
+        "existe": true,
+        "bytes": 109715,
+        "sha256": "66e4071f3c46300ad6aecefafbdc51cd7539cc48ac741d8e80d9e41aa778fb48"
+      },
+      {
+        "ruta": "reports/figures/drift_adaptacion.png",
+        "existe": true,
+        "bytes": 344790,
+        "sha256": "b9358939138a7275a8f579e8c8aceed2a59a9ddb871d428db9e4ecedef4d531d"
+      },
+      {
+        "ruta": "reports/figures/arquitectura.png",
+        "existe": true,
+        "bytes": 215032,
+        "sha256": "6081eca94004bc14d286d249a7b597bce19f2183bab1f23ac10c42dee21ca732"
+      }
+    ],
+    "evidencia": [
+      {
+        "ruta": "reports/datos_temporales.md",
+        "existe": true,
+        "bytes": 4873,
+        "sha256": "b9c218ae3f84c43cee3dd00129dd2fe462d16f61d75d249a76e5fffee85b9ba7"
+      },
+      {
+        "ruta": "reports/replay_local.md",
+        "existe": true,
+        "bytes": 2150,
+        "sha256": "506c44e4e23767b215e3ff0379b2a454bb2fb99fea5c3fe6f56fb936dd14e054"
+      },
+      {
+        "ruta": "data/manifests/sources.json",
+        "existe": true,
+        "bytes": 3660,
+        "sha256": "538a16c433c6529d6db8a443f71c9925b08f3f81d66ef256bc95ad399a5def72"
+      },
+      {
+        "ruta": "data/manifests/splits.json",
+        "existe": true,
+        "bytes": 10412,
+        "sha256": "0f184492091aa9940f28c679da42c8093e30c64298c8ce85d55780efdc85d1bb"
+      }
+    ]
+  },
+  "faltantes": [],
+  "completo": true,
+  "excluido_deliberadamente": [
+    "ieee-fraud-detection/ (datos crudos, no se versionan)",
+    "data/processed/ (regenerable con `data prepare --rebuild`)",
+    "models/ y runs/ (artefactos de corrida, regenerables)",
+    ".venv/ y credenciales de Kaggle"
+  ],
+  "fuera_de_alcance": [
+    "MLflow, Terraform e IaC",
+    "Recursos cloud creados o facturas estimadas",
+    "Repeticion del benchmark de seleccion y semillas de entrenamiento adicionales",
+    "L distintos de 30, cadencias menores de 15 dias, W14",
+    "Shadow/canary real y feature store online"
+  ],
+  "informe_paginas": 8,
+  "no_verificado": []
+}

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1020" width="1440" height="1020"
+     font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <title>Ciclo de vida de un sistema adaptativo de decisión ante fraude</title>
+  <desc>Seis etapas del ciclo de vida, los dos relojes que ordenan el diseño y los
+        resultados obtenidos sobre IEEE-CIS.</desc>
+
+  <defs>
+    <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52514e"/>
+    </marker>
+    <marker id="flechaHumano" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#eb6834"/>
+    </marker>
+    <style>
+      .titulo      { font-size: 30px; font-weight: 700; fill: #0b0b0b; }
+      .subtitulo   { font-size: 15px; fill: #52514e; }
+      .estacion    { font-size: 17px; font-weight: 700; fill: #0b0b0b; }
+      .numero      { font-size: 20px; font-weight: 700; fill: #ffffff; }
+      .cuerpo      { font-size: 13px; fill: #2f2e2c; }
+      .dato        { font-size: 13px; font-weight: 700; fill: #0b0b0b; }
+      .nota        { font-size: 11.5px; fill: #6b6a66; }
+      .centro      { font-size: 17px; font-weight: 700; fill: #0b0b0b; }
+      .centroTexto { font-size: 13px; fill: #2f2e2c; }
+      .resultado   { font-size: 13px; fill: #2f2e2c; }
+      .humano      { font-size: 12.5px; font-weight: 700; fill: #eb6834; }
+      .caja        { fill: #ffffff; stroke-width: 2; rx: 12; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="1020" fill="#fcfcfb"/>
+
+  <!-- Encabezado -->
+  <text class="titulo" x="48" y="56">Sistema adaptativo de decisión ante fraude transaccional</text>
+  <text class="subtitulo" x="48" y="84">
+    Ciclo de vida completo sobre IEEE-CIS: 590 540 transacciones en 182 días, etiqueta confirmada a los 30 días
+  </text>
+  <line x1="48" y1="102" x2="1392" y2="102" stroke="#e3e2de" stroke-width="2"/>
+
+  <!-- 1. Problema -->
+  <rect class="caja" x="48" y="130" width="400" height="196" stroke="#2a78d6"/>
+  <circle cx="82" cy="164" r="19" fill="#2a78d6"/>
+  <text class="numero" x="82" y="171" text-anchor="middle">1</text>
+  <text class="estacion" x="114" y="170">Problema y objetivos</text>
+  <text class="cuerpo" x="72" y="202">Cada transacción recibe una de tres acciones:</text>
+  <text class="dato"   x="72" y="224">aprobar · revisar · bloquear</text>
+  <text class="cuerpo" x="72" y="250">Se elige la de menor costo esperado:</text>
+  <text class="cuerpo" x="72" y="272">E[aprobar]=p·monto   E[bloquear]=(1−p)·c_FP</text>
+  <text class="cuerpo" x="72" y="292">E[revisar]=c_R+p(1−r_H)monto+(1−p)f_H·c_FP</text>
+  <text class="nota"   x="72" y="314">Objetivos O1–O5 · cupo de 150 revisiones diarias</text>
+
+  <!-- 2. Datos -->
+  <rect class="caja" x="520" y="130" width="400" height="196" stroke="#1baf7a"/>
+  <circle cx="554" cy="164" r="19" fill="#1baf7a"/>
+  <text class="numero" x="554" y="171" text-anchor="middle">2</text>
+  <text class="estacion" x="586" y="170">Datos e integración</text>
+  <text class="cuerpo" x="544" y="202">Transacciones + identidad, join 1:1 auditado</text>
+  <text class="dato"   x="544" y="224">590 540 eventos, 182 días, 24,4 % con identidad</text>
+  <text class="cuerpo" x="544" y="250">Historial por proxy de entidad en ventanas</text>
+  <text class="cuerpo" x="544" y="270">de 1 h, 24 h y 7 d, calculado solo con eventos</text>
+  <text class="cuerpo" x="544" y="290">anteriores a la transacción</text>
+  <text class="nota"   x="544" y="314">150 pruebas automáticas verifican la causalidad</text>
+
+  <!-- 3. Modelado -->
+  <rect class="caja" x="992" y="130" width="400" height="196" stroke="#4a3aa7"/>
+  <circle cx="1026" cy="164" r="19" fill="#4a3aa7"/>
+  <text class="numero" x="1026" y="171" text-anchor="middle">3</text>
+  <text class="estacion" x="1058" y="170">Modelado y calibración</text>
+  <text class="cuerpo" x="1016" y="202">Logística · Random Forest · LightGBM (elegido)</text>
+  <text class="cuerpo" x="1016" y="224">Cada versión tiene su propio calibrador Platt,</text>
+  <text class="cuerpo" x="1016" y="244">ajustado en 7 días que el predictor no vio.</text>
+  <text class="dato"   x="1016" y="270">El umbral de acción depende del monto</text>
+  <text class="cuerpo" x="1016" y="292">LightGBM en desarrollo: 1,59 UM/tx</text>
+  <text class="nota"   x="1016" y="314">ECE de la logística: 0,285 → 0,004 tras calibrar</text>
+
+  <!-- Centro: los dos relojes -->
+  <rect x="404" y="382" width="632" height="176" rx="16" fill="#fff8f2" stroke="#eb6834" stroke-width="3"/>
+  <text class="centro" x="720" y="418" text-anchor="middle">Dos relojes</text>
+  <text class="centroTexto" x="720" y="450" text-anchor="middle" font-size="15" font-weight="700" fill="#eb6834">
+    Las features se observan hoy; la etiqueta se confirma 30 días después
+  </text>
+  <line x1="440" y1="472" x2="1000" y2="472" stroke="#f0d5c2" stroke-width="1.5"/>
+  <text class="centroTexto" x="440" y="498">
+    <tspan font-weight="700">Reloj de evento:</tspan> cuándo ocurrió la transacción → qué features son visibles
+  </text>
+  <text class="centroTexto" x="440" y="520">
+    <tspan font-weight="700">Reloj de disponibilidad:</tspan> día + 30 → cuándo la etiqueta puede entrenar o medir
+  </text>
+  <text class="nota" x="440" y="544">
+    Entrenamiento, calibración y métricas usan solo etiquetas ya confirmadas.
+  </text>
+
+  <!-- Flechas 1 → 2 → 3 -->
+  <path d="M 448 228 L 512 228" stroke="#52514e" stroke-width="2" fill="none" marker-end="url(#flecha)"/>
+  <path d="M 920 228 L 984 228" stroke="#52514e" stroke-width="2" fill="none" marker-end="url(#flecha)"/>
+  <!-- 3 → 4 por la derecha -->
+  <path d="M 1192 326 L 1192 660" stroke="#52514e" stroke-width="2" fill="none" marker-end="url(#flecha)"/>
+  <!-- 6 → 1 por la izquierda -->
+  <path d="M 248 660 L 248 326" stroke="#52514e" stroke-width="2" fill="none" marker-end="url(#flecha)"/>
+
+  <!-- 4. Evaluación -->
+  <rect class="caja" x="48" y="672" width="400" height="212" stroke="#eda100"/>
+  <circle cx="82" cy="706" r="19" fill="#eda100"/>
+  <text class="numero" x="82" y="713" text-anchor="middle">4</text>
+  <text class="estacion" x="114" y="712">Evaluación temporal</text>
+  <text class="cuerpo" x="72" y="744"><tspan font-weight="700">Técnica</tspan> · AP, F1, recall a FPR 1 %, Brier</text>
+  <text class="cuerpo" x="72" y="768"><tspan font-weight="700">Decisión</tspan> · UM por transacción, fraude evitado, cupo</text>
+  <text class="cuerpo" x="72" y="792"><tspan font-weight="700">Social</tspan> · bloqueo de legítimas por segmento</text>
+  <text class="cuerpo" x="72" y="822">Cuatro bloques de test de 15 días en orden temporal;</text>
+  <text class="cuerpo" x="72" y="842">cada evento se puntúa antes de conocer su etiqueta.</text>
+  <text class="nota"   x="72" y="868">Intervalos por bootstrap de bloques de 7 días</text>
+
+  <!-- 5. Despliegue -->
+  <rect class="caja" x="520" y="672" width="400" height="212" stroke="#e87ba4"/>
+  <circle cx="554" cy="706" r="19" fill="#e87ba4"/>
+  <text class="numero" x="554" y="713" text-anchor="middle">5</text>
+  <text class="estacion" x="586" y="712">Despliegue y operación</text>
+  <text class="cuerpo" x="544" y="744">Servicio HTTP y replay con ledger transaccional.</text>
+  <text class="cuerpo" x="544" y="768">El servicio calcula la acción; el replay la confirma</text>
+  <text class="cuerpo" x="544" y="788">y reserva el cupo de forma atómica e idempotente.</text>
+  <text class="dato"   x="544" y="816">p95 = 90 ms, cupo 150/150, tres acciones reales</text>
+  <text class="cuerpo" x="544" y="842">Sin modelo válido: HTTP 503 y pausa.</text>
+  <text class="nota"   x="544" y="868">Propuesta en GCP con pasos manuales documentados</text>
+
+  <!-- 6. Monitoreo y adaptación -->
+  <rect class="caja" x="992" y="672" width="400" height="212" stroke="#e34948"/>
+  <circle cx="1026" cy="706" r="19" fill="#e34948"/>
+  <text class="numero" x="1026" y="713" text-anchor="middle">6</text>
+  <text class="estacion" x="1058" y="712">Monitoreo y adaptación</text>
+  <text class="cuerpo" x="1016" y="744"><tspan font-weight="700">Diario:</tspan> KS/PSI y domain classifier sobre P(X)</text>
+  <text class="cuerpo" x="1016" y="768"><tspan font-weight="700">A 30 días:</tspan> ADWIN sobre el error, cambio en P(y|X)</text>
+  <text class="cuerpo" x="1016" y="796">Reentrenamiento cada 15 días con todo el histórico</text>
+  <text class="dato"   x="1016" y="822">E15: 1,98 UM/tx · W30, W60, W90: 2,06 a 2,18</text>
+  <text class="humano" x="1016" y="848">Cada promoción requiere aprobación humana</text>
+  <text class="nota"   x="1016" y="870">Una alerta genera una recomendación al responsable</text>
+
+  <!-- Flechas 4 → 5 → 6 -->
+  <path d="M 448 778 L 512 778" stroke="#52514e" stroke-width="2" fill="none" marker-end="url(#flecha)"/>
+  <path d="M 920 778 L 984 778" stroke="#52514e" stroke-width="2" fill="none" marker-end="url(#flecha)"/>
+
+  <!-- Gate humano entre 6 y 1 -->
+  <rect x="404" y="586" width="632" height="52" rx="10" fill="#fff3e0" stroke="#eb6834" stroke-width="2"/>
+  <text class="humano" x="720" y="609" text-anchor="middle" font-size="14">
+    Gate humano: reentrenar y promover requieren autorización registrada
+  </text>
+  <text class="nota" x="720" y="628" text-anchor="middle">
+    integridad → costo ≤ modelo vigente → brecha social ≤ 2 pp → firma del responsable
+  </text>
+  <path d="M 1192 660 L 1044 612" stroke="#eb6834" stroke-width="2" fill="none" marker-end="url(#flechaHumano)"/>
+  <path d="M 396 612 L 248 660" stroke="#eb6834" stroke-width="2" fill="none" marker-end="url(#flechaHumano)"/>
+
+  <!-- Resultados -->
+  <line x1="48" y1="906" x2="1392" y2="906" stroke="#e3e2de" stroke-width="2"/>
+  <text class="estacion" x="48" y="932" font-size="15">Resultados sobre IEEE-CIS</text>
+  <text class="resultado" x="48" y="956">
+    El costo simulado baja de 5,40 a 1,98 UM por transacción frente a aprobar todo. La distribución de entrada es estable (AUC 0,551)
+  </text>
+  <text class="resultado" x="48" y="975">
+    y la relación entre features y fraude cambia: 16 días más de antigüedad cuestan 0,106 UM/tx. Las tres ventanas deslizantes
+  </text>
+  <text class="resultado" x="48" y="994">
+    cuestan más que E15, así que la estrategia recomendada es reentrenar cada 15 días con todo el histórico.
+  </text>
+  <text class="nota" x="48" y="1012">
+    Límites: costos simulados · disparidad medida por segmentos operativos · cupo garantizado para un orquestador secuencial · backtest retrospectivo
+  </text>
+</svg>

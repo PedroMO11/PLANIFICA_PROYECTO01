@@ -1,0 +1,47 @@
+# Tres familias con tres configuraciones cada una, sin early stopping.
+
+calibration:
+  method: platt             # regresion logistica univariada sobre logit(p_cruda)
+  clip: [1.0e-6, 0.999999]
+  C: 1.0
+  solver: lbfgs
+  max_iter: 1000
+  class_weight: null
+
+families:
+  logistic:
+    preprocessing: {impute: median, indicators: true, scale: standard, encode: onehot_sparse}
+    base: {solver: saga, max_iter: 300, tol: 0.001}
+    configs:
+      - {name: lr_c01,       C: 0.1, class_weight: null}
+      - {name: lr_c1,        C: 1.0, class_weight: null}
+      - {name: lr_c1_bal,    C: 1.0, class_weight: balanced}
+
+  random_forest:
+    preprocessing: {impute: median, indicators: true, encode: onehot}
+    base: {bootstrap: true, n_jobs: 4}
+    configs:
+      - {name: rf_100_12,    n_estimators: 100, max_depth: 12, min_samples_leaf: 20, class_weight: null}
+      - {name: rf_200_12,    n_estimators: 200, max_depth: 12, min_samples_leaf: 20, class_weight: balanced_subsample}
+      - {name: rf_200_20,    n_estimators: 200, max_depth: 20, min_samples_leaf: 10, class_weight: balanced_subsample}
+
+  lightgbm:
+    preprocessing: {impute: native, encode: native_categorical}
+    base: {learning_rate: 0.05, min_child_samples: 100, reg_lambda: 1.0, n_estimators: 300, n_jobs: 4}
+    configs:
+      - {name: lgbm_15,      num_leaves: 15, scale_pos_weight: null}
+      - {name: lgbm_31,      num_leaves: 31, scale_pos_weight: null}
+      - {name: lgbm_31_spw,  num_leaves: 31, scale_pos_weight: auto}   # n_neg/n_pos del fit
+
+encoding:
+  onehot_min_frequency: 10
+  onehot_max_categories: 64
+  drop_column_missing_above: 0.95   # evaluado dentro del fit
+
+resource_caps:
+  rf_max_rows: 100000          # muestra seed 42 estratificada por dia/clase
+  reduced_profile:             # solo si el piloto excede presupuesto; se congela antes del test
+    rf_max_rows: 50000
+    rf_n_estimators: 100
+    lgbm_n_estimators: 200
+    max_numeric_panel: 150

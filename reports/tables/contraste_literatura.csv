@@ -1,0 +1,6 @@
+familia,congelado,reentrenado,caida_relativa_pct,fuente
+XGBoost,0.04,0.35,-88.57,"Topal et al. 2025, recall a FPR 5 %"
+LightGBM,0.03,0.37,-91.89,"Topal et al. 2025, recall a FPR 5 %"
+Random Forest,0.25,0.33,-24.24,"Topal et al. 2025, recall a FPR 5 %"
+Logistica,0.29,0.3,-3.33,"Topal et al. 2025, recall a FPR 5 %"
+LightGBM (este trabajo),0.38,0.42,-11.12,"este trabajo, recall a FPR 1 %"

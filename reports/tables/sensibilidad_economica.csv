@@ -1,0 +1,5 @@
+escenario,c_fp,c_review,r_h,f_h,costo_por_tx,n_revisiones,n_bloqueadas,monto_fraude_evitado,estrategia,nota
+bajo,12.5,0.5,0.9,0.02,1.9176029443516402,8745,4448,646150.5050000001,W60,Acciones congeladas; solo cambia la contabilidad del costo.
+base,25.0,1.0,0.9,0.02,2.1087130706030752,8745,4448,646150.5050000001,W60,Acciones congeladas; solo cambia la contabilidad del costo.
+alto,50.0,2.0,0.9,0.02,2.4909333231059443,8745,4448,646150.5050000001,W60,Acciones congeladas; solo cambia la contabilidad del costo.
+estres_analista,25.0,1.0,0.8,0.05,2.344914868350777,8745,4448,609929.461,W60,Acciones congeladas; solo cambia la contabilidad del costo.

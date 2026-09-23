@@ -1,0 +1,59 @@
+# Politica economica de decision.
+# UM = unidad monetaria, consistente con TransactionAmt. Sin conversion a PEN/USD.
+
+costs:
+  # c_FP se deriva en desarrollo del objetivo de bloqueo de legitimas y luego se
+  # congela. Con un valor fijo de 5 UM se bloqueaba el 11,17 % de las legitimas.
+  c_review: 1.0    # costo de una revision humana
+  calibracion_c_fp:
+    objetivo_bloqueo_legitimo: 0.01   # mismo valor que diagnostic_targets.fpr_target
+    grid: [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 150, 200, 300]
+    ventana: policy                    # reserva de politica de desarrollo, [76,83)
+  # Escenarios de sensibilidad, expresados como multiplos del c_FP calibrado.
+  # Se resuelven por rescoring sobre predicciones guardadas, sin nuevos fits.
+  scenarios:
+    - {name: bajo,  c_fp_factor: 0.5, c_review: 0.5}
+    - {name: base,  c_fp_factor: 1.0, c_review: 1.0}
+    - {name: alto,  c_fp_factor: 2.0, c_review: 2.0}
+
+analyst:
+  r_h: 0.90        # recall del analista simulado
+  f_h: 0.02        # tasa de falso bloqueo del analista simulado
+  stress: {r_h: 0.80, f_h: 0.05}
+  # El veredicto se calcula cuando la etiqueta madura; no entrena ni cambia la accion emitida.
+
+capacity:
+  daily_reviews: 150        # cupo diario
+  theoretical_slack: 10     # 2 analistas x 8 h x 10 casos/h = 160; 10 de holgura declarada
+  priority: p_times_amount  # ordena la atencion entre casos ya admitidos
+
+rule: argmin       # accion = minimo costo esperado, sujeto al cupo
+
+thresholds:
+  # Con la regla argmin estos umbrales no deciden. Se eligen en [76,83) para medir
+  # cuanto cuesta una regla que ignora el monto y como referencia de diagnostico.
+  role: referencia_y_diagnostico
+  grid_quantiles: [0.0, 0.50, 0.75, 0.90, 0.95, 0.97, 0.99, 0.995, 1.0]
+  delta: 0.0                # zona gris en la comparacion central
+  delta_sensitivity: 0.02   # solo en desarrollo, sin nuevos fits
+  tie_break: [menor_bloqueo_legitimo, menor_demanda_revision, menor_complejidad]
+
+diagnostic_targets:
+  fpr_target: 0.01          # recall@FPR<=1%
+  precision_target: 0.80    # recall@precision>=80%
+  p95_latency_ms: 300       # warm, local
+  ap_relative_drop_alert: 0.10
+
+segments:
+  amount_quartiles_from: fit    # bins fijados en el fit, nunca en test
+  columns: [P_emaildomain, DeviceType, addr1, addr2]
+  min_legit_support: 1000       # soporte minimo para declarar una brecha
+  gap_alert_pp: 2.0             # brecha de bloqueo legitimo en puntos porcentuales
+
+promotion_gates:
+  cost_ratio_max: 1.01      # costo en H <= 1.01 x champion (no inferioridad)
+  ap_drop_max: 0.01         # absoluto
+  brier_increase_max: 0.005
+  segment_block_increase_pp_max: 2.0
+  cooldown_days: 15
+  human_approval_required: true
