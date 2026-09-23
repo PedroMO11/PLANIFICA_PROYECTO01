@@ -79,7 +79,8 @@ información. El experimento los separa en dos bloques.
 | Volumen variable | W30, W60, W90 | Días de fit | Corte en `c−14` |
 | Antigüedad variable | W60, R46_medio, R46_antiguo | Punto de corte | 46 días de fit |
 
-`R46_medio` usa 46 días que terminan 30 días antes que los de W60. `R46_antiguo` usa
+`R46_medio` usa 46 días que terminan 30 días antes del corte `c`, 16 días antes que
+los de W60, cuyo fit ya termina en `c−14`. `R46_antiguo` usa
 los primeros 46 días del histórico y no se reentrena. `build_version_roles` rechaza
 una combinación de `lag_days` y `fit_days` que no quepa antes del corte, en lugar de
 recortar la ventana.

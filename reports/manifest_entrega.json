@@ -81,7 +81,7 @@
         "ruta": "README.md",
         "existe": true,
         "bytes": 10196,
-        "sha256": "5077401e8273a3659e61e511a136d21e7207a5acac745347c10b720fc0f6723e"
+        "sha256": "b8534853d2ade294e23e8aa28a3daa4f06099e34c8fdc15ef7acdd8294ff9a53"
       },
       {
         "ruta": "docs/contrato_sistema.md",
@@ -92,8 +92,8 @@
       {
         "ruta": "docs/protocolo_experimental.md",
         "existe": true,
-        "bytes": 9801,
-        "sha256": "fcf76e30afeb3cea624c20026a4309e7ff5f0d48ebd21048d68cc69afe1ed0e4"
+        "bytes": 9864,
+        "sha256": "761fb2fe4f1a3d2e80ba44665cc67eb8fc774d6c43eb0bcfb58e49fe0bc51c0f"
       },
       {
         "ruta": "docs/reproducibilidad.md",
@@ -116,8 +116,8 @@
       {
         "ruta": "docs/decisiones_de_diseno.md",
         "existe": true,
-        "bytes": 11100,
-        "sha256": "9027b4dd7b868b7f6525e6e703c5f88655c13bf42f783a45014178b3a7a31e51"
+        "bytes": 11306,
+        "sha256": "b3b32e5fe32e2db5385e5d6dd3e0f1e80303850619a1374f3802c9546be0d6d2"
       }
     ],
     "despliegue": [
@@ -176,32 +176,32 @@
       {
         "ruta": "reports/informe_final.md",
         "existe": true,
-        "bytes": 27591,
-        "sha256": "f20358583d8840090d7074dff58aed62b5c82feb109d6ae9aa704c0d318799e1"
+        "bytes": 27828,
+        "sha256": "07b1b216f5b5368e4bf0e2effd482047c2c417c5b742387b9853ae7f3eff8db9"
       },
       {
         "ruta": "reports/informe_final.pdf",
         "existe": true,
-        "bytes": 1047677,
-        "sha256": "837cd6afa6f7a1f3edb8c5345fcd459082b5b8e7b4594d69cdb20482d7f5bd4b"
+        "bytes": 1049176,
+        "sha256": "b3a4eba2a7db7ed0b6b9d84e5fd2894781d40d98f427ecdafc77da980b51000e"
       },
       {
         "ruta": "reports/infografia.svg",
         "existe": true,
-        "bytes": 10741,
-        "sha256": "d4d511076399f07814f1ef1454a253259c3703f917024543c854eed86fe3cf1c"
+        "bytes": 10757,
+        "sha256": "2205118ad8241c2285fd784d9a9a763917846d9d5dab01a689ae61b8b9000398"
       },
       {
         "ruta": "reports/infografia.pdf",
         "existe": true,
-        "bytes": 48839,
-        "sha256": "7f10c54070e7e2cff678f878219bc89f89d2312fce6623739055af7768f4b261"
+        "bytes": 62739,
+        "sha256": "12e53df6ee9933878e9c2e7f0cb536a78e987ad06dc00c3f065fce404c32de88"
       },
       {
         "ruta": "reports/guion_presentacion.md",
         "existe": true,
-        "bytes": 13548,
-        "sha256": "066359b88b397bb59af5820212e4a178cfc9a59d29163de125c7a60f4bc3b317"
+        "bytes": 13713,
+        "sha256": "c5e66b58495da41e6109d5fe33bc5f5efb0fcee7da15c2b45aac5cf4cd188eb5"
       },
       {
         "ruta": "reports/indice_evidencia.csv",
