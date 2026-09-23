@@ -1015,8 +1015,8 @@ def build_delivery_manifest(
         "fuera_de_alcance": [
             "MLflow, Terraform e IaC",
             "Recursos cloud creados o facturas estimadas",
-            "Benchmark v2, ablaciones D*, semillas adicionales",
-            "L distintos de 30, cadencias distintas de 15, W14",
+            "Repeticion del benchmark de seleccion y semillas de entrenamiento adicionales",
+            "L distintos de 30, cadencias menores de 15 dias, W14",
             "Shadow/canary real y feature store online",
         ],
     }
