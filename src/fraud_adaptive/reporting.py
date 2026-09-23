@@ -406,6 +406,7 @@ def table_adaptation(
             "skill": technical["skill"],
             "brier": technical["brier"],
             "f1": technical.get("f1", NA),
+            "balanced_accuracy": technical.get("balanced_accuracy", NA),
             "recall_at_fpr1": technical.get("recall_at_fpr", {}).get("recall", NA),
             "fpr_obtenido": technical.get("recall_at_fpr", {}).get("fpr_obtenido", NA),
             "recall_at_precision80": technical.get("recall_at_precision", {}).get("recall", NA),
@@ -828,9 +829,12 @@ def build_all_reports(configs: dict[str, Any], run: Any) -> dict[str, Path]:
     coverage_data = read_json(run.dir / "coverage.json")
 
     chosen = static_results["familias"][static_results["familia_elegida"]]
+    umbral_fpr = chosen.get("umbral_fpr", {}).get("umbral", NA)
+    # La politica decide por costo esperado y no tiene un corte sobre p. F1 y
+    # balanced accuracy se evaluan en el umbral de FPR 1 % fijado en validacion.
     thresholds = {
-        "binario": chosen["policy"]["tau_high"],
-        "fpr": chosen.get("umbral_fpr", {}).get("umbral", NA),
+        "binario": umbral_fpr,
+        "fpr": umbral_fpr,
         "precision": chosen.get("umbral_precision", {}).get("umbral", NA),
     }
 
