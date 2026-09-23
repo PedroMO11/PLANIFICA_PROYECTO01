@@ -1,10 +1,9 @@
-# Politica economica de decision. F1 del plan; valores cerrados en §9.
+# Politica economica de decision.
 # UM = unidad monetaria, consistente con TransactionAmt. Sin conversion a PEN/USD.
 
 costs:
-  # c_FP NO se fija a mano. Se deriva en desarrollo del objetivo de bloqueo de
-  # legitimas y luego se congela. Un valor plano de 5 UM produce un 11,95 % de
-  # legitimas bloqueadas, incompatible con cualquier operacion de pagos.
+  # c_FP se deriva en desarrollo del objetivo de bloqueo de legitimas y luego se
+  # congela. Con un valor fijo de 5 UM se bloqueaba el 11,17 % de las legitimas.
   c_review: 1.0    # costo de una revision humana
   calibracion_c_fp:
     objetivo_bloqueo_legitimo: 0.01   # mismo valor que diagnostic_targets.fpr_target
@@ -21,20 +20,18 @@ analyst:
   r_h: 0.90        # recall del analista simulado
   f_h: 0.02        # tasa de falso bloqueo del analista simulado
   stress: {r_h: 0.80, f_h: 0.05}
-  # C28: el veredicto solo se calcula cuando y madura; nunca entrena ni cambia la accion emitida.
+  # El veredicto se calcula cuando la etiqueta madura; no entrena ni cambia la accion emitida.
 
 capacity:
-  daily_reviews: 150        # cupo duro efectivo (C14)
+  daily_reviews: 150        # cupo diario
   theoretical_slack: 10     # 2 analistas x 8 h x 10 casos/h = 160; 10 de holgura declarada
-  priority: p_times_amount  # C12: solo entre casos ya llegados y con cupo restante
+  priority: p_times_amount  # ordena la atencion entre casos ya admitidos
 
 rule: argmin       # accion = minimo costo esperado, sujeto al cupo
 
 thresholds:
-  # La regla de operacion es argmin, de modo que estos umbrales NO deciden. Se
-  # siguen eligiendo en [76,83) por dos motivos: cuantificar en el informe cuanto
-  # cuesta una regla que ignora el monto, y dar un corte binario para las metricas
-  # de diagnostico. Nunca 0.5 por defecto, nunca por F1.
+  # Con la regla argmin estos umbrales no deciden. Se eligen en [76,83) para medir
+  # cuanto cuesta una regla que ignora el monto y como referencia de diagnostico.
   role: referencia_y_diagnostico
   grid_quantiles: [0.0, 0.50, 0.75, 0.90, 0.95, 0.97, 0.99, 0.995, 1.0]
   delta: 0.0                # zona gris en la comparacion central

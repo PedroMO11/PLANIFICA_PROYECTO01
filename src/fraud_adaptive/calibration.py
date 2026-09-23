@@ -1,26 +1,16 @@
 """Calibracion de Platt: un calibrador propio por version de paquete.
 
-Por que hace falta calibrar
----------------------------
-La politica de decision compara costos esperados: ``p*monto`` frente a
-``(1-p)*c_FP``. Esa aritmetica solo tiene sentido si ``p`` es una probabilidad,
-no un puntaje ordenado. Un modelo con ``scale_pos_weight`` o ``class_weight``
-produce puntajes sistematicamente inflados; usarlos como probabilidad haria que
-la politica bloqueara de mas de forma silenciosa, con un AP intacto.
+La politica compara costos esperados como ``p*monto`` y ``(1-p)*c_FP``, lo que
+exige que ``p`` sea una probabilidad. Un modelo entrenado con ``class_weight`` o
+``scale_pos_weight`` produce puntajes inflados que harian bloquear de mas sin que
+el AP lo refleje.
 
-Por que Platt y no isotonica
-----------------------------
-La cola de calibracion son 7 dias. La isotonica necesita mas datos para no
-sobreajustar escalones, y con ~50-300 fraudes produciria una funcion escalonada
-inestable entre versiones. Platt tiene dos parametros y degrada de forma
-predecible. El plan congela esta eleccion antes del test para que no sea un grado
-de libertad ajustado a posteriori.
+La cola de calibracion cubre 7 dias, con unos 50 a 300 fraudes. Con ese soporte la
+calibracion isotonica produce escalones inestables entre versiones; Platt tiene
+dos parametros y es estable. La eleccion se fijo antes del test.
 
-Por que sobre logit y no sobre p
---------------------------------
-Ajustar una logistica sobre ``logit(p)`` en lugar de sobre ``p`` mantiene la
-transformacion monotona y hace que el caso "ya calibrado" corresponda a los
-parametros identidad (a=1, b=0), que es un punto de partida sano.
+El ajuste se hace sobre ``logit(p)``: la transformacion es monotona y un modelo ya
+calibrado corresponde a la identidad (a=1, b=0).
 """
 
 from __future__ import annotations
@@ -38,10 +28,9 @@ DEFAULT_CLIP = (1e-6, 1.0 - 1e-6)
 
 
 def to_logit(probability: np.ndarray, clip: tuple[float, float] = DEFAULT_CLIP) -> np.ndarray:
-    """logit con recorte.
+    """logit con recorte, para que una probabilidad de 0 o 1 no produzca infinitos.
 
-    Sin recorte, un modelo saturado que devuelve exactamente 0 o 1 produciria
-    +/-inf y el ajuste fallaria. El recorte acota el logit a ~+/-13.8.
+    Con el recorte por defecto el logit queda acotado a unos +/-13.8.
     """
     clipped = np.clip(np.asarray(probability, dtype=float), clip[0], clip[1])
     return np.log(clipped / (1.0 - clipped))
@@ -78,16 +67,14 @@ class PlattCalibrator:
         self.fit_ids = set(ids or ())
 
         if len(np.unique(labels)) < 2:
-            # Sin ambas clases no hay nada que estimar. Se deja la identidad y se
-            # marca, en vez de inventar un calibrador que desplazaria las p.
+            # Sin ambas clases no hay nada que estimar: se mantiene la identidad.
             LOGGER.warning("Calibracion con una sola clase (n=%d): se mantiene identidad", self.n_fit)
             self.a, self.b, self.fitted = 1.0, 0.0, False
             self.metadata["motivo_identidad"] = "una_sola_clase"
             return self
 
         logits = to_logit(raw_probability, self.clip).reshape(-1, 1)
-        # Sin class_weight: la calibracion debe reproducir la prevalencia real de
-        # la cola. Reponderar aqui desplazaria la probabilidad a proposito.
+        # Sin class_weight, para reproducir la prevalencia real de la cola.
         model = LogisticRegression(C=C, solver=solver, max_iter=max_iter, class_weight=None)
         model.fit(logits, labels)
 
@@ -149,8 +136,8 @@ def reliability_curve(
 ) -> dict[str, list[float]]:
     """Curva de confiabilidad: probabilidad predicha frente a frecuencia observada.
 
-    Con prevalencias del 3.5% los bins uniformes dejan casi todo en el primero, asi
-    que por defecto se usan cuantiles y se reporta el soporte de cada bin.
+    Con una prevalencia de 3.5% los bins uniformes concentran casi todo en el
+    primero, por eso se usan cuantiles y se reporta el soporte de cada bin.
     """
     probability = np.asarray(probability, dtype=float)
     labels = np.asarray(labels, dtype=float)
@@ -180,8 +167,7 @@ def expected_calibration_error(
 ) -> float:
     """ECE ponderado por soporte.
 
-    Depende de la eleccion de bins, por eso el plan lo trata como complemento del
-    Brier y no como metrica principal.
+    Depende de la eleccion de bins y se usa como complemento del Brier.
     """
     curve = reliability_curve(probability, labels, n_bins=n_bins, strategy=strategy)
     total = sum(curve["n"])
@@ -201,7 +187,7 @@ def calibration_report(
     *,
     n_bins: int = 10,
 ) -> dict[str, Any]:
-    """Antes y despues de calibrar, para mostrar que el paso sirve de algo."""
+    """Metricas de calibracion antes y despues de aplicar Platt."""
     return {
         "n": int(np.asarray(labels).size),
         "prevalencia": float(np.mean(labels)) if np.size(labels) else float("nan"),

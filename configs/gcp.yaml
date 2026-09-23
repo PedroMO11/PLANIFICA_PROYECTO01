@@ -1,5 +1,5 @@
-# Perfil DOCUMENTAL de despliegue. NO es IaC y no se ejecuta desde este repositorio.
-# El equipo realiza build/push/deploy manualmente. Ninguna factura estimada aqui.
+# Perfil documental de despliegue; no se ejecuta desde este repositorio.
+# El equipo realiza build, push y deploy manualmente.
 
 project:
   id: "<REEMPLAZAR-project-id>"
@@ -27,7 +27,7 @@ artifact_registry:
   image: "us-central1-docker.pkg.dev/<REEMPLAZAR-project-id>/fraud-adaptive/serving"
   pin_by_digest: true
 
-# Servicios solo DISENADOS (no implementados ni creados): ver deploy/arquitectura_gcp.mmd
+# Servicios disenados y no creados: ver deploy/arquitectura_gcp.mmd
 future_only:
   - Cloud Storage (paquetes y evidencia)
   - Cloud Run Jobs / Vertex AI Pipelines (reentrenamiento con gate humano)
@@ -36,4 +36,4 @@ future_only:
   - BigQuery (cohortes y metricas)
   - Cloud Monitoring/Logging
 discarded_for_mvp:
-  - Vertex AI Endpoints    # configuracion adicional sin evidencia nueva para la rubrica
+  - Vertex AI Endpoints    # descartado para la demo por su configuracion adicional

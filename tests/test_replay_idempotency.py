@@ -1,9 +1,7 @@
 """Ledger del replay: idempotencia, atomicidad del cupo y durabilidad.
 
-La propiedad que se prueba es la que hace segura una reanudacion: reenviar un
-evento ya resuelto devuelve su decision anterior y NO consume un segundo cupo. Sin
-ella, matar y relanzar la corrida nocturna inflaria las revisiones y falsearia el
-costo reportado.
+Reenviar un evento ya resuelto debe devolver su decision anterior sin consumir
+otro cupo, de modo que reanudar una corrida no infle las revisiones ni el costo.
 """
 
 from __future__ import annotations
@@ -150,7 +148,7 @@ def test_el_resumen_cuenta_por_accion(ledger):
 # --------------------------------------------------------------------------- fixtures
 
 def test_los_fixtures_estan_rotulados_como_sinteticos(cost_model):
-    """El plan exige que un caso de prueba no pueda confundirse con un resultado."""
+    """Los casos de prueba quedan rotulados y separados de los resultados."""
     policy = Policy(tau_low=0.0, tau_high=1.0, daily_capacity=150)
     fixtures = contract_fixtures(policy, cost_model)
     assert fixtures["es_fixture"].all()

@@ -1,15 +1,12 @@
-"""Orquestacion de las fases F2-F4: datos, tuning, modelos estaticos y adaptacion.
+"""Orquestacion de las fases: datos, tuning, modelos estaticos y adaptacion.
 
-Cada fase deja artefactos verificados por hash y un checkpoint reanudable. Una
-fase posterior no recalcula lo que ya existe salvo que se pida ``--rebuild``: una
-cache invalida provoca error o reconstruccion explicita, nunca reutilizacion
-silenciosa.
+Cada fase deja artefactos con hash y un checkpoint reanudable. Lo que ya existe no
+se recalcula salvo con ``--rebuild``, y una cache que no corresponde al codigo o la
+configuracion provoca un error o una reconstruccion explicita.
 
-El orden de las fases codifica el prerregistro del plan. La familia, los
-hiperparametros y los umbrales se congelan en ``fit_static`` (que solo ve
-desarrollo) y el hash de esa seleccion se sella ANTES de abrir el periodo de test
-en ``run_adaptation``. Si alguien cambiara la configuracion entre ambas, el hash
-no coincidiria y la corrida falla.
+La familia, los hiperparametros y los umbrales se fijan en ``fit_static``, que solo
+usa desarrollo, y el hash de esa seleccion se sella antes de abrir el test en
+``run_adaptation``. Si la configuracion cambia entre ambas fases, la corrida falla.
 """
 
 from __future__ import annotations
@@ -53,7 +50,7 @@ def load_configs(config_dir: str | Path = "configs") -> dict[str, Any]:
     return out
 
 
-# --------------------------------------------------------------------------- F2
+# --------------------------------------------------------------------------- datos
 
 def prepare_data(
     configs: dict[str, Any],
@@ -147,7 +144,7 @@ def _detect_data_source(data_root: str | Path) -> str:
     return "ieee_cis_real"
 
 
-# --------------------------------------------------------------------------- F3
+# --------------------------------------------------------------------------- modelos
 
 def run_tuning(
     frame: pd.DataFrame,
@@ -157,10 +154,10 @@ def run_tuning(
     numeric_columns: Sequence[str],
     categorical_columns: Sequence[str],
 ) -> pd.DataFrame:
-    """18 fits: 3 familias x 3 configuraciones x 2 folds forward.
+    """18 fits: 3 familias x 3 configuraciones x 2 folds temporales.
 
-    La seleccion es por AP media de validacion. Los folds son internos: sus
-    metricas nunca se reportan como resultado final.
+    Se elige por AP media de validacion. Los folds son internos y sus metricas no se
+    reportan como resultado final.
     """
     base = configs["base"]
     models_config = configs["models"]
@@ -172,9 +169,8 @@ def run_tuning(
     for fold in temporal.tuning_folds:
         fit_interval = Interval(*fold["fit"])
         val_interval = Interval(*fold["val"])
-        # Los folds se reconstruyen como desarrollo en T=120, cuando sus etiquetas
-        # ya maduraron. No simulan una autorizacion instantanea en el dia 30.
-        # La madurez se mide contra el tiempo del job (T), no contra T - L.
+        # Los folds se construyen como desarrollo en T=120, con sus etiquetas ya
+        # maduras; la madurez se mide contra el tiempo del job T.
         job_time = temporal.update_times[0]
         fit_mask = mature_training_mask(days, fit_interval, job_time, label_delay)
         val_mask = mature_training_mask(days, val_interval, job_time, label_delay)
@@ -242,8 +238,8 @@ def fit_static_models(
 ) -> dict[str, Any]:
     """Ajusta los tres modelos finales, calibra, elige umbrales y congela la familia.
 
-    Todo ocurre dentro de desarrollo. Al terminar se sella el hash de la seleccion:
-    es el prerregistro que impide retunear despues de ver el test.
+    Todo ocurre dentro de desarrollo. Al terminar se sella el hash de la seleccion,
+    que impide reajustar despues de ver el test.
     """
     base = configs["base"]
     models_config = configs["models"]
@@ -252,8 +248,8 @@ def fit_static_models(
 
     days = frame["dia"].to_numpy()
     labels = frame[target].to_numpy()
-    # Madurez contra el tiempo del job T, no contra cutoff = T - L: los tramos de
-    # desarrollo terminan en T - L y por tanto ya maduraron cuando el job corre.
+    # La madurez se mide contra el tiempo del job T; los tramos de desarrollo
+    # terminan en T - L y ya maduraron cuando el job corre.
     job_time = temporal.update_times[0]
 
     fit_mask = mature_training_mask(days, temporal.base_fit, job_time, temporal.label_delay_days)
@@ -265,9 +261,8 @@ def fit_static_models(
     c_review = decision_config["costs"]["c_review"]
 
     results: dict[str, Any] = {"familias": {}}
-    # Primera pasada: ajustar y calibrar. Ningun costo se evalua todavia, porque
-    # c_FP aun no esta calibrado y evaluarlo con un valor provisional produciria
-    # una eleccion de familia que luego habria que rehacer.
+    # Primera pasada: ajustar y calibrar. Los costos se evaluan despues de calibrar
+    # c_FP.
     for family, spec in models_config["families"].items():
         config = next(c for c in spec["configs"] if c["name"] == best_configs[family])
         task_name = "estatico_%s" % family
@@ -328,19 +323,15 @@ def fit_static_models(
 
     # Calibracion de c_FP.
     #
-    # Se usa la familia de mayor AP como referencia, no la de menor costo: el costo
-    # depende de c_FP y elegir por costo antes de calibrarlo seria circular. El AP
-    # no depende del modelo economico, de modo que la referencia queda fijada por un
-    # criterio ajeno al parametro que se esta calibrando.
+    # La referencia es la familia de mayor AP, que no depende del modelo economico;
+    # elegirla por costo antes de calibrar c_FP seria circular.
     reference = max(results["familias"].items(), key=lambda kv: kv[1]["ap_politica"])[0]
     reference_scores = results["familias"][reference]["p_politica"]
     calibration_spec = decision_config["costs"]["calibracion_c_fp"]
 
-    # Los dos parametros se condicionan mutuamente. c_FP fija la escala de los
-    # costos, que determina cuanto ahorra revisar y por tanto el precio sombra del
-    # cupo. Y racionar el cupo cambia cuantos casos terminan bloqueados, que es lo
-    # que c_FP controla. Se alternan hasta que ambos se estabilizan, lo que ocurre
-    # en dos o tres pasadas.
+    # c_FP fija la escala de los costos y con ella el precio sombra del cupo, y
+    # racionar el cupo cambia cuantos casos terminan bloqueados. Se alternan hasta
+    # que ambos se estabilizan, en dos o tres pasadas.
     review_price = 0.0
     fp_calibration = None
     price_calibration = None
@@ -442,9 +433,8 @@ def fit_static_models(
         "familia": chosen,
         "config": results["familias"][chosen]["config"],
         "policy": results["familias"][chosen]["policy"].to_dict(),
-        # c_FP entra al sello porque ahora es un parametro derivado de los datos de
-        # desarrollo, no una constante del config. Sin sellarlo se podria recalibrar
-        # despues de ver el test, que es exactamente lo que el prerregistro impide.
+        # c_FP se deriva de los datos de desarrollo, asi que se incluye en el sello
+        # para que no pueda recalibrarse despues de ver el test.
         "costos": cost_model.to_dict(),
         "objetivo_bloqueo_legitimo": results["calibracion_c_fp"]["objetivo"],
         "umbral_fpr": results["familias"][chosen]["umbral_fpr"].get("umbral"),
@@ -469,25 +459,17 @@ def select_deployable_window(
     categorical_columns: Sequence[str],
     static_results: dict[str, Any],
 ) -> dict[str, Any]:
-    """Elige la ventana desplegable por costo, usando SOLO desarrollo.
+    """Elige la ventana deslizante por costo, usando solo desarrollo.
 
-    Es el paso que convierte el experimento en una recomendacion operativa. Sin
-    el, la unica forma de recomendar una ventana seria mirar el test y quedarse
-    con la que gano, que es precisamente el retuning retrospectivo que el
-    protocolo prohibe (C17, C22).
+    * Se construyen los paquetes iniciales de W30, W60 y W90 en el primer corte.
+    * Cada uno se evalua sobre ``[c-7, c)``, posterior a su predictor y su
+      calibrador. En el primer corte no hay version vigente, asi que esa cola aun
+      no cumple funcion de gate.
+    * Se aplica la politica congelada, sin reoptimizar umbrales.
+    * Gana el menor costo; con diferencias de hasta 1 % gana la ventana menor, que
+      reentrena mas barato.
 
-    Protocolo:
-
-    * se construyen los paquetes iniciales de W30, W60 y W90 en el primer corte;
-    * cada uno se evalua sobre ``[c-7, c)``, posterior a su predictor y a su
-      calibrador. En el primer corte no hay champion, de modo que esa cola no
-      cumple todavia funcion de gate y puede usarse para elegir;
-    * se aplica la politica YA CONGELADA, sin reoptimizar umbrales;
-    * gana el menor costo. Desempate a <=1 %: la W mas pequena tecnicamente
-      viable, porque a igualdad de costo la ventana corta reentrena mas barato.
-
-    S0 y E15 no participan: son referencias de comparacion y el plan prohibe
-    entregarlas como sistema.
+    Participan las estrategias deslizantes; S0 y E15 se comparan en el test.
     """
     from .adaptation import build_package
     from .decision import CapacityLedger, decide_batch, simulate_outcomes, total_cost
@@ -538,7 +520,7 @@ def select_deployable_window(
             })
             continue
 
-        # Cola posterior al predictor y al calibrador de ESTE paquete.
+        # Cola posterior al predictor y al calibrador de este paquete.
         mask = (roles.promotion_validation.mask(days)
                 & ((days + temporal.label_delay_days) < roles.job_time))
         subset = frame.loc[mask]
@@ -566,7 +548,7 @@ def select_deployable_window(
     tabla = pd.DataFrame(filas).sort_values("costo_por_tx").reset_index(drop=True)
     validas = tabla[tabla["valida"]]
     if validas.empty:
-        # C21: sin ventana valida no se activa nada. No se degrada a S0 ni a E15.
+        # Sin ventana valida no se activa ninguna version.
         LOGGER.error("Ninguna ventana desplegable es valida: el sistema quedaria en pausa")
         return {"elegida": None, "motivo": "ninguna_ventana_valida", "tabla": tabla}
 
@@ -591,7 +573,7 @@ def select_deployable_window(
     return resultado
 
 
-# --------------------------------------------------------------------------- F4
+# --------------------------------------------------------------------------- adaptacion
 
 def run_adaptation(
     frame: pd.DataFrame,
@@ -602,7 +584,7 @@ def run_adaptation(
     categorical_columns: Sequence[str],
     static_results: dict[str, Any],
 ) -> Any:
-    """Experimento central: cinco estrategias sobre los mismos eventos."""
+    """Experimento central: todas las estrategias sobre los mismos eventos."""
     base = configs["base"]
     models_config = configs["models"]
     decision_config = configs["decision"]
@@ -621,11 +603,10 @@ def run_adaptation(
             "Eso indica un retuning despues de congelar; la corrida se detiene."
         )
 
-    # El test usa la economia sellada en el prerregistro, no la del config: si
-    # alguien recalibrara c_FP despues de congelar, esta lectura lo ignoraria.
+    # El test usa la economia sellada en el prerregistro.
     cost_model = cost_model_from_dict(static_results["prerregistro"]["contenido"]["costos"])
 
-    # Manifest de autorizacion humana previa (C23).
+    # Manifest de autorizacion humana previa.
     tasks = [
         {"tarea": "fit_%s_T%d" % (s["name"], t), "tipo": "ajuste_offline"}
         for s in adaptation_config["strategies"] for t in temporal.update_times
@@ -677,7 +658,7 @@ def run_adaptation(
     return result
 
 
-# --------------------------------------------------------------------------- F5
+# --------------------------------------------------------------------------- paquetes
 
 def export_package(
     frame: pd.DataFrame,
@@ -698,8 +679,8 @@ def export_package(
     roles, familia, hiperparametros y politica congelados, asi que el paquete es el
     mismo que produjo las metricas.
 
-    Solo exporta estrategias DESPLEGABLES: S0 y E15 son referencias de comparacion
-    y el plan prohibe entregarlas como sistema.
+    Exporta estrategias con rol ``desplegable`` en configs/adaptation.yaml: E15,
+    W30, W60 y W90.
     """
     from .adaptation import build_package
     from .splits import build_version_roles
@@ -710,7 +691,7 @@ def export_package(
         raise ValueError("Estrategia desconocida: %s" % strategy)
     if spec["role"] != "desplegable":
         raise ValueError(
-            "%s es una referencia no desplegable (%s). Exporta W30, W60 o W90."
+            "%s tiene rol %s y no se exporta. Exporta E15, W30, W60 o W90."
             % (strategy, spec["role"])
         )
 

@@ -24,10 +24,10 @@ Generado: 2026-09-20T18:02:29+00:00
 Tres acciones presentes en el replay natural: **si**
 
 
-## Fixtures de contrato (casos sinteticos, NO son transacciones del dataset)
+## Fixtures de contrato (casos sinteticos, fuera del dataset)
 
-Se incluyen para ejercitar ramas que el replay natural puede no producir. 
-No se movieron umbrales ni se presentan como resultados de fraude.
+Ejercitan ramas que el replay sobre datos reales puede no producir.
+Se evaluan con la misma politica y no forman parte de los resultados.
 
 
 | Caso | p forzada | Monto | Accion obtenida | Esperado |
@@ -48,7 +48,7 @@ No se movieron umbrales ni se presentan como resultados de fraude.
 
 Rollback correcto: **True** · score restaurado: **True**
 
-> Cambio técnico de paquete. NO es una promoción de negocio aprobada: esa requiere pasar el gate sobre H y autorización humana registrada.
+> Cambio técnico de paquete. Una promoción de negocio requiere además pasar el gate sobre H y autorización humana registrada.
 
 ## Latencia local (warm)
 
@@ -58,7 +58,7 @@ Rollback correcto: **True** · score restaurado: **True**
 | p95 | 74.59 |
 | p99 | 87.00 |
 
-Medicion LOCAL. No representa la latencia de una region cloud ni un SLA.
+Medicion local en proceso; la latencia sobre HTTP esta en `reports/latencia_http.json`.
 
 
 ## Idempotencia y cupo

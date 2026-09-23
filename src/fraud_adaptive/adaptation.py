@@ -1,25 +1,21 @@
 """Construccion de paquetes versionados y gates de promocion.
 
-Un PAQUETE es la unidad desplegable: preprocesamiento, predictor, calibrador,
-politica, esquema de features y el manifest que prueba con que datos se hizo cada
-pieza. Nada se reconstruye al arrancar el servicio.
+Un paquete es la unidad desplegable: preprocesamiento, predictor, calibrador,
+politica, esquema de features y un manifest con los datos usados en cada pieza. El
+servicio lo carga sin reconstruir nada.
 
-Orden de construccion (no es intercambiable)
---------------------------------------------
-1. ``predictor``  [c-W, c-14)   ajusta preprocessing y modelo
-2. ``calibrador`` [c-14, c-7)   Platt sobre scores del predictor ya ajustado
+Orden de construccion:
+
+1. ``predictor``  [c-W, c-14)   ajusta preprocesamiento y modelo
+2. ``calibrador`` [c-14, c-7)   Platt sobre los scores del predictor ya ajustado
 3. ``validacion`` [c-7, c)      gate de promocion
 
-Los umbrales se eligen una vez en desarrollo y quedan congelados, de modo que no
-hace falta reservar una ventana de politica en cada actualizacion.
+Cada paso usa scores del anterior sobre datos que ese paso no vio, de modo que el
+calibrador corrige el mismo modelo que se despliega. Los umbrales se eligen una vez
+en desarrollo, por eso no hay una reserva de politica por actualizacion.
 
-Cada paso usa scores producidos por el paso anterior sobre datos que ese paso no
-vio. Invertir el orden -por ejemplo calibrar antes de fijar el predictor- haria
-que el calibrador corrigiera un modelo distinto del que se despliega.
-
-Si un rol no alcanza el soporte minimo, la version se marca NO VALIDA. No se
-amplia la ventana ni se incorporan etiquetas inmaduras para completar, porque eso
-cambiaria en silencio la ventana que se esta midiendo.
+Si un rol no alcanza el soporte minimo, la version se marca no valida; no se amplia
+la ventana ni se usan etiquetas inmaduras para completar el soporte.
 """
 
 from __future__ import annotations
@@ -54,9 +50,8 @@ class ModelPackage:
     model: FittedModel
     calibrator: PlattCalibrator
     policy: Policy
-    # El modelo de costos viaja con el paquete porque c_FP se calibra en desarrollo
-    # y queda congelado. Leerlo del config en el servicio permitiria que produccion
-    # decidiera con una economia distinta de la que se valido.
+    # El modelo de costos viaja con el paquete porque c_FP se calibra en desarrollo;
+    # asi el servicio decide con la misma economia que se valido.
     costs: CostModel = field(default_factory=CostModel)
     valid: bool = True
     invalid_reason: str | None = None
@@ -68,8 +63,7 @@ class ModelPackage:
     # -- inferencia
 
     def score(self, frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-        """Devuelve ``(p_cruda, p_calibrada)``. Siempre ambas, para poder auditar
-        cuanto movio la calibracion."""
+        """Devuelve ``(p_cruda, p_calibrada)``."""
         raw = self.model.predict_proba(frame)
         return raw, self.calibrator.transform(raw)
 
@@ -167,11 +161,9 @@ def build_package(
     labels = frame[target].to_numpy()
 
     def role_slice(interval: Any) -> tuple[pd.DataFrame, np.ndarray, set[Any]]:
-        # Doble condicion: dentro del intervalo Y con etiqueta madura EN EL JOB.
-        # La madurez se mide contra job_time = T, no contra cutoff = T - L
-        # (ver VersionRoles.job_time). Los roles ya terminan en cutoff, asi que la
-        # segunda condicion es redundante por construccion y actua de red de
-        # seguridad ante un cambio futuro de la grilla.
+        # Filas dentro del intervalo y con etiqueta madura en job_time (ver
+        # VersionRoles.job_time). Como los roles terminan en el corte, la condicion
+        # de madurez protege ante cambios futuros de la grilla.
         mask = mature_training_mask(days, interval, job_time, label_delay)
         subset = frame.loc[mask]
         return subset, labels[mask], set(subset[id_column].tolist())
@@ -199,8 +191,7 @@ def build_package(
     if not (ok_fit and ok_cal):
         reason = "soporte_insuficiente: fit=%s calibracion=%s" % (counts_fit, counts_cal)
         LOGGER.warning("Version %s no valida: %s", roles.version_id, reason)
-        # Se devuelve un paquete marcado invalido en lugar de lanzar: el backtest
-        # debe poder conservar la version anterior y seguir, registrando el hueco.
+        # Un paquete invalido permite al backtest conservar la version anterior.
         return ModelPackage(
             version_id=roles.version_id, strategy=strategy, update_time=roles.update_time,
             roles=roles, model=None, calibrator=PlattCalibrator(), policy=policy,
@@ -231,7 +222,7 @@ def build_package(
     else:
         diagnostics = {"calibracion": {"motivo_na": "cola_de_calibracion_vacia"}}
 
-    # Diagnostico sobre H: es validacion de SELECCION, nunca test final.
+    # Diagnostico sobre H, que es validacion de promocion y no test final.
     if len(holdout_frame) and ok_h:
         raw_h, calibrated_h = ModelPackage(
             version_id=roles.version_id, strategy=strategy, update_time=roles.update_time,
@@ -257,10 +248,9 @@ def build_package(
 
 
 def assert_package_roles_disjoint(package: ModelPackage) -> None:
-    """Verifica sobre IDs reales que ningun rol comparte filas con otro.
+    """Verifica sobre los TransactionID usados que ningun rol comparte filas.
 
-    La disjuncion de intervalos ya lo garantiza en teoria; esta comprobacion
-    atrapa un error de filtrado, que es la forma en que la fuga aparece de verdad.
+    Complementa la disjuncion de intervalos ante posibles errores de filtrado.
     """
     roles = list(package.ids_by_role)
     for i, role_a in enumerate(roles):
@@ -287,13 +277,10 @@ def promotion_gate(
     id_column: str = "TransactionID",
     seed: int = 42,
 ) -> dict[str, Any]:
-    """Evalua al challenger sobre H y decide si se RECOMIENDA promover.
+    """Evalua la version candidata sobre H y recomienda si promoverla.
 
-    La regla es de NO INFERIORIDAD tolerante a ruido (costo <= 1.01x champion), no
-    de superioridad: exigir una mejora en cada ciclo llevaria a no actualizar nunca
-    bajo ruido, o a ajustar la tolerancia hasta que pase.
-
-    Esta funcion NUNCA promueve. Devuelve una recomendacion; la promocion real
+    La regla es de no inferioridad con tolerancia al ruido (costo <= 1.01 veces el
+    de la version vigente). La funcion devuelve una recomendacion; la promocion
     requiere aprobacion humana registrada.
     """
     from .decision import CapacityLedger, decide_batch, simulate_outcomes, total_cost
@@ -314,7 +301,7 @@ def promotion_gate(
         result.update({"recomendacion": "rechazar", "motivo": "holdout_vacio"})
         return result
 
-    # C20: H no puede haber participado en ningun ajuste de ninguno de los dos.
+    # H no puede haber participado en ningun ajuste de las dos versiones.
     holdout_ids = set(holdout_frame[id_column].tolist())
     for name, package in (("challenger", challenger), ("champion", champion)):
         if package is None:
@@ -351,7 +338,7 @@ def promotion_gate(
     challenger_stats = evaluate(challenger)
     result["challenger"] = {k: v for k, v in challenger_stats.items() if not k.startswith("_")}
 
-    # Gate 1: batir la referencia trivial de aprobar todo.
+    # Gate de arranque: costo inferior al de aprobar todo.
     approve_all_cost = float(holdout_frame.loc[holdout_labels == 1, "TransactionAmt"].sum() / len(holdout_frame))
     result["costo_aprobar_todo"] = approve_all_cost
     if not (challenger_stats["costo_por_tx"] <= approve_all_cost):
@@ -414,12 +401,10 @@ def authorization_manifest(
     authorized_by: str,
     simulated: bool = True,
 ) -> dict[str, Any]:
-    """Manifest de autorizacion humana previa de la corrida offline (C23).
+    """Manifest de autorizacion humana previa de la corrida offline.
 
-    Enumera las tareas permitidas ANTES de lanzarlas. Las promociones dentro del
-    benchmark quedan rotuladas ``simulada``: la aprobacion instantanea de un script
-    no representa el tiempo ni el juicio de una revision humana real, y ningun
-    script de esta entrega despliega nada.
+    Enumera las tareas permitidas antes de lanzarlas. Las promociones del backtest
+    quedan rotuladas como simuladas y ningun script despliega recursos.
     """
     return {
         "run_id": run_id,

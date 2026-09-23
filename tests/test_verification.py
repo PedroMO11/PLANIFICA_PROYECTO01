@@ -1,9 +1,7 @@
-"""Comparacion de corridas: la herramienta que convierte "reproducible" en un hecho.
+"""Comparacion de corridas.
 
-Lo importante aqui es que la herramienta **distinga** dos cosas que es tentador
-mezclar: que salgan los mismos numeros y que el entorno sea idéntico. Un cambio en
-un modulo de documentacion mueve el hash del codigo sin tocar un solo resultado; si
-el veredicto los mezclara, gritaria "no reproducible" por una errata.
+La herramienta distingue que salgan los mismos numeros de que el entorno sea
+idéntico: editar documentacion cambia el hash del codigo sin afectar los resultados.
 """
 
 from __future__ import annotations

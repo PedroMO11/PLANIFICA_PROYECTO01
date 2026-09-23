@@ -1,9 +1,8 @@
 """Politica economica, cupo de revision y causalidad de la cola.
 
-El cupo es el punto donde una implementacion puede volverse irreal sin que nadie
-lo note: basta ordenar el dia completo por prioridad y quedarse con los 150
-mejores. Estas pruebas fijan que la admision ocurre con la informacion disponible
-en el momento de cada evento.
+Ordenar el dia completo por prioridad y quedarse con los 150 mejores usaria
+informacion futura. Estas pruebas verifican que la admision a la cola usa solo la
+informacion disponible al llegar cada evento.
 """
 
 from __future__ import annotations
@@ -297,7 +296,7 @@ def test_seleccion_de_umbrales_minimiza_costo(cost_model):
 
 
 def test_los_umbrales_no_se_asumen_en_medio_punto(cost_model):
-    """El plan prohibe el 0.5 por defecto: el umbral sale del costo."""
+    """El umbral se deriva del costo y no se asume 0.5."""
     rng = np.random.default_rng(1)
     n = 800
     labels = rng.binomial(1, 0.03, size=n)

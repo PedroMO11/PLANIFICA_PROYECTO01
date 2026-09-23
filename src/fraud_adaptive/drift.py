@@ -1,26 +1,17 @@
-"""Senales de drift S1-S4 y el detector ADWIN.
+"""Senales de drift S1 a S4 y detector ADWIN.
 
-Las cuatro senales del avance, con lo que cada una puede y no puede afirmar:
+* S1, domain classifier: una logistica distingue el periodo de referencia del
+  reciente usando solo covariables. Un AUC alto indica cambio en P(X), sin
+  informar sobre P(y|X).
+* S2, scores: PSI de los scores de una version frente a los de su propia
+  calibracion. Un cambio de version tambien la mueve, por eso cada cambio se anota.
+* S3, analista: veredictos simulados, disponibles solo cuando la etiqueta madura.
+* S4, brecha del modelo antiguo: antecedente del benchmark, sin recalculo.
+* ADWIN sobre el Brier individual ``(p_emitida - y)^2``: la unica senal que observa
+  el error, con L=30 dias de retraso.
 
-* **S1 domain classifier** - entrena una logistica para distinguir el periodo de
-  referencia del reciente usando solo covariables. Un AUC alto prueba que P(X)
-  cambio. NO prueba que P(y|X) haya cambiado.
-* **S2 scores** - PSI de la distribucion de scores de una version frente a los de
-  su propia calibracion. Se dispara tambien al cambiar de version, asi que cada
-  cambio se anota para no atribuirlo al entorno.
-* **S3 analista** - conteo de veredictos simulados. Diagnostico TARDIO: solo
-  existe cuando la etiqueta madura (C28). No es feedback humano rapido.
-* **S4 stale-model gap** - antecedente historico del benchmark. No se recomputa.
-
-* **ADWIN** sobre el Brier individual ``(p_emitida - y)^2`` es la unica senal que
-  observa el error real, y por eso llega con L=30 dias de retraso.
-
-Disponibilidad, no solo deteccion
----------------------------------
-Cada evento de drift guarda la fecha del EVENTO y la fecha en que el diagnostico
-estuvo DISPONIBLE. Esa distancia es el objetivo O4 del avance: una senal sin
-etiqueta (S1, KS/PSI) puede anticipar una caida que ADWIN solo confirma un mes
-despues.
+Cada deteccion guarda el dia del evento y el dia en que estuvo disponible. Esa
+distancia es la que mide el objetivo O4.
 """
 
 from __future__ import annotations
@@ -43,11 +34,10 @@ LOGGER = logging.getLogger("fraud_adaptive.drift")
 
 @dataclass
 class CovariateMonitor:
-    """Monitor diario de covariables contra una referencia FIJA de desarrollo.
+    """Monitor diario de covariables contra una referencia fija de desarrollo.
 
-    La referencia no se actualiza. Si se moviera con el tiempo, el monitor
-    compararia el presente contra un pasado reciente ya desplazado y un drift
-    lento y sostenido se volveria invisible: cada dia se pareceria al anterior.
+    Con una referencia movil, un drift lento pasaria inadvertido porque cada dia se
+    pareceria al anterior.
     """
 
     reference: pd.DataFrame
@@ -64,12 +54,8 @@ class CovariateMonitor:
     history: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        # La referencia es fija, asi que se convierte UNA vez y se cachea. Sin esto,
-        # cada cierre diario reconvertiria ~190k filas por variable: con 23
-        # variables y 62 dias son mas de 250 millones de conversiones inutiles.
-        #
-        # Los bordes de bin tambien se congelan aqui: comparar siempre contra la
-        # misma particion es lo que hace que el PSI mida desplazamiento y no rebinning.
+        # La referencia se convierte una sola vez y se guarda junto con los bordes de
+        # bin, de modo que el PSI siempre compara contra la misma particion.
         for column in self.columns:
             if column not in self.reference.columns:
                 continue
@@ -107,8 +93,8 @@ class CovariateMonitor:
             return result
 
         panel["ks_significativo"] = benjamini_hochberg(panel["ks_p"].to_numpy(), q=self.bh_q)
-        # Efecto Y significacion: con cientos de miles de filas el p-valor solo
-        # dice que la diferencia no es casual, no que sea grande.
+        # Se exige efecto y significacion, porque con cientos de miles de filas un
+        # p-valor bajo no implica una diferencia grande.
         panel["dispara"] = (
             (panel["psi"] >= self.psi_alert)
             | ((panel["ks_d"] >= self.ks_alert) & panel["ks_significativo"])
@@ -152,16 +138,13 @@ def domain_classifier(
     auc_alert: float = 0.75,
     seed: int = 42,
 ) -> dict[str, Any]:
-    """S1: distingue referencia de reciente usando solo covariables.
+    """S1: distingue la referencia del periodo reciente usando solo covariables.
 
-    Tres precauciones que hacen el resultado interpretable:
-
-    1. El cap por dominio equilibra las clases; sin el, el AUC reflejaria el
-       desbalance entre periodos en vez del cambio de distribucion.
-    2. La division interna es CRONOLOGICA, no aleatoria, dentro de cada dominio.
-    3. La imputacion y el escalado se ajustan SOLO en el 70% de entrenamiento. El
-       benchmark historico los ajustaba antes de dividir, y esa contaminacion es
-       una de las limitaciones que el plan arrastra como antecedente.
+    1. El tope por dominio equilibra las clases, para que el AUC no refleje el
+       desbalance entre periodos.
+    2. La division interna es cronologica dentro de cada dominio.
+    3. La imputacion y el escalado se ajustan solo en el 70 % de entrenamiento; el
+       benchmark de seleccion los ajustaba antes de dividir.
     """
     usable = [c for c in columns if c in reference.columns and c in recent.columns]
     if not usable:
@@ -170,8 +153,8 @@ def domain_classifier(
     rng = np.random.default_rng(seed)
 
     def take_tail(frame: pd.DataFrame) -> pd.DataFrame:
-        # Se conserva la COLA temporal, no una muestra aleatoria: el dominio
-        # "reciente" debe ser el periodo mas cercano al corte.
+        # Se toma la cola temporal para que el dominio reciente sea el mas cercano
+        # al corte.
         if len(frame) <= cap_per_domain:
             return frame
         return frame.iloc[-cap_per_domain:]
@@ -198,7 +181,7 @@ def domain_classifier(
     if len(np.unique(y_test)) < 2:
         return {"senal": "S1", "auc": float("nan"), "motivo": "test_interno_con_una_clase"}
 
-    # Preprocessing ajustado SOLO con el tramo entrenable.
+    # Preprocesamiento ajustado solo con el tramo de entrenamiento.
     train_numeric = train.apply(pd.to_numeric, errors="coerce")
     test_numeric = test.apply(pd.to_numeric, errors="coerce")
     medians = train_numeric.median()
@@ -256,7 +239,7 @@ def analyst_signal(matured_outcomes: pd.DataFrame) -> dict[str, Any]:
         "n_revisiones": int(len(reviewed)),
         "n_fraudes_confirmados": confirmed,
         "tasa_confirmacion": confirmed / len(reviewed),
-        "disponibilidad": "solo tras madurez de y (C28)",
+        "disponibilidad": "solo tras la madurez de la etiqueta",
         "limitacion": "Diagnostico tardio simulado; no es ground truth ni feedback rapido.",
     }
 
@@ -267,12 +250,10 @@ def analyst_signal(matured_outcomes: pd.DataFrame) -> dict[str, Any]:
 class BrierAdwin:
     """Un detector ADWIN por version, alimentado con el Brier individual.
 
-    Dos reglas que evitan corromper el detector:
-
-    * Cada etiqueta madura actualiza el detector EXACTAMENTE una vez. Una
-      reanudacion que reprocese un dia no debe volver a alimentarlo.
-    * El detector de una version retirada se conserva hasta que maduren todas sus
-      predicciones. Retirarlo antes perderia la evidencia de por que fallo.
+    * Cada etiqueta madura actualiza el detector una sola vez, aunque una
+      reanudacion reprocese un dia.
+    * El detector de una version retirada se conserva hasta que maduran todas sus
+      predicciones.
     """
 
     version_id: str
@@ -302,7 +283,6 @@ class BrierAdwin:
                 "version_id": self.version_id,
                 "n_updates": self.n_updates,
                 "event_id": event_id,
-                # Los dos relojes: cuando ocurrio y cuando se pudo saber.
                 "dia_evento": int(event_day),
                 "dia_disponibilidad": int(available_day),
                 "retraso_dias": int(available_day - event_day),
@@ -324,12 +304,11 @@ class BrierAdwin:
 def adwin_selftest(
     streams: dict[str, np.ndarray], *, delta: float = 0.002, clock: int = 32, jump_at: int = 1000
 ) -> pd.DataFrame:
-    """Prueba del detector contra verdad conocida.
+    """Prueba del detector sobre series con cambio conocido.
 
-    Mide retardo y falsas alarmas sobre un stream estacionario y otro con un salto
-    en una posicion conocida. Es validacion del INSTRUMENTO: sus numeros no son
-    resultados sobre fraude y los parametros no se retocan despues de mirar los
-    datos reales.
+    Mide el retardo y las falsas alarmas en una serie estacionaria y en otra con un
+    salto en una posicion conocida. Valida el instrumento; sus parametros no se
+    ajustaron despues de ver los datos reales.
     """
     from river.drift import ADWIN
 

@@ -1,5 +1,5 @@
-# Contrato del servicio local. F5 del plan.
-# El endpoint CALCULA la decision; el replay la CONFIRMA y registra (autoridad del estado).
+# Contrato del servicio local.
+# El endpoint calcula la decision; el replay la confirma y la registra.
 
 service:
   host: 0.0.0.0
@@ -28,7 +28,7 @@ response_contract:
     - timings_ms
 
 behavior:
-  no_package_status: 503     # C21: model_unavailable, nunca decidir un pago sin paquete valido
+  no_package_status: 503     # model_unavailable cuando no hay paquete valido
   stateless_quota: true      # el cupo vive en el ledger del replay, no en el servicio
 
 latency_probe:

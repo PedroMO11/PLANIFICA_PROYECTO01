@@ -1,9 +1,8 @@
 """Fixtures compartidas: un dataset pequeno pero con la misma forma que el real.
 
-Las pruebas no cargan el dataset completo. Usan un sustituto reducido con el mismo
-esquema, suficientes dias para que existan los cuatro roles temporales y ambas
-clases en cada tramo. Asi la suite corre en segundos y sigue ejerciendo las
-propiedades que importan.
+Las pruebas usan un sustituto reducido con el mismo esquema, con dias suficientes
+para construir los roles temporales y ambas clases en cada tramo, de modo que la
+suite corre en segundos.
 """
 
 from __future__ import annotations

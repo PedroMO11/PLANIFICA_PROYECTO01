@@ -1,8 +1,8 @@
-# Configuracion transversal. Valores cerrados por el plan de implementacion (F0, §9).
-# Cambiar cualquiera de estos valores invalida los hashes de prerregistro.
+# Configuracion transversal.
+# Cambiar estos valores modifica el hash de configuracion y del prerregistro.
 
 seed: 42
-n_threads: 4                 # tope del plan; el hardware tiene mas, no se usan para no romper comparabilidad
+n_threads: 4                 # fijo para mantener comparables los tiempos entre maquinas
 
 paths:
   data_root: ieee-fraud-detection      # CSV crudos de Kaggle (solo train_*)
@@ -19,11 +19,11 @@ data:
   target: isFraud
   time_col: TransactionDT
   amount_col: TransactionAmt
-  # Prohibido usar los test_* de Kaggle: no tienen etiqueta y romperian el backtest temporal.
+  # Los test_* de Kaggle no tienen etiqueta y no se usan en el backtest temporal.
   forbidden_files: [test_transaction.csv, test_identity.csv]
 
 budget:
-  # C26: 480 min es tope absoluto acumulado de computo, reserva incluida.
+  # Tope acumulado de computo de 480 min, reserva incluida.
   total_minutes: 480
   planned_minutes: 382
   reserve_minutes: 98

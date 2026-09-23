@@ -1,24 +1,17 @@
 """Servicio HTTP local de scoring y decision.
 
-Contrato del servicio
----------------------
-El endpoint CALCULA una decision; NO es la autoridad del estado. El cupo diario
-vive en el ledger del replay, no aqui, y el cliente lo envia en
-``capacity_context``.
+El endpoint calcula la decision y el ledger del replay guarda el estado. El cupo
+diario lo envia el cliente en ``capacity_context``; como un cliente cualquiera
+podria enviar un cupo falso, la demo usa un unico orquestador (``replay.py``) y el
+servicio no se expone como endpoint publico. Llevar el cupo al servicio requeriria
+estado distribuido y transaccional, previsto como diseno futuro con Firestore.
 
-Esa separacion es deliberada y su limitacion esta declarada: un cliente arbitrario
-podria enviar un contexto de cupo falso. Por eso la demo exige un unico
-orquestador confiable (``replay.py``) y el servicio no se publica como endpoint
-abierto de decision de pagos. Hacer el cupo autoritativo dentro del servicio
-requeriria estado distribuido y transaccional, que es justamente lo que el plan
-deja como diseno futuro (Firestore) y no como implementacion.
+Requisitos de Cloud Run que cumple:
 
-Contrato de Cloud Run que se respeta
-------------------------------------
 * escucha en ``0.0.0.0`` y en el puerto de ``$PORT`` (8080 por defecto);
-* sin estado durable dentro del contenedor;
-* ``/health`` informa version y hash del paquete activo;
-* sin paquete valido responde 503 (C21), nunca una decision por defecto.
+* no guarda estado durable dentro del contenedor;
+* ``/health`` informa la version y el hash del paquete activo;
+* sin paquete valido responde 503.
 """
 
 from __future__ import annotations
@@ -45,8 +38,8 @@ LOGGER = logging.getLogger("fraud_adaptive.serving")
 class PackageRegistry:
     """Mantiene el paquete activo y el anterior, ambos elegibles para rollback.
 
-    No reconstruye ni recalibra nada al arrancar: carga artefactos ya validados.
-    Recalibrar al inicio produciria un modelo distinto del que paso los gates.
+    Carga artefactos ya validados sin reajustarlos, de modo que sirve el mismo
+    modelo que paso los gates.
     """
 
     def __init__(self, package_dir: str | Path | None = None):
@@ -65,12 +58,12 @@ class PackageRegistry:
             self.active = loaded
             self.load_error = None
             LOGGER.info("Paquete activo: %s", loaded["manifest"]["version_id"])
-        except Exception as exc:  # noqa: BLE001 - el servicio debe seguir respondiendo 503
+        except Exception as exc:  # noqa: BLE001 - sin paquete el servicio responde 503
             self.load_error = "%s: %s" % (type(exc).__name__, exc)
             LOGGER.error("No se pudo cargar el paquete %s: %s", package_dir, self.load_error)
 
     def rollback(self) -> bool:
-        """Vuelve al paquete anterior. Solo si existe uno completo y valido."""
+        """Vuelve al paquete anterior si existe."""
         if self.previous is None:
             return False
         self.active, self.previous = self.previous, self.active
@@ -121,13 +114,11 @@ class PredictResponse(_BaseModel):
 
 
 def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | None = None):
-    """Construye la app FastAPI. Se separa de ``uvicorn.run`` para poder testearla.
+    """Construye la app FastAPI, separada de ``uvicorn.run`` para poder probarla.
 
-    Los modelos Pydantic viven a nivel de modulo, no aqui dentro. Con
-    ``from __future__ import annotations`` las anotaciones son cadenas y FastAPI
-    las resuelve contra los globales del modulo: una clase definida dentro de esta
-    funcion no seria visible ahi, y FastAPI degradaria el cuerpo de la peticion a
-    un parametro de query.
+    Los modelos Pydantic se definen a nivel de modulo porque, con
+    ``from __future__ import annotations``, FastAPI resuelve las anotaciones contra
+    los globales del modulo.
     """
     from fastapi import FastAPI, HTTPException
 
@@ -169,7 +160,7 @@ def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | 
 
     @app.post("/predict", response_model=PredictResponse)
     def predict(request: PredictRequest) -> Any:
-        # C21: sin paquete valido no se decide un pago. 503, no una accion por defecto.
+        # Sin paquete valido no se decide ningun pago.
         if not registry.available:
             raise HTTPException(
                 status_code=503,
@@ -181,7 +172,6 @@ def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | 
                 detail={"error": "schema_version_incompatible",
                         "esperado": schema_version, "recibido": request.schema_version},
             )
-        # El servicio nunca debe recibir la etiqueta.
         if "isFraud" in request.features:
             raise HTTPException(
                 status_code=400,
@@ -201,16 +191,14 @@ def create_app(package_dir: str | Path | None = None, configs: dict[str, Any] | 
         raw, calibrated = _score_frame(registry.active, frame)
         t_inference = time.perf_counter()
 
-        # Politica y economia salen del manifiesto del paquete. El servicio no
-        # tiene una economia propia: decide con la que se valido en el backtest.
+        # La politica y la economia vienen del manifiesto, las mismas del backtest.
         policy = policy_from_dict(manifest["policy"])
         cost_model = cost_model_from_dict(manifest["costos"])
 
         probability = np.array([calibrated])
         amount = np.array([request.amount])
         expected_costs = cost_model.expected_costs(probability, amount)
-        # La regla real, que usa el monto y el precio del cupo. `zone` solo mira `p`
-        # y con la politica vigente mandaria todo a revision.
+        # `propose` usa el monto y el precio del cupo; `zone` solo mira `p`.
         proposed = str(policy.propose(probability, expected_costs)[0])
 
         action, reason = proposed, "%s_%s" % (policy.rule, proposed)

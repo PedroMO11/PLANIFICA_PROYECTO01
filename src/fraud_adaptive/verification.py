@@ -1,22 +1,16 @@
 """Comparacion de dos corridas independientes.
 
-Convierte "el proyecto es reproducible" de afirmacion en comprobacion: dos runs
-con la misma semilla, los mismos datos y la misma configuracion deben producir los
-mismos numeros. Si no coinciden, el informe de comparacion dice exactamente donde
-divergen en lugar de dejar la duda.
+Dos corridas con la misma semilla, los mismos datos y la misma configuracion deben
+producir los mismos numeros. La comparacion indica donde divergen si no coinciden.
 
-Lo que se compara y por que
----------------------------
-* **Hash de codigo y configuracion**: si difieren, las corridas no son comparables
-  y cualquier diferencia posterior queda explicada.
-* **Checkpoints de tuning**: el AP de cada uno de los 18 fits, bit a bit.
-* **Prerregistro**: la familia elegida, su configuracion y la economia calibrada
-  deben ser identicas; si no,
-  la seleccion no es determinista y todo lo demas pierde sentido.
-* **Tabla de adaptacion**: los resultados finales por estrategia.
+Se comparan:
 
-Lo que NO se compara: las duraciones. Varian con la carga de la maquina y no son
-parte del resultado.
+* el hash de codigo y de configuracion, que explica diferencias posteriores;
+* el AP de cada uno de los 18 fits de tuning;
+* el prerregistro: familia, configuracion y economia calibrada;
+* el costo observado por estrategia.
+
+Las duraciones no se comparan porque dependen de la carga de la maquina.
 """
 
 from __future__ import annotations
@@ -32,9 +26,8 @@ from .tracking import read_json
 
 LOGGER = logging.getLogger("fraud_adaptive.verification")
 
-# Tolerancia para comparar flotantes. Se exige igualdad exacta por defecto: con la
-# misma maquina y el mismo entorno, un resultado que difiere en el ultimo bit
-# indica no determinismo en alguna parte, y eso merece investigarse.
+# Igualdad exacta por defecto: en la misma maquina y el mismo entorno, una
+# diferencia en el ultimo bit indica no determinismo.
 TOLERANCIA_EXACTA = 0.0
 
 
@@ -125,11 +118,9 @@ def comparar_runs(
     else:
         resultado["resultados"] = {"disponible": False}
 
-    # Reproducibilidad es que salgan los MISMOS NUMEROS. Que el hash de codigo
-    # difiera es una circunstancia que hay que reportar, no un fallo por si misma:
-    # un cambio en un modulo que el entrenamiento no toca (documentacion, reportes)
-    # deja los resultados intactos y aun asi mueve el hash. Mezclar ambas cosas en
-    # un unico veredicto haria que el tool gritara "no reproducible" por una errata.
+    # El veredicto de reproducibilidad depende de los resultados. Un cambio de hash
+    # de codigo se reporta aparte, porque editar documentacion o reportes lo mueve
+    # sin afectar el entrenamiento.
     resultado["resultados_identicos"] = all([
         resultado["tuning"]["identicos"],
         resultado["prerregistro"].get("identico", True),

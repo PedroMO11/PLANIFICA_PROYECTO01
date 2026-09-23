@@ -1,12 +1,8 @@
 """El backtest completo se ejecuta y propaga la economia congelada.
 
-Las demas pruebas cubren piezas: roles, cupo, calibracion, gates. Ninguna
-recorria la cadena entera, de modo que un cambio de firma en ``build_package``
-podia pasar los 142 tests y romper la corrida real al llegar al adapt.
-
-Esta prueba es deliberadamente barata. No mide calidad predictiva: comprueba que
-el backtest termina, que produce las siete estrategias y que el ``c_FP`` calibrado
-llega hasta el manifiesto de cada paquete persistido.
+Las demas pruebas cubren piezas sueltas; esta recorre la cadena completa con datos
+reducidos. Comprueba que el backtest termina, que produce las siete estrategias y
+que el ``c_FP`` calibrado llega al manifiesto de cada paquete guardado.
 """
 
 from __future__ import annotations

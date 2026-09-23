@@ -1,4 +1,4 @@
-# Tres familias x tres configuraciones cerradas. F3 del plan. Sin early stopping ni refit oculto.
+# Tres familias con tres configuraciones cada una, sin early stopping.
 
 calibration:
   method: platt             # regresion logistica univariada sobre logit(p_cruda)

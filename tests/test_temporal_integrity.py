@@ -113,7 +113,7 @@ def test_ventana_expansiva_crece(temporal_config):
 # --------------------------------------------------------------------------- madurez
 
 def test_elegibilidad_de_etiqueta_es_estricta():
-    """Una etiqueta que madura EXACTAMENTE en el corte todavia no esta disponible."""
+    """Una etiqueta que madura justo en el corte todavia no esta disponible."""
     days = np.array([59, 60, 61])
     eligible = label_eligible(days, cutoff=90, label_delay_days=30)
     assert list(eligible) == [True, False, False]

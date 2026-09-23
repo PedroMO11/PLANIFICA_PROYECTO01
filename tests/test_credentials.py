@@ -1,9 +1,8 @@
 """Carga de credenciales desde ``.env`` sin instalar nada a nivel de usuario.
 
-El token de Kaggle es un secreto. Las propiedades que importan aqui son
-defensivas: que una variable ya definida en la shell gane sobre el archivo, que
-los valores nunca salgan en el diccionario de retorno (acaba en logs), y que el
-estado reportado diga si hay credencial sin revelar cual.
+Se comprueba que una variable ya definida en la shell tenga prioridad sobre el
+archivo, que los valores no aparezcan en el diccionario de retorno, que puede
+terminar en logs, y que el estado indique si hay credencial sin revelarla.
 """
 
 from __future__ import annotations

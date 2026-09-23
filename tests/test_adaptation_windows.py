@@ -1,8 +1,8 @@
-"""Comportamiento de las ventanas de olvido y de los detectores de drift.
+"""Ventanas de adaptacion y detectores de drift.
 
-No se prueba que el sistema adaptativo GANE: eso es un resultado empirico que
-puede ser negativo. Se prueba que las ventanas esten bien construidas, que los
-detectores reaccionen ante un cambio conocido y que no se alarmen sin motivo.
+Se prueba que las ventanas esten bien construidas, que los detectores reaccionen a
+un cambio conocido y que no alerten sin cambio. Si la adaptacion mejora el costo es
+un resultado empirico del experimento.
 """
 
 from __future__ import annotations

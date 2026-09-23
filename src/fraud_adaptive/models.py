@@ -1,22 +1,15 @@
-"""Preprocesamiento por fold y las tres familias de modelos.
+"""Preprocesamiento por fit y las tres familias de modelos.
 
-El punto critico de este modulo
--------------------------------
-``FeaturePipeline.fit`` recibe UNICAMENTE las filas del tramo de fit de su version.
-Medianas de imputacion, medias y desviaciones del escalado, vocabulario de las
-categoricas y la lista de columnas descartadas por exceso de faltantes se calculan
-ahi y en ningun otro sitio.
+``FeaturePipeline.fit`` recibe solo las filas del tramo de fit de su version. Las
+medianas de imputacion, la media y desviacion del escalado, el vocabulario de las
+categoricas y las columnas descartadas por faltantes se calculan ahi.
 
-Esto importa mas de lo que parece. Si el vocabulario de one-hot se ajustara sobre
-todo el dataset, el modelo tendria una columna reservada para una categoria que
-solo aparece en el bloque de test: sabria de su existencia antes de observarla. Es
-una fuga sutil, no cambia el AP de forma escandalosa y por eso pasa desapercibida.
-``tests/test_temporal_integrity.py`` la verifica cambiando las filas futuras y
-comprobando que las transformaciones no se mueven.
+Si el vocabulario one-hot se ajustara sobre todo el dataset, el modelo reservaria
+columnas para categorias que solo aparecen en test. ``tests/test_temporal_integrity.py``
+comprueba que modificar filas futuras no cambia las transformaciones.
 
-Las tres familias son las del plan y no se sustituyen entre si: logistica como
-referencia lineal, Random Forest como bagging no lineal y LightGBM como modelo
-avanzado por boosting.
+Familias: regresion logistica como referencia lineal, Random Forest como modelo no
+lineal por bagging y LightGBM como modelo avanzado por boosting.
 """
 
 from __future__ import annotations
@@ -77,9 +70,8 @@ class FeaturePipeline:
         if self.n_fit_rows == 0:
             raise ValueError("No se puede ajustar el preprocesamiento sobre un tramo vacio")
 
-        # Descartar columnas casi vacias SEGUN EL FIT. Una columna puede estar
-        # vacia en el fit y poblada en el test: se descarta igual, porque el modelo
-        # de esta version nunca pudo aprender de ella.
+        # Las columnas se descartan segun sus faltantes en el fit, aunque esten
+        # pobladas en test, porque esta version no pudo aprender de ellas.
         numeric_keep: list[str] = []
         self.dropped_columns = []
         for column in numeric_columns:
@@ -105,8 +97,7 @@ class FeaturePipeline:
                 mean = float(series.mean())
                 std = float(series.std())
                 self.means[column] = mean
-                # Una columna constante en el fit tendria std 0: dividir por 1 la
-                # deja en cero tras centrar, que es lo correcto (no aporta senal).
+                # Una columna constante tiene std 0; con 1 queda en cero tras centrar.
                 self.stds[column] = std if np.isfinite(std) and std > 1e-12 else 1.0
 
         for column in self.categorical_columns:
@@ -115,9 +106,8 @@ class FeaturePipeline:
             vocabulary = list(frequent.index[: self.max_categories])
             if MISSING_TOKEN not in vocabulary:
                 vocabulary.append(MISSING_TOKEN)
-            # UNKNOWN absorbe en test toda categoria no vista o poco frecuente en
-            # el fit. Sin este token, una categoria nueva romperia el ancho de la
-            # matriz o, peor, se mapearia silenciosamente a otra existente.
+            # UNKNOWN recibe en test las categorias no vistas o poco frecuentes en
+            # el fit, de modo que el ancho de la matriz no cambia.
             vocabulary.append(UNKNOWN_TOKEN)
             self.vocabularies[column] = vocabulary
 
@@ -140,13 +130,11 @@ class FeaturePipeline:
     def _transform_native(self, frame: pd.DataFrame) -> pd.DataFrame:
         """LightGBM: faltantes nativos y categoricas como dtype category.
 
-        Las categorias se fijan al vocabulario del fit, asi que una categoria nueva
-        en test cae a NaN y LightGBM la trata como faltante, en lugar de crear un
-        nivel que el modelo nunca entreno.
+        Las categorias se fijan al vocabulario del fit, y una categoria nueva en test
+        se asigna al token desconocido.
         """
-        # Se construye un dict y se crea el DataFrame de una vez: asignar columna a
-        # columna sobre cientos de campos fragmenta el frame y dispara avisos de
-        # rendimiento de pandas en cada fit.
+        # El DataFrame se construye de una vez para no fragmentarlo con cientos de
+        # asignaciones de columna.
         columns: dict[str, Any] = {}
         for column in self.numeric_columns:
             columns[column] = pd.to_numeric(frame[column], errors="coerce").astype("float32")
@@ -166,7 +154,7 @@ class FeaturePipeline:
             filled = series.fillna(self.medians[column]).to_numpy(dtype="float32")
             if self.family == "logistic":
                 filled = (filled - self.means[column]) / self.stds[column]
-            # Un valor infinito colaria un inf a la matriz y reventaria el solver.
+            # Los infinitos se reemplazan para que el solver no falle.
             numeric_block[:, i] = np.nan_to_num(filled, nan=0.0, posinf=0.0, neginf=0.0)
         blocks.append(numeric_block)
 
@@ -186,8 +174,8 @@ class FeaturePipeline:
             blocks.append(onehot)
 
         dense = np.hstack(blocks) if blocks else np.empty((len(frame), 0), dtype="float32")
-        # La logistica usa saga sobre matriz dispersa: con cientos de columnas
-        # one-hot la densidad es baja y la memoria cae en un orden de magnitud.
+        # La logistica usa saga sobre una matriz dispersa, que con cientos de
+        # columnas one-hot reduce la memoria en un orden de magnitud.
         return sparse.csr_matrix(dense) if self.family == "logistic" else dense
 
     # -- metadatos
@@ -202,7 +190,7 @@ class FeaturePipeline:
         return names
 
     def schema(self) -> dict[str, Any]:
-        """Esquema serializable, para que el servicio rechace un payload incompatible."""
+        """Esquema serializable, que el servicio usa para validar el payload."""
         return {
             "family": self.family,
             "n_fit_rows": self.n_fit_rows,
@@ -228,10 +216,10 @@ def _lightgbm_classifier(**kwargs: Any):
 
 def build_estimator(family: str, config: dict[str, Any], base: dict[str, Any], *, seed: int = 42,
                     n_threads: int = 4, y_fit: np.ndarray | None = None) -> Any:
-    """Instancia un estimador con la configuracion cerrada de configs/models.yaml.
+    """Instancia un estimador con la configuracion de configs/models.yaml.
 
-    Los pesos de clase se derivan SOLO de ``y_fit``: calcularlos sobre el dataset
-    completo filtraria la prevalencia de periodos futuros al entrenamiento.
+    Los pesos de clase se derivan de ``y_fit``, para no usar la prevalencia de
+    periodos futuros.
     """
     params = {k: v for k, v in config.items() if k != "name"}
 
@@ -285,11 +273,9 @@ def stratified_day_subsample(
 ) -> np.ndarray:
     """Submuestreo estratificado por dia y clase para acotar el costo de Random Forest.
 
-    Estratificar por dia Y clase preserva tanto la forma temporal del tramo como la
-    prevalencia. Un muestreo uniforme podria vaciar dias enteros y sesgar el
-    historial que el modelo ve.
-
-    Devuelve posiciones enteras. Nunca se aplica a validacion ni a test.
+    Preserva la distribucion temporal del tramo y la prevalencia; un muestreo
+    uniforme podria dejar dias sin filas. Devuelve posiciones enteras y se aplica
+    solo al fit.
     """
     n_rows = len(frame)
     if n_rows <= max_rows:
@@ -305,8 +291,7 @@ def stratified_day_subsample(
             positions = np.where((days == day) & (labels == label))[0]
             if positions.size == 0:
                 continue
-            # Al menos una fila por estrato no vacio: evita perder dias con pocos
-            # fraudes, que son justamente los informativos.
+            # Al menos una fila por estrato, para conservar los dias con pocos fraudes.
             take = max(1, int(round(positions.size * fraction)))
             take = min(take, positions.size)
             selected.append(rng.choice(positions, size=take, replace=False))
@@ -318,7 +303,7 @@ def stratified_day_subsample(
 
 @dataclass
 class FittedModel:
-    """Predictor + su preprocesamiento + la evidencia de con que se ajusto."""
+    """Predictor, su preprocesamiento y los datos con que se ajusto."""
 
     family: str
     config_name: str
@@ -366,9 +351,8 @@ def fit_model(
 ) -> FittedModel:
     """Ajusta preprocesamiento y estimador sobre un unico tramo.
 
-    El orden importa: primero se decide el submuestreo, y el preprocesamiento se
-    ajusta SOBRE LAS FILAS EFECTIVAMENTE USADAS. Ajustarlo antes daria al modelo
-    medianas y vocabularios de filas que no entrenaron.
+    El submuestreo se decide primero y el preprocesamiento se ajusta sobre las filas
+    que efectivamente entrenan el modelo.
     """
     encoding = encoding or {}
     labels = np.asarray(labels)

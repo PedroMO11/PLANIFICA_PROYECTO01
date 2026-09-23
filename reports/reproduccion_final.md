@@ -45,15 +45,15 @@ Generado: 2026-09-20T20:49:52+00:00
 Tareas fallidas: **0**. Tareas que excedieron su límite: **0**.
 
 
-Una tarea fallida o excedida igual consume presupuesto y queda registrada: 
-un timeout nunca se presenta como un ajuste exitoso.
+Una tarea fallida o que excede su límite consume presupuesto y queda registrada
+con ese estado.
 
 
 ## 3. Verificaciones realizadas
 
 | Verificación | Cómo | Resultado |
 |---|---|---|
-| Suite de pruebas | `python -m pytest` | 137 pruebas (136 pasan, 1 omitida) |
+| Suite de pruebas | `python -m pytest` | 150 pruebas (149 pasan, 1 omitida) |
 | Notebooks | Ejecutados de principio a fin con `nbclient` | 3 de 3 |
 | Servicio HTTP | `uvicorn` + peticiones reales a `/health` y `/predict` | Verificado |
 | Replay y ledger | 5 000 eventos, 50 reenvíos | Idempotencia aprobada |
@@ -68,7 +68,7 @@ Se ejecutó la cadena completa dos veces con la misma semilla y los mismos datos
 
 | Comparación | Resultado |
 |---|---|
-| Fits de tuning idénticos | **18 / 18** |
+| Fits de tuning idénticos | 18 / 18 |
 | Hash de prerregistro | Idéntico (`7d4c9fac0af4d15f`) |
 | Costo observado · S0 | Idéntico (2.0920721656 UM/tx) |
 | Costo observado · E15 | Idéntico (1.9840124547 UM/tx) |
@@ -82,8 +82,9 @@ Comprobable con: `python -m fraud_adaptive --run-id v3 verify --against v3_repro
 > Los resultados coinciden pese a que el hash de codigo difiere. Eso prueba que los cambios entre las dos corridas fueron neutrales para el resultado, no que no los hubiera: afirmar que estaban fuera del camino de entrenamiento exigiria revisarlos uno a uno. Para una comparacion estricta, ejecutar ambas corridas sin editar el codigo entre ellas.
 
 
-## 4. Lo que NO pudo verificarse
+## 4. Pendiente de verificación
 
+Ningún elemento pendiente.
 
 ## 5. Cómo repetirlo
 
@@ -95,14 +96,14 @@ python -m fraud_adaptive all
 python -m fraud_adaptive deliver
 ```
 
-Con los datos reales de IEEE-CIS los comandos son **idénticos**: la única 
-diferencia es el archivo de entrada.
+Con los datos reales de IEEE-CIS los comandos son los mismos; solo cambia
+el archivo de entrada.
 
 
 ## 6. Qué no se garantiza
 
-- **Igualdad bit a bit entre máquinas.** BLAS, versión de CPU y orden de 
-reducción en punto flotante pueden diferir.
+- Igualdad bit a bit entre máquinas: BLAS, la CPU y el orden de reducción en
+punto flotante pueden diferir.
 
-- **Variabilidad entre semillas.** El núcleo usa solo la semilla 42; los 
-intervalos son descriptivos de esa corrida.
+- Variabilidad entre semillas de entrenamiento: se usa solo la semilla 42 y los
+intervalos describen esa corrida.

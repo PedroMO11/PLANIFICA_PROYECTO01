@@ -1,8 +1,8 @@
-"""Validacion de promocion sobre un holdout limpio (C20).
+"""Validacion de promocion sobre un holdout limpio.
 
-El gate solo tiene sentido si H es posterior a todo ajuste y no fue visto por
-ninguno de los dos paquetes comparados. Estas pruebas fijan que una contaminacion
-de H haga RECHAZAR el gate, en lugar de producir una comparacion optimista.
+H debe ser posterior a todo ajuste y no haber sido visto por ninguno de los dos
+paquetes comparados. Estas pruebas verifican que un H contaminado haga rechazar el
+gate.
 """
 
 from __future__ import annotations

@@ -1,42 +1,31 @@
 """Politica economica de tres acciones, con cupo de revision y costos calibrados.
 
-Separacion score / politica / accion
-------------------------------------
-El modelo produce ``p``. La politica convierte ``p`` y el monto en un costo
-esperado. La accion es el minimo de esos costos, sujeta al cupo de revision. Esa
-separacion es deliberada: permite cambiar el modelo sin tocar la politica y
-reportar por separado el comportamiento del clasificador y el del sistema.
+El modelo produce ``p``; la politica convierte ``p`` y el monto en costos esperados
+y la accion es la de menor costo, sujeta al cupo de revision. Separar modelo y
+politica permite cambiar uno sin tocar el otro y reportar por separado el
+clasificador y el sistema.
 
-Tres decisiones de diseno que el problema impone
-------------------------------------------------
-La accion se elige por costo esperado y no por umbrales sobre ``p``, porque el
-punto de indiferencia depende del monto (ver ``Policy``).
+* La accion se elige por costo esperado porque el punto de indiferencia entre
+  aprobar y bloquear depende del monto (ver ``Policy``).
+* Revisar ocupa una plaza escasa, asi que debe ahorrar mas que el precio sombra
+  del cupo (ver ``calibrate_review_price``).
+* ``c_FP`` se deriva del objetivo de bloqueo de legitimas (ver
+  ``calibrate_fp_cost``).
 
-La revision compite por un cupo escaso, de modo que no basta con que sea la accion
-mas barata: tiene que serlo por un margen que justifique ocupar una plaza. Ese
-margen es el precio sombra del cupo (ver ``calibrate_review_price``).
+Costos esperados por accion::
 
-Y ``c_FP`` no se fija por intuicion sino que se deriva del objetivo de bloqueo de
-legitimas (ver ``calibrate_fp_cost``), que es la cantidad que la operacion observa
-y restringe.
-
-Costos esperados por accion
----------------------------
     E[aprobar]  = p * monto                        (si es fraude, se pierde el monto)
     E[bloquear] = (1 - p) * c_FP                   (si era legitima, friccion)
     E[revisar]  = c_R + p*(1-r_H)*monto + (1-p)*f_H*c_FP
 
-La revision paga un costo fijo y deja pasar el fraude que el analista no detecta
-(``1-r_H``) y bloquea legitimas que marca por error (``f_H``). Por eso no siempre
-gana: con montos bajos, revisar cuesta mas que asumir la perdida.
+La revision tiene un costo fijo, deja pasar el fraude que el analista no detecta
+(``1-r_H``) y bloquea legitimas por error (``f_H``). Con montos bajos, revisar
+cuesta mas que asumir la perdida.
 
-Causalidad de la cola (C12)
----------------------------
-El cupo se reserva al ADMITIR, de forma irrevocable y por ``event_id``. No se
-ordena el dia completo por ``p*monto`` para quedarse con los mejores 150: eso
-exigiria conocer transacciones que aun no ocurrieron. La prioridad ordena el
-SERVICIO entre los ya admitidos. Cuando el cupo se agota, el caso cae a la mejor
-de las dos acciones automaticas.
+El cupo se reserva al admitir cada caso, de forma irrevocable y por ``event_id``.
+Ordenar el dia completo por ``p*monto`` exigiria conocer transacciones futuras; la
+prioridad solo ordena la atencion de los casos ya admitidos. Sin cupo, el caso
+recibe la accion automatica mas barata.
 """
 
 from __future__ import annotations
@@ -84,36 +73,28 @@ class CostModel:
 
 @dataclass(frozen=True)
 class Policy:
-    """Regla de decision y cupo diario. Se congela antes del test.
+    """Regla de decision y cupo diario, fijados antes del test.
 
-    ``rule`` selecciona como se propone la accion:
+    ``rule`` define como se propone la accion:
 
     * ``argmin``: por costo esperado, con el cupo racionado por ``review_price``.
       Es la regla de operacion.
-    * ``umbral``: dos cortes globales sobre ``p``. Se conserva como referencia
-      para poder cuantificar cuanto cuesta ignorar el monto.
+    * ``umbral``: dos cortes globales sobre ``p``, que se conservan para medir cuanto
+      cuesta ignorar el monto.
 
-    Un umbral global sobre ``p`` no puede ser optimo bajo este modelo de costos,
-    porque el punto de indiferencia entre aprobar y bloquear es
-    ``p* = c_FP / (monto + c_FP)`` y por lo tanto depende del monto. Un corte fijo
-    bloquea de mas en los montos bajos y de menos en los altos. Medido sobre la
-    reserva de desarrollo, la regla de umbrales cuesta 1,9696 UM/tx frente a 1,5895
-    de la regla economica, y eso que los umbrales se eligen minimizando sobre esa
-    misma ventana mientras la regla economica no se ajusta a ella.
+    El punto de indiferencia entre aprobar y bloquear es ``p* = c_FP / (monto + c_FP)``,
+    asi que un corte fijo bloquea de mas en montos bajos y de menos en montos altos.
+    Sobre la reserva de desarrollo, la regla de umbrales cuesta 1,9696 UM/tx y la
+    economica 1,5895, aunque los umbrales se eligieron sobre esa misma reserva.
 
-    ``review_price`` es el precio sombra del cupo diario. Se revisa un caso solo si
+    ``review_price`` es el precio sombra del cupo diario. Un caso se revisa solo si
 
         min(E[aprobar], E[bloquear]) - E[revisar] > review_price
 
-    es decir, si revisar ahorra lo suficiente como para justificar ocupar una plaza
-    escasa. Con ``review_price = 0`` la regla resuelve el problema sin restriccion y
-    propone 704 revisiones diarias frente a un cupo de 150: el cupo se llena con los
-    casos que llegan primero y los que mas ahorrarian quedan fuera.
-
-    El precio importa mas de lo que parece. Sin el, la regla economica PERDIA contra
-    el mejor umbral fijo, con 2,3090 frente a 2,2339 UM/tx, porque un umbral
-    ajustado por rejilla raciona el cupo de forma implicita al elegir una zona
-    estrecha. Con el, gana por un 19 %.
+    Con ``review_price = 0`` la regla propone 704 revisiones diarias para 150 plazas,
+    que se llenan por orden de llegada. Sin el precio, la regla economica costaba
+    2,3090 UM/tx frente a 2,2339 del mejor umbral fijo, que raciona el cupo de forma
+    implicita; con el precio es 19 % mas barata.
     """
 
     tau_low: float
@@ -131,7 +112,7 @@ class Policy:
             raise ValueError("tau_low (%.6f) no puede superar a tau_high (%.6f)" % (self.tau_low, self.tau_high))
 
     def propose(self, probability: np.ndarray, costs: dict[str, np.ndarray]) -> np.ndarray:
-        """Accion propuesta, ANTES de aplicar el cupo."""
+        """Accion propuesta antes de aplicar el cupo."""
         if self.rule == "umbral":
             return self.zone(probability)
         automatica = np.where(costs[APROBAR] <= costs[BLOQUEAR], APROBAR, BLOQUEAR)
@@ -165,16 +146,12 @@ class Policy:
 
 
 def policy_from_dict(data: dict[str, Any], *, daily_capacity: int | None = None) -> Policy:
-    """Reconstruye la politica congelada a partir de su serializacion.
+    """Reconstruye la politica a partir de su serializacion.
 
-    Existe para que la regla de decision y el cupo viajen juntos desde el
-    prerregistro hasta el servicio. Reconstruir el objeto campo por campo en cada
-    consumidor permitia que uno de ellos olvidara ``rule`` y decidiera distinto que
-    el backtest sin que nada fallara.
-
-    Acepta tambien una ``Policy`` ya construida. El mismo llamador recibe la
-    seleccion en memoria o releida de JSON segun se haya reanudado la corrida, y
-    distinguir ambos casos en cada sitio era una fuente de errores.
+    Es el unico constructor que usan el backtest, el replay y el servicio, de modo
+    que todos aplican la misma regla y el mismo cupo. Acepta tambien una ``Policy``
+    ya construida, porque la seleccion puede venir en memoria o releida de JSON al
+    reanudar.
     """
     if isinstance(data, Policy):
         return data
@@ -190,10 +167,10 @@ def policy_from_dict(data: dict[str, Any], *, daily_capacity: int | None = None)
 
 
 def cost_model_from_dict(data: dict[str, Any]) -> CostModel:
-    """Reconstruye el modelo de costos congelado.
+    """Reconstruye el modelo de costos.
 
-    ``c_fp`` se calibra en desarrollo y queda sellado, de modo que el unico origen
-    valido es el prerregistro o el manifiesto del paquete, nunca el config.
+    ``c_fp`` se calibra en desarrollo, de modo que se lee del prerregistro o del
+    manifiesto del paquete.
     """
     if isinstance(data, CostModel):
         return data
@@ -242,9 +219,8 @@ def fallback_action(costs: dict[str, np.ndarray], index: int) -> str:
 class CapacityLedger:
     """Reserva de cupo diaria, atomica e idempotente por ``event_id``.
 
-    La idempotencia es lo que hace seguro reintentar un evento tras un fallo: un
-    ``event_id`` ya resuelto devuelve su decision anterior y NO consume un segundo
-    cupo. Sin esto, una reanudacion de la corrida nocturna inflaria las revisiones.
+    Un ``event_id`` ya resuelto devuelve su decision anterior sin consumir otro cupo,
+    de modo que reintentar o reanudar no infla las revisiones.
     """
 
     daily_capacity: int = 150
@@ -292,11 +268,10 @@ def decide_batch(
     *,
     ledger: CapacityLedger | None = None,
 ) -> pd.DataFrame:
-    """Aplica la politica a una secuencia de eventos EN ORDEN TEMPORAL.
+    """Aplica la politica a una secuencia de eventos en orden temporal.
 
-    Recorre los eventos uno a uno porque el cupo es un recurso compartido cuyo
-    estado depende de lo ya decidido. Vectorizarlo obligaria a conocer el dia
-    completo de antemano, que es exactamente la ventaja irreal que C12 prohibe.
+    Recorre los eventos uno a uno porque el estado del cupo depende de lo ya
+    decidido; vectorizarlo exigiria conocer el dia completo de antemano.
     """
     ledger = ledger if ledger is not None else CapacityLedger(policy.daily_capacity)
     costs = costs_model.expected_costs(probability, amount)
@@ -367,14 +342,11 @@ def simulate_outcomes(
     *,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Desenlace y costo observado, calculado SOLO cuando la etiqueta ha madurado.
+    """Desenlace y costo observado, calculados cuando la etiqueta ya maduro.
 
-    C28: el analista simulado se resuelve aqui, en el evaluador, nunca en el
-    momento de decidir. La accion emitida no cambia al conocer el desenlace; lo
-    unico que se agrega es cuanto costo produjo.
-
-    El sorteo del analista es determinista por ``event_id``: dos corridas del mismo
-    experimento dan el mismo veredicto, y reanudar no vuelve a sortear.
+    El analista simulado se resuelve aqui, en el evaluador, y no en el momento de
+    decidir; la accion emitida no cambia. El sorteo del analista es determinista
+    por ``event_id``, asi que dos corridas o una reanudacion dan el mismo veredicto.
     """
     out = decisions.copy()
     labels = np.asarray(labels)
@@ -453,25 +425,16 @@ def calibrate_review_price(
 ) -> dict[str, Any]:
     """Deriva el precio sombra del cupo diario de revision.
 
-    Con el cupo como restriccion dura, elegir la accion de menor costo esperado
-    resuelve el problema equivocado. La regla sin restriccion propone muchas mas
-    revisiones de las que caben, el cupo se llena con los casos que llegan primero
-    y los mejores del dia quedan fuera. Medido sobre la reserva de desarrollo de
-    IEEE-CIS, propone 704 revisiones diarias frente a un cupo de 150.
-
-    El multiplicador de Lagrange de la restriccion es el precio que una plaza de
-    revision debe pagar. Se revisa solo si
+    Sin restriccion, la regla de menor costo esperado propone 704 revisiones
+    diarias en la reserva de desarrollo para un cupo de 150, y las plazas se llenan
+    por orden de llegada. El multiplicador de Lagrange de la restriccion es el
+    precio que debe superar el ahorro de revisar:
 
         min(E[aprobar], E[bloquear]) - E[revisar] > lambda
 
-    y ``lambda`` se elige como el menor valor que deja la demanda diaria media
-    dentro del cupo. La busqueda es una biseccion sobre una funcion monotona
-    decreciente, de modo que converge sin rejilla.
-
-    No usa etiquetas. El criterio es la restriccion de capacidad, no el costo
-    observado, lo que evita ajustar la politica al desenlace de la ventana. Medido
-    sobre IEEE-CIS, el ``lambda`` que iguala demanda y cupo queda a un 0,7 % del
-    que minimiza el costo.
+    ``lambda`` es el menor valor que deja la demanda diaria media dentro del cupo,
+    hallado por biseccion sobre una funcion monotona decreciente. No usa etiquetas;
+    en IEEE-CIS queda a 0,7 % del valor que minimiza el costo observado.
     """
     day = np.asarray(day)
     n_days = max(1, len(np.unique(day)))
@@ -482,7 +445,7 @@ def calibrate_review_price(
         return float((saving > price).sum()) / n_days
 
     if demand(0.0) <= daily_capacity:
-        # El cupo no ata: la regla sin restriccion ya cabe.
+        # La regla sin restriccion ya cabe en el cupo.
         LOGGER.info("El cupo no restringe: demanda de %.1f/dia con precio cero", demand(0.0))
         return {"review_price": 0.0, "demanda_diaria": demand(0.0),
                 "cupo_diario": daily_capacity, "restringe": False}
@@ -528,21 +491,14 @@ def calibrate_fp_cost(
 ) -> dict[str, Any]:
     """Deriva ``c_FP`` del objetivo operativo de bloqueo de legitimas.
 
-    ``c_FP`` no es observable. Fijarlo por intuicion deja sin controlar la cantidad
-    que el negocio si observa y si restringe, que es la fraccion de transacciones
-    legitimas rechazadas. Con ``c_FP = 5`` la regla economica bloquea el 11,17 % de
-    las legitimas sobre IEEE-CIS, un nivel que ninguna operacion de pagos acepta.
+    ``c_FP`` no es observable, pero la fraccion de legitimas rechazadas si. Con
+    ``c_FP = 5`` la regla economica bloquea el 11,17 % de las legitimas en IEEE-CIS.
+    Se declara el objetivo (``diagnostic_targets.fpr_target``) y se busca el menor
+    ``c_FP`` de la grilla que lo cumple; en IEEE-CIS resulta 25 UM, con 0,89 %.
 
-    Aqui se invierte la relacion: se declara el objetivo (``diagnostic_targets``,
-    ``fpr_target``) y se busca el menor ``c_FP`` de la grilla que lo cumple. Sobre
-    IEEE-CIS el valor resultante es 25 UM, que alcanza un 0,89 %. El
-    valor resultante es el precio sombra de la restriccion. Se calibra una sola vez
-    sobre la reserva de politica de desarrollo y queda congelado y sellado en el
-    prerregistro, igual que los hiperparametros.
-
-    Se elige el MENOR valor que cumple porque ``c_FP`` mas alto compra menos bloqueo
-    a cambio de mas fraude aprobado. El minimo factible es el que respeta la
-    restriccion sin sobrepagar.
+    Se toma el menor valor factible porque un ``c_FP`` mayor reduce el bloqueo a
+    cambio de aprobar mas fraude. Se calibra una vez sobre la reserva de politica de
+    desarrollo y queda sellado en el prerregistro.
     """
     legitimate = np.asarray(labels) == 0
     if not legitimate.any():
@@ -604,16 +560,14 @@ def select_thresholds(
 ) -> dict[str, Any]:
     """Elige ``(tau_low, tau_high)`` por costo observado sobre la reserva de politica.
 
-    Recorre la grilla de pares de cuantiles del score, incluyendo pares iguales
-    (sin zona gris) y los bordes de aprobar todo / bloquear todo. Minimiza costo,
-    nunca F1, y nunca asume 0.5.
-
-    Desempates del plan, en orden: menor bloqueo de legitimas, menor demanda de
-    revision y menor complejidad (zona gris mas estrecha).
+    Recorre la grilla de pares de cuantiles del score, incluidos los pares iguales
+    (sin zona gris) y los bordes de aprobar todo y bloquear todo, y minimiza el
+    costo. Desempates, en orden: menor bloqueo de legitimas, menor demanda de
+    revision y zona gris mas estrecha.
     """
     probability = np.asarray(probability, dtype=float)
     candidates = sorted({float(np.quantile(probability, q)) for q in quantiles})
-    # Bordes explicitos: permiten que la busqueda elija degenerar a una sola accion.
+    # Los bordes permiten elegir una sola accion para todos los casos.
     candidates = sorted(set(candidates) | {0.0, 1.0 + 1e-9})
 
     results: list[dict[str, Any]] = []
@@ -664,8 +618,8 @@ def select_thresholds(
 def baseline_policies(daily_capacity: int = 150) -> dict[str, Policy]:
     """Referencias simuladas, no politicas comerciales observadas.
 
-    ``aprobar_todo`` es el limite inferior de friccion y superior de perdida por
-    fraude; sirve como cota que el sistema debe batir para tener sentido economico.
+    ``aprobar_todo`` minimiza la friccion y maximiza la perdida por fraude; es la
+    cota que el sistema debe superar para justificarse economicamente.
     """
     return {
         "aprobar_todo": Policy(tau_low=1.0 + 1e-9, tau_high=1.0 + 1e-9, daily_capacity=daily_capacity,

@@ -1,18 +1,15 @@
-"""Replay local secuencial: el unico orquestador autorizado del estado.
+"""Replay local secuencial, unico orquestador que escribe el estado.
 
-Reparto de responsabilidades
-----------------------------
-El servicio calcula la decision. El replay la CONFIRMA, reserva el cupo y la
-registra. Solo el replay escribe en el ledger.
+El servicio calcula la decision y el replay la confirma, reserva el cupo y la
+registra en el ledger.
 
-El ledger es SQLite con una transaccion por evento. ``event_id`` es clave
-primaria, asi que reintentar un evento ya resuelto devuelve su decision anterior
-sin consumir un segundo cupo. Esa es la propiedad que permite matar el proceso a
-mitad de una corrida y reanudarlo sin inflar las revisiones ni duplicar costos.
+El ledger es SQLite con una transaccion por evento y ``event_id`` como clave
+primaria. Reintentar un evento ya resuelto devuelve su decision anterior sin
+consumir otro cupo, de modo que el proceso puede interrumpirse y reanudarse sin
+inflar las revisiones.
 
-Limite declarado: un unico proceso secuencial garantiza el cupo. La demo NO
-certifica decisiones concurrentes de produccion, que requerirían estado
-distribuido (el diseno futuro con Firestore).
+El cupo esta garantizado para un unico proceso secuencial; decisiones concurrentes
+requeririan estado distribuido, previsto como diseno futuro con Firestore.
 """
 
 from __future__ import annotations
@@ -78,8 +75,7 @@ class Ledger:
         self.daily_capacity = daily_capacity
         self.connection = sqlite3.connect(str(self.path), isolation_level=None)
         self.connection.row_factory = sqlite3.Row
-        # WAL permite que una lectura concurrente no bloquee al escritor y hace
-        # mas robusta la reanudacion tras una interrupcion.
+        # WAL evita que una lectura bloquee al escritor y facilita reanudar.
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=FULL")
         self.connection.executescript(SCHEMA)
@@ -113,10 +109,9 @@ class Ledger:
     ) -> tuple[dict[str, Any], bool]:
         """Confirma una decision de forma atomica.
 
-        Devuelve ``(registro, reservado)``. Toda la operacion -comprobar cupo,
-        incrementarlo e insertar la decision- ocurre dentro de una unica
-        transaccion. Si el proceso muere a mitad, el cupo no queda incrementado
-        con una decision sin registrar.
+        Devuelve ``(registro, reservado)``. Comprobar el cupo, incrementarlo e
+        insertar la decision ocurren en una sola transaccion, asi que una
+        interrupcion no deja cupo consumido sin decision registrada.
         """
         event_id = str(record["event_id"])
         day = int(record["dia"])
@@ -128,8 +123,7 @@ class Ledger:
         cursor = self.connection.cursor()
         cursor.execute("BEGIN IMMEDIATE")
         try:
-            # Releer dentro de la transaccion: entre la comprobacion previa y este
-            # punto otro intento pudo insertar el mismo evento.
+            # Se relee dentro de la transaccion por si otro intento inserto el evento.
             row = cursor.execute(
                 "SELECT * FROM decisiones WHERE event_id = ?", (event_id,)
             ).fetchone()
@@ -150,7 +144,7 @@ class Ledger:
                     reserved = True
 
             if reserve_review and not reserved:
-                # El cupo se agoto: la decision cae a la accion automatica mas barata.
+                # Sin cupo, la decision pasa a la accion automatica mas barata.
                 record = {**record, "accion": record["accion_overflow"],
                           "motivo": "overflow_cupo_menor_costo_esperado", "revision": 0}
 
@@ -221,10 +215,9 @@ class InProcessClient:
 
 @dataclass
 class HttpClient:
-    """Cliente del endpoint HTTP, usado tal cual contra el servicio remoto.
+    """Cliente del endpoint HTTP, local o en Cloud Run.
 
-    Es el mismo cliente que el equipo apunta al URL de Cloud Run: el ledger sigue
-    siendo local y autoritativo aunque el scoring ocurra en la nube.
+    El ledger sigue siendo local aunque el scoring ocurra en la nube.
     """
 
     endpoint: str
@@ -246,13 +239,11 @@ def version_switch_demo(
 ) -> dict[str, Any]:
     """Demuestra el cambio de versión activa y el rollback al paquete anterior.
 
-    Es una **prueba de contrato**, no una promoción de negocio aprobada: comprueba
-    que el registro conmuta de paquete, que la versión reportada cambia y que se
-    puede volver atrás. No afirma que el paquete nuevo sea mejor; eso lo decide el
-    gate sobre H y, después, una persona.
+    Es una prueba de contrato: comprueba que el registro cambia de paquete, que la
+    versión reportada cambia y que se puede volver atrás. Si el paquete nuevo es
+    mejor lo deciden el gate sobre H y una persona.
 
-    Si no hay una segunda versión disponible, se reporta así en vez de fabricar
-    una: el plan prohíbe completar ramas inventando evidencia.
+    Si no hay una segunda versión disponible, el resultado lo indica.
     """
     from .serving import PackageRegistry
 
@@ -304,23 +295,20 @@ def version_switch_demo(
         "p_tras_rollback": p_tras_rollback,
         "score_restaurado": abs(p_inicial - p_tras_rollback) < 1e-12,
         "naturaleza": "prueba_de_contrato",
-        "nota": ("Cambio técnico de paquete. NO es una promoción de negocio aprobada: "
-                 "esa requiere pasar el gate sobre H y autorización humana registrada."),
+        "nota": ("Cambio técnico de paquete. Una promoción de negocio requiere además "
+                 "pasar el gate sobre H y autorización humana registrada."),
     }
 
 
 def measure_inference_latency(
     package: dict[str, Any], frame: pd.DataFrame, *, warmup: int = 100, measured: int = 1000
 ) -> dict[str, Any]:
-    """Latencia de inferencia UNA FILA A LA VEZ, como la atenderia el endpoint.
+    """Latencia de inferencia de una fila por vez, como la atiende el endpoint.
 
-    Puntuar el lote completo y dividir daria un numero mucho mas bajo que lo que
-    experimenta una peticion real: la vectorizacion amortiza el coste fijo de
-    transformar y predecir. Esta funcion mide ese coste fijo, que es el que el
-    objetivo de p95 <= 300 ms pretende acotar.
-
-    El calentamiento importa: las primeras llamadas pagan la carga perezosa de
-    LightGBM y de los buffers de NumPy, y contarlas inflaria la cola alta.
+    Puntuar un lote y dividir ocultaria el costo fijo de transformar y predecir
+    cada peticion, que es lo que acota el objetivo de p95 <= 300 ms. Las primeras
+    llamadas cargan LightGBM y los buffers de NumPy, por eso se descartan como
+    calentamiento.
     """
     pipeline = package["pipeline"]
     estimator = package["estimator"]
@@ -366,15 +354,11 @@ def measure_inference_latency(
 
 
 def contract_fixtures(policy: Policy, cost_model: CostModel) -> pd.DataFrame:
-    """Casos sinteticos ROTULADOS para ejercitar ramas que el replay natural
-    puede no producir.
+    """Casos sinteticos rotulados para ejercitar ramas que el replay puede no producir.
 
-    El plan lo exige de forma explicita: si el dataset no genera las tres acciones
-    o una alerta, se completan con fixtures claramente identificados, y no se
-    cambia la politica ni se presentan como resultados de fraude.
-
-    Los casos se construyen a partir de los umbrales que la regla economica induce
-    en cada monto, de modo que ejercitan la decision real y no una aproximacion.
+    Se construyen con los umbrales que la regla economica induce para cada monto,
+    sin cambiar la politica, y se reportan separados de los resultados sobre datos
+    reales.
     """
     bajo = implied_thresholds(cost_model, 25.0, policy)
     alto = implied_thresholds(cost_model, 900.0, policy)
@@ -389,10 +373,8 @@ def contract_fixtures(policy: Policy, cost_model: CostModel) -> pd.DataFrame:
          "esperado": REVISAR},
         {"caso": "overflow_sin_cupo", "p_forzada": zona_gris, "monto": 400.0,
          "esperado": "automatica"},
-        # Monto cero: E[aprobar] = p*0 = 0 es siempre el minimo, asi que el caso
-        # nunca consume cupo. Con la regla anterior, de dos umbrales sobre p, caia
-        # en la zona de revision y si lo consumia. El fixture se conserva porque
-        # ahora comprueba que la decision usa el monto y no solo el score.
+        # Con monto cero E[aprobar] = 0 es siempre el minimo; el caso comprueba que
+        # la decision usa el monto y no solo el score.
         {"caso": "monto_cero", "p_forzada": zona_gris, "monto": 0.0, "esperado": APROBAR,
          "observacion": "E[aprobar]=0 domina; la regla economica no gasta cupo aqui"},
     ]
@@ -455,8 +437,7 @@ def run_replay(
     amounts = subset["TransactionAmt"].to_numpy()
     days = subset["dia"].to_numpy()
     costs = cost_model.expected_costs(calibrated, amounts)
-    # La regla real. Con `zone` el replay decidia por umbrales y sus revisiones
-    # eran solo el cupo diario, no las que la politica habria propuesto.
+    # `propose` aplica la regla economica completa; `zone` solo mira los umbrales.
     zones = policy.propose(calibrated, costs)
 
     latencies: list[float] = []
@@ -468,7 +449,7 @@ def run_replay(
         request_started = time.perf_counter()
 
         if http_client is not None:
-            # Contra el endpoint remoto: el cupo lo aporta el ledger local.
+            # Con endpoint remoto, el cupo lo aporta el ledger local.
             schema = package["pipeline"].schema()
             feature_columns = list(schema["numeric_columns"]) + list(schema["categorical_columns"])
             payload = {
@@ -511,8 +492,8 @@ def run_replay(
         latencies.append((time.perf_counter() - request_started) * 1000)
         records.append(dict(stored))
 
-    # Prueba de idempotencia: reenviar los primeros eventos no debe crear ni
-    # consumir nada nuevo.
+    # Idempotencia: reenviar los primeros eventos no debe crear decisiones ni
+    # consumir cupo.
     replayed = min(50, len(subset))
     quota_before = {d: ledger.remaining(d) for d in sorted(set(days[:replayed].tolist()))}
     for i in range(replayed):
@@ -534,9 +515,7 @@ def run_replay(
             probability = np.array([float(fixture["p_forzada"])])
             amount = np.array([float(fixture["monto"])])
             fixture_costs = cost_model.expected_costs(probability, amount)
-            # Se usa la regla real, no `zone`. Esta ultima ignora el monto y el
-            # precio del cupo, de modo que evaluaba los fixtures con una politica
-            # distinta de la que el servicio aplica.
+            # La misma regla que aplica el servicio, con monto y precio del cupo.
             proposed = str(policy.propose(probability, fixture_costs)[0])
             # El caso de overflow se fuerza sin cupo para ejercitar esa rama.
             no_quota = fixture["caso"] == "overflow_sin_cupo"
@@ -575,11 +554,11 @@ def run_replay(
         "tres_acciones_en_datos_reales": len(
             {APROBAR, REVISAR, BLOQUEAR} & set(action_counts)
         ) == 3,
-        # Latencia POR PETICION, una fila a la vez, como la serviria el endpoint.
-        # Es la cifra que debe compararse con el objetivo de p95 <= 300 ms.
+        # Latencia por peticion, una fila a la vez, comparable con el objetivo de
+        # p95 <= 300 ms.
         "latencia_ms": inference,
-        # El commit al ledger se mide aparte: el replay puntua el lote por
-        # adelantado, asi que mezclar ambas daria una latencia irrealmente baja.
+        # El commit al ledger se mide aparte porque el replay puntua el lote por
+        # adelantado.
         "latencia_ledger_ms": {
             "p50": float(np.percentile(ledger_array, 50)),
             "p95": float(np.percentile(ledger_array, 95)),

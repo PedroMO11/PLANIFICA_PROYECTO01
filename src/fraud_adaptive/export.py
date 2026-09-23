@@ -1,13 +1,11 @@
-"""Exportacion del informe a PDF con limite estricto de paginas.
+"""Exportacion del informe a PDF con un limite de paginas.
 
-El enunciado fija un maximo de OCHO paginas incluyendo referencias. El limite se
-verifica sobre el PDF generado: si se excede, la exportacion falla en vez de
-entregar un documento fuera de norma.
+El enunciado fija un maximo de ocho paginas, incluidas las referencias. El limite
+se verifica sobre el PDF generado y, en modo estricto, la exportacion falla si se
+excede.
 
-Ruta de conversion: Markdown -> HTML con estilos de impresion -> PDF via el motor
-headless de un navegador instalado. Se prefiere a una libreria de PDF porque
-respeta el control de saltos de pagina de CSS, que es lo que permite ajustar el
-documento al limite sin reescribir el contenido.
+La conversion va de Markdown a HTML con estilos de impresion y de ahi a PDF con el
+motor headless de un navegador, que respeta los saltos de pagina definidos en CSS.
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ LOGGER = logging.getLogger("fraud_adaptive.export")
 
 MAX_PAGES = 8
 
-# Motores headless, en orden de preferencia. El primero que exista se usa.
+# Motores headless en orden de preferencia.
 BROWSER_CANDIDATES = [
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
@@ -52,8 +50,7 @@ h1 { font-size: 15pt; margin: 0 0 3pt; color: #0b0b0b; letter-spacing: -0.2pt; }
 h2 {
   font-size: 10.2pt; margin: 0 0 5pt; padding-top: 4pt; color: #0b0b0b;
   border-top: 1.4pt solid #2a78d6;
-  /* Cada pagina del informe empieza en una H2: el salto lo fija el contenido,
-     no el azar del flujo de texto. */
+  /* Cada seccion H2 empieza en una pagina nueva. */
   break-before: page; page-break-before: always;
 }
 h2:first-of-type { break-before: avoid; page-break-before: avoid; }
@@ -88,10 +85,7 @@ blockquote {
   break-inside: avoid; page-break-inside: avoid;
 }
 blockquote p { margin-bottom: 3pt; }
-/* Altura generosa: las figuras son paneles 2x2 o 1x3 con ejes y leyendas. Con un
-   tope bajo se encogen hasta que su texto deja de leerse en papel, que es peor
-   que gastar espacio vertical. Las paginas tienen holgura porque cada H2 empieza
-   uno nuevo. */
+/* Las figuras son paneles 2x2 o 1x3; esta altura mantiene legibles sus ejes. */
 img { max-width: 100%; max-height: 72mm; display: block; margin: 5pt auto; }
 em { color: #52514e; }
 hr { border: none; border-top: 0.6pt solid #e3e2de; margin: 6pt 0; }
@@ -119,8 +113,7 @@ def markdown_to_html(markdown_text: str, *, base_dir: Path, title: str) -> str:
         extensions=["tables", "fenced_code", "attr_list", "sane_lists"],
         output_format="html5",
     )
-    # Las imagenes se referencian como file:// absoluto: el motor headless no
-    # resuelve rutas relativas al HTML temporal.
+    # Rutas file:// absolutas, porque el motor headless no resuelve rutas relativas.
     body = body.replace('src="figures/', 'src="%s/figures/' % base_dir.resolve().as_uri())
     return (
         "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n"
@@ -163,13 +156,13 @@ def count_pdf_pages(pdf_path: Path) -> int | None:
         with pymupdf.open(pdf_path) as document:
             return document.page_count
     except ImportError:
-        # Recuento de emergencia sin dependencias: cuenta objetos /Type /Page.
+        # Sin pymupdf se cuentan los objetos /Type /Page.
         try:
             raw = pdf_path.read_bytes()
             return raw.count(b"/Type /Page") - raw.count(b"/Type /Pages")
         except OSError:
             return None
-    except Exception:  # noqa: BLE001 - el recuento no debe tumbar la exportacion
+    except Exception:  # noqa: BLE001 - un fallo del recuento no detiene la exportacion
         return None
 
 
@@ -183,9 +176,7 @@ def export_report(
 ) -> dict[str, Any]:
     """Exporta el informe y verifica el limite de paginas.
 
-    Con ``strict``, exceder el limite es un error: el enunciado fija ocho paginas
-    incluyendo referencias, y entregar nueve no es una opcion que dependa de una
-    revision posterior.
+    Con ``strict``, exceder el limite de ocho paginas del enunciado es un error.
     """
     markdown_path = Path(markdown_path)
     pdf_path = Path(pdf_path)
@@ -216,8 +207,7 @@ def export_report(
         message = "El PDF tiene %d paginas y el maximo es %d" % (pages, max_pages)
         if strict:
             raise ValueError(
-                message + ". Reduce densidad o figuras redundantes; no se entrega "
-                "un documento fuera de norma."
+                message + ". Hay que reducir texto o figuras antes de entregar."
             )
         LOGGER.warning(message)
     return result

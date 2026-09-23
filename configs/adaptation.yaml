@@ -1,12 +1,11 @@
-# Experimento central de olvido por ventanas fijas. F4 del plan.
+# Experimento de adaptacion: estrategias evaluadas sobre los mismos eventos.
 
 # Cada ventana reserva 14 dias para calibracion y validacion, de modo que el
 # predictor entrena con window_days - 14.
 #
 # El bloque de volumen variable mide el efecto del tamano del training set.
-# El bloque de antiguedad variable mantiene 46 dias de fit constantes y solo mueve
-# el punto de corte, que es la unica forma de medir la frescura sin confundirla
-# con el tamano de muestra.
+# El bloque de antiguedad variable mantiene 46 dias de fit y mueve el punto de
+# corte, para medir la frescura por separado del tamano de muestra.
 strategies:
   # Referencias
   - {name: S0,  kind: static,    window_days: null, role: referencia}
@@ -58,7 +57,7 @@ detectors:
 
   analyst:                          # S3
     simulated: true
-    only_after_maturity: true       # C28
+    only_after_maturity: true       # el veredicto se calcula al madurar la etiqueta
     usable_as_ground_truth: false
 
   adwin:
@@ -79,8 +78,8 @@ bootstrap:
   block_days: 7                     # bloques contiguos, remuestreo pareado
   confidence: 0.95
 
-# El benchmark nocturno usa autorizacion humana previa y enumerada (C23).
-# Ninguna alerta despliega por si sola: alerta -> recomendacion -> gate humano.
+# La corrida offline usa una autorizacion humana previa que enumera sus tareas.
+# Una alerta produce una recomendacion, que pasa por el gate humano.
 authorization:
   require_manifest: true
   simulated_promotions_labeled: true

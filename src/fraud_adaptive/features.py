@@ -1,35 +1,23 @@
-"""Features causales de historial por entidad, con correccion point-in-time.
+"""Features causales de historial por entidad.
 
-La regla que gobierna este modulo
----------------------------------
-Las features de un evento se calculan con el estado ANTERIOR a ese evento y se
-emiten ANTES de incorporarlo al historial. Nunca se usa la fila actual ni ningun
-evento posterior.
+Las features de un evento se calculan con el estado anterior a ese evento y se
+emiten antes de incorporarlo al historial, sin usar la fila actual ni eventos
+posteriores.
 
-El caso que suele romper una implementacion ingenua son los EMPATES de tiempo. Si
-dos transacciones comparten ``TransactionDT``, procesarlas en secuencia haria que
-la segunda viera a la primera, y su feature dependeria del orden arbitrario de
-desempate. Aqui se procesan por grupos de tiempo identico: todo el grupo lee el
-mismo pasado y solo despues se actualiza el estado. Eso hace que permutar los IDs
-empatados deje las features bit a bit iguales, que es lo que verifica
-``tests/test_point_in_time_features.py``.
+Las transacciones con el mismo ``TransactionDT`` se procesan como grupo: todas leen
+el mismo pasado y el estado se actualiza despues. Asi, permutar los IDs empatados
+deja las features iguales, como verifica ``tests/test_point_in_time_features.py``.
 
-Entidades
----------
-IEEE-CIS esta anonimizado y no trae un identificador de cliente. Se construyen tres
-PROXIES y se mide su calidad en lugar de asumirla:
+IEEE-CIS no trae identificador de cliente, por lo que se construyen tres proxies:
 
-* ``card_proxy``: card1..card6 + addr1. Clave gruesa, por emisor.
-* ``cliente_proxy``: card1 + addr1 + D1n, con ``D1n`` el dia de alta de la
-  tarjeta. Clave fina, por tarjeta individual.
-* ``device_proxy``: DeviceType + DeviceInfo (solo con identidad presente).
+* ``card_proxy``: card1 a card6 y addr1; clave gruesa, por emisor.
+* ``cliente_proxy``: card1, addr1 y D1n, con ``D1n`` el dia de alta de la tarjeta;
+  clave fina, por tarjeta.
+* ``device_proxy``: DeviceType y DeviceInfo, solo con identidad presente.
 
-Las dos claves de tarjeta conviven porque resuelven la misma entidad a granularidad
-distinta y los historiales resultantes son complementarios, no redundantes.
-
-Un proxy no es una persona. Dos clientes pueden colisionar en la misma clave y un
-cliente puede aparecer con varias. Por eso ``proxy_quality`` reporta cardinalidad
-y tasa de colision, y el informe habla de proxies, no de clientes.
+Las dos claves de tarjeta describen la misma entidad a distinta granularidad y sus
+historiales se complementan. Un proxy puede reunir a varias personas o repartir a
+una entre varias claves; ``proxy_quality`` reporta su cardinalidad y concentracion.
 """
 
 from __future__ import annotations
@@ -52,31 +40,26 @@ HISTORY_WINDOWS: dict[str, int] = {
     "7d": 7 * 86_400,
 }
 
-# Columnas que el predictor NUNCA puede ver.
+# Columnas excluidas del predictor.
 #
-# TransactionID memorizaria filas concretas. TransactionDT, s_rel, dia y semana son
-# tiempo absoluto: un arbol podria partir en "dia > 120" y aprender el bloque de
-# test en lugar del fenomeno. La hora ciclica si se permite porque es estacional y
-# se repite, no identifica un instante del calendario.
+# TransactionID permitiria memorizar filas. TransactionDT, s_rel, dia y semana son
+# tiempo absoluto: un arbol podria separar por "dia > 120" y aprender el bloque de
+# test. La hora se usa solo en su codificacion ciclica (hora_sin, hora_cos).
 FORBIDDEN_PREDICTOR_COLUMNS: frozenset[str] = frozenset({
     "TransactionID", "TransactionDT", "s_rel", "dia", "semana", "hora",
     "isFraud", "available_at", "card_proxy", "cliente_proxy", "device_proxy",
 })
 
-# Sufijos prohibidos para el predictor.
+# Sufijos excluidos del predictor.
 #
-# Un conteo expansivo acumula desde el primer evento, de modo que crece de forma
-# monotona con el calendario y funciona como sustituto del dia absoluto. Medido
-# sobre IEEE-CIS, la media de `card_cnt_expansivo` pasa de 138,8 en [0,60) a 707,4
-# en [150,182), con una correlacion de +0,23 con el dia. Una validacion adversarial
-# por feature le asigna AUC 0,71, el valor mas alto de las 425 columnas del panel.
+# Un conteo expansivo acumula desde el primer evento y crece con el calendario, asi
+# que actua como sustituto del dia absoluto. En IEEE-CIS la media de
+# `card_cnt_expansivo` pasa de 138,8 en [0,60) a 707,4 en [150,182), y la validacion
+# adversarial le asigna AUC 0,71, el mas alto de las 425 columnas del panel. Las
+# ventanas acotadas de 1 h, 24 h y 7 d no tienen ese problema: `card_cnt_7d` tiene
+# una correlacion de -0,009 con el dia.
 #
-# Dejarlo dentro del predictor contradice la prohibicion de tiempo absoluto y hace
-# que la comparacion entre ventanas dependa de cuan lejos quede el rango de
-# entrenamiento del rango de test. Las ventanas acotadas de 1 h, 24 h y 7 d no
-# tienen el problema: la correlacion con el dia es de -0,009 para `card_cnt_7d`.
-#
-# Las columnas se siguen calculando porque son utiles como diagnostico.
+# Las columnas se siguen calculando como diagnostico.
 FORBIDDEN_PREDICTOR_SUFFIXES: tuple[str, ...] = ("_expansivo",)
 
 
@@ -85,10 +68,10 @@ FORBIDDEN_PREDICTOR_SUFFIXES: tuple[str, ...] = ("_expansivo",)
 def build_card_proxy(frame: pd.DataFrame) -> pd.Series:
     """Clave de emisor, encadenando ``card1`` a ``card6`` mas ``addr1``.
 
-    Agrupa por atributos del medio de pago: numero de emisor, tipo, red y region.
-    Es una clave GRUESA. Sobre IEEE-CIS produce 43 018 entidades con 13,7 eventos
-    de media, de modo que sus ventanas de 24 h y 7 d casi siempre tienen soporte.
-    A cambio, una misma clave mezcla tarjetas distintas del mismo emisor.
+    Agrupa por atributos del medio de pago: emisor, tipo, red y region. En IEEE-CIS
+    produce 43 018 entidades con 13,7 eventos de media, de modo que sus ventanas de
+    24 h y 7 d casi siempre tienen soporte, a costa de mezclar tarjetas del mismo
+    emisor.
     """
     columns = [c for c in ("card1", "card2", "card3", "card4", "card5", "card6", "addr1")
                if c in frame.columns]
@@ -103,24 +86,19 @@ def build_card_proxy(frame: pd.DataFrame) -> pd.Series:
 def build_client_proxy(frame: pd.DataFrame, *, time_col: str = "TransactionDT") -> pd.Series:
     """Clave de cliente, construida como ``card1 + addr1 + D1n``.
 
-    ``D1`` mide los dias transcurridos desde que la tarjeta empezo a usarse, de modo
-    que ``D1n = dia - D1`` identifica el dia de alta. Dos transacciones con el mismo
-    ``card1``, el mismo ``addr1`` y la misma fecha de alta pertenecen casi siempre a
-    la misma tarjeta. Es la clave FINA: 217 850 entidades con 2,71 eventos de media.
+    ``D1`` mide los dias desde que la tarjeta empezo a usarse, asi que
+    ``D1n = dia - D1`` aproxima el dia de alta. Transacciones con el mismo ``card1``,
+    ``addr1`` y fecha de alta pertenecen casi siempre a la misma tarjeta. En
+    IEEE-CIS produce 217 850 entidades con 2,71 eventos de media.
 
-    Las dos claves no compiten, se complementan. Por separado rinden igual, con AP
-    de 0,1668 y 0,1671 sobre un test temporal usando solo features de historial.
-    Juntas rinden 0,1829, porque la gruesa aporta soporte estadistico y la fina
-    aporta resolucion por tarjeta. Por eso el panel emite ambos historiales.
+    Usando solo features de historial, cada clave alcanza un AP de 0,1668 y 0,1671,
+    y ambas juntas 0,1829; por eso el panel emite los dos historiales.
 
-    ``D1n`` no introduce tiempo absoluto en el predictor. Es una constante por
-    tarjeta, no una funcion creciente del calendario, y ademas solo se usa para
-    agrupar: la clave nunca entra al modelo.
+    ``D1n`` es constante por tarjeta y solo se usa para agrupar; la clave no entra al
+    modelo.
 
-    El dia se deriva aqui de ``TransactionDT`` y no de la columna ``dia``. Esta
-    ultima se mide desde el primer evento del frame, de modo que una misma tarjeta
-    recibiria claves distintas segun el rango que se este procesando. El dia
-    absoluto es estable entre llamadas y produce exactamente la misma agrupacion.
+    El dia se deriva de ``TransactionDT`` y no de la columna ``dia``, que se mide
+    desde el primer evento del frame y cambiaria la clave segun el rango procesado.
     """
     if "card1" not in frame.columns:
         return pd.Series(["desconocida"] * len(frame), index=frame.index, dtype="object")
@@ -142,10 +120,9 @@ def build_client_proxy(frame: pd.DataFrame, *, time_col: str = "TransactionDT") 
 
 
 def build_device_proxy(frame: pd.DataFrame) -> pd.Series:
-    """Clave de dispositivo. Sin identidad no hay entidad: queda ``None``.
+    """Clave de dispositivo, ``None`` cuando no hay identidad.
 
-    Marcarla como ausente y no como una categoria propia evita que todas las
-    transacciones sin identidad compartan un historial comun inexistente.
+    Asi las transacciones sin identidad no comparten un historial comun.
     """
     columns = [c for c in ("DeviceType", "DeviceInfo") if c in frame.columns]
     if not columns:
@@ -161,11 +138,7 @@ def build_device_proxy(frame: pd.DataFrame) -> pd.Series:
 
 
 def proxy_quality(frame: pd.DataFrame, proxy_column: str) -> dict[str, Any]:
-    """Cardinalidad y concentracion del proxy.
-
-    Se reporta para poder decir en el informe cuanto se parece el proxy a una
-    entidad real, en vez de afirmarlo.
-    """
+    """Cardinalidad y concentracion del proxy."""
     series = frame[proxy_column].dropna()
     if series.empty:
         return {"proxy": proxy_column, "n_entidades": 0, "cobertura": 0.0}
@@ -187,11 +160,10 @@ def proxy_quality(frame: pd.DataFrame, proxy_column: str) -> dict[str, Any]:
 
 @dataclass
 class _EntityState:
-    """Historial append-only de una entidad, con punteros por ventana.
+    """Historial de una entidad con un puntero por ventana.
 
-    Los eventos llegan en orden temporal, asi que cada puntero solo avanza: el
-    costo amortizado por evento es O(1) y no O(n) como lo seria re-escanear la
-    ventana en cada fila.
+    Como los eventos llegan en orden temporal, cada puntero solo avanza y el costo
+    amortizado por evento es O(1).
     """
 
     times: list[float] = field(default_factory=list)
@@ -260,12 +232,10 @@ def compute_history_features(
     mismo timestamp, emite las features de todo el grupo contra el estado previo y
     solo entonces incorpora el grupo al historial.
 
-    Dentro de un grupo empatado, la INCORPORACION al historial sigue el orden del
-    identificador, no el orden de las filas. Los agregados (conteo, suma) son
-    invariantes a ese orden, pero el rezago y el tiempo desde el ultimo evento no:
-    dependen de cual fue "el ultimo" entre eventos simultaneos, que es ambiguo. Al
-    canonicalizar por ID, la invariancia frente a permutaciones de empatados pasa a
-    ser una propiedad de esta funcion y no algo que el llamador deba recordar.
+    Dentro de un grupo empatado, los eventos se incorporan al historial en orden de
+    identificador. Los conteos y sumas no dependen de ese orden, pero el rezago y el
+    tiempo desde el ultimo evento si; ordenar por ID hace que el resultado no cambie
+    al permutar filas empatadas.
     """
     entity_columns = entity_columns or {
         "card": "card_proxy", "cliente": "cliente_proxy", "device": "device_proxy",
@@ -300,7 +270,7 @@ def compute_history_features(
         while end < n_rows and times[end] == current_time:
             end += 1
 
-        # 1) EMITIR: todo el grupo lee el mismo estado previo.
+        # 1) Emitir: todo el grupo lee el mismo estado previo.
         for row in range(start, end):
             for prefix, values in entity_values.items():
                 key = values[row]
@@ -314,9 +284,8 @@ def compute_history_features(
                 for suffix, value in snapshot.items():
                     output[row, column_index[prefix + "_" + suffix]] = value
 
-        # 2) ACTUALIZAR: solo despues de emitir el grupo completo, y en orden
-        #    canonico de identificador para que el rezago no dependa de como
-        #    llegaron ordenadas las filas empatadas.
+        # 2) Actualizar, despues de emitir el grupo completo y en orden de
+        #    identificador.
         push_order = range(start, end)
         if end - start > 1 and identifiers is not None:
             push_order = sorted(push_order, key=lambda r: identifiers[r])
@@ -333,11 +302,7 @@ def compute_history_features(
 
 
 def add_derived_features(frame: pd.DataFrame, *, amount_col: str = "TransactionAmt") -> pd.DataFrame:
-    """Transformaciones puntuales que no dependen de otras filas.
-
-    Son seguras respecto de la causalidad porque cada una se calcula con la propia
-    fila: no hay agregado, ni estadistico global, ni ajuste que mire el futuro.
-    """
+    """Transformaciones que usan solo la propia fila o features ya causales."""
     out = frame.copy()
     out["monto_log"] = np.log1p(out[amount_col].clip(lower=0))
     # Cuanto se desvia el monto de lo habitual en esa entidad, en escala log.
@@ -363,9 +328,7 @@ def build_feature_panel(
 ) -> tuple[list[str], list[str]]:
     """Separa las columnas utilizables en numericas y categoricas.
 
-    Devuelve ``(numericas, categoricas)``. Aplica la lista negra de columnas
-    prohibidas para el predictor, de modo que la exclusion sea una propiedad del
-    codigo y no un recordatorio en la documentacion.
+    Devuelve ``(numericas, categoricas)`` sin las columnas excluidas del predictor.
     """
     forbidden = set(FORBIDDEN_PREDICTOR_COLUMNS) | set(extra_forbidden) | {target}
     numeric: list[str] = []
@@ -391,7 +354,7 @@ def assert_no_forbidden_features(columns: Sequence[str], *, extra_forbidden: Ite
     if present:
         raise ValueError(
             "Columnas prohibidas en el panel del predictor: %s. "
-            "Permitirlas dejaria al modelo memorizar identificadores o tiempo absoluto." % present
+            "El modelo podria memorizar identificadores o tiempo absoluto." % present
         )
 
 
@@ -403,8 +366,7 @@ def prepare_features(
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Pipeline completo de features: proxies, historial causal y derivadas.
 
-    Es la unica puerta de entrada usada por el resto del sistema, para que no
-    existan dos caminos con reglas de causalidad distintas.
+    Es el unico punto de entrada que usa el resto del sistema.
     """
     out = frame.copy()
     out["card_proxy"] = build_card_proxy(out)

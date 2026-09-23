@@ -1,9 +1,8 @@
 """Etiquetas tardias: nada puede depender de una etiqueta aun inmadura.
 
-La propiedad central es negativa y por eso se prueba mutando: si se cambia el
-valor de una etiqueta que todavia no ha madurado, NINGUNA salida del sistema
--transformaciones, predictor, calibrador, umbrales o la p emitida- puede moverse.
-Si algo cambia, hay fuga.
+Se prueba mutando: si cambia el valor de una etiqueta que todavia no madura,
+ninguna salida del sistema (transformaciones, predictor, calibrador, umbrales o la
+p emitida) debe moverse.
 """
 
 from __future__ import annotations
@@ -45,7 +44,7 @@ def test_mutar_etiquetas_inmaduras_no_cambia_el_predictor(prepared_frame):
     model_a = fit_model("lightgbm", CONFIG, BASE, prepared_frame.loc[mask], labels[mask],
                         NUMERIC, CATEGORICAL, seed=42, n_threads=2)
 
-    # Se invierten TODAS las etiquetas aun inmaduras en el cutoff.
+    # Se invierten todas las etiquetas aun inmaduras en el cutoff.
     mutated = labels.copy()
     immature = ~label_eligible(days, cutoff, delay)
     mutated[immature] = 1 - mutated[immature]
@@ -103,7 +102,7 @@ def test_la_accion_emitida_no_depende_de_la_etiqueta(cost_model):
 
 
 def test_el_veredicto_del_analista_no_altera_decisiones_previas(cost_model):
-    """C28: el desenlace simulado se calcula al madurar, sin reescribir la accion."""
+    """El desenlace simulado se calcula al madurar, sin reescribir la accion."""
     n = 100
     policy = Policy(tau_low=0.0, tau_high=1.1, daily_capacity=n)
     decisions = decide_batch(np.full(n, 0.5), np.full(n, 100.0), np.zeros(n, dtype=int),

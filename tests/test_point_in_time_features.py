@@ -1,8 +1,7 @@
 """Las features solo pueden mirar al pasado estricto.
 
-Cada prueba ataca una forma concreta en que una implementacion ingenua filtra
-futuro. Son las que justifican la afirmacion de causalidad del informe; sin ellas,
-esa afirmacion seria solo una intencion documentada.
+Cada prueba cubre una forma concreta en que el futuro podria filtrarse a las
+features, y respalda la afirmacion de causalidad del informe.
 """
 
 from __future__ import annotations

@@ -1,17 +1,11 @@
-"""Las tres familias de metricas del contrato: tecnicas, de decision y sociales.
+"""Metricas tecnicas, de decision y sociales.
 
-Criterios que el modulo respeta
--------------------------------
-* **PR-AUC se implementa como Average Precision.** AP es la suma
-  ``sum (R_n - R_{n-1}) * P_n``, sin interpolacion trapezoidal. Mezclar ambas
-  convenciones produce diferencias de varios puntos en datos desbalanceados, y el
-  plan exige continuidad con el benchmark historico.
-* **Un objetivo puede incumplirse.** ``recall_at_fpr`` y ``recall_at_precision``
-  devuelven el nivel REALMENTE obtenido junto al recall. Si no existe umbral que
-  satisfaga la restriccion, devuelven N/A con motivo, nunca una cifra inventada.
-* **Soporte insuficiente es un resultado.** Las funciones por segmento marcan
-  ``evidencia_insuficiente`` en vez de publicar una brecha calculada sobre 30
-  filas.
+* PR-AUC se calcula como Average Precision, ``sum (R_n - R_{n-1}) * P_n``, sin
+  interpolacion trapezoidal, igual que en el benchmark de seleccion del dataset.
+* Las metricas con restriccion (recall a FPR fijo o a precision fija) devuelven el
+  nivel obtenido junto al recall, y N/A con motivo si ningun umbral la cumple.
+* Las metricas por segmento marcan ``evidencia_insuficiente`` cuando el grupo no
+  alcanza el soporte minimo.
 """
 
 from __future__ import annotations
@@ -43,11 +37,9 @@ def average_precision(labels: np.ndarray, scores: np.ndarray) -> float:
 
 
 def skill_score(ap: float, prevalence: float) -> float:
-    """AP normalizado contra el clasificador aleatorio.
+    """AP normalizado contra el clasificador aleatorio, cuyo AP es la prevalencia.
 
-    El AP de un clasificador sin informacion es la prevalencia. Con prevalencias
-    que varian entre bloques, comparar AP crudos puede confundir un cambio de tasa
-    base con un cambio de calidad; el skill separa ambas cosas.
+    Permite comparar bloques con prevalencias distintas.
     """
     if not np.isfinite(ap) or not np.isfinite(prevalence) or prevalence >= 1.0:
         return NA
@@ -73,11 +65,7 @@ def confusion_at_threshold(labels: np.ndarray, scores: np.ndarray, threshold: fl
 
 
 def f1_at_threshold(labels: np.ndarray, scores: np.ndarray, threshold: float) -> dict[str, float]:
-    """F1, precision, recall y balanced accuracy en un umbral declarado.
-
-    El umbral se pasa explicitamente y nunca se asume 0.5: en este problema el
-    umbral lo fija la politica economica, no una convencion.
-    """
+    """F1, precision, recall y balanced accuracy en un umbral declarado."""
     matrix = confusion_at_threshold(labels, scores, threshold)
     tp, fp, tn, fn = matrix["tp"], matrix["fp"], matrix["tn"], matrix["fn"]
     precision = tp / (tp + fp) if (tp + fp) else NA
@@ -95,22 +83,21 @@ def f1_at_threshold(labels: np.ndarray, scores: np.ndarray, threshold: float) ->
 
 
 def threshold_for_fpr(labels: np.ndarray, scores: np.ndarray, target_fpr: float) -> dict[str, Any]:
-    """Umbral mas bajo cuyo FPR no supera el objetivo (maximiza recall).
+    """Umbral mas bajo cuyo FPR no supera el objetivo, lo que maximiza el recall.
 
-    Se elige en VALIDACION y se aplica congelado al test. El FPR obtenido en test
-    puede incumplir el objetivo si la distribucion cambio: eso se reporta, no se
-    corrige moviendo el umbral.
+    Se elige en validacion y se aplica sin cambios al test, donde se reporta el FPR
+    que efectivamente se obtiene.
     """
     labels = np.asarray(labels)
     scores = np.asarray(scores, dtype=float)
     negatives = scores[labels == 0]
     if negatives.size == 0:
         return {"umbral": NA, "motivo": "sin_negativos"}
-    # Cuantil (1 - fpr) de los negativos: por construccion deja <= fpr por encima.
+    # El cuantil (1 - fpr) de los negativos deja como maximo esa fraccion por encima.
     threshold = float(np.quantile(negatives, 1.0 - target_fpr))
     achieved = float(np.mean(negatives >= threshold))
     if achieved > target_fpr:
-        # Empates masivos en el score pueden impedir alcanzar el objetivo exacto.
+        # Con muchos empates en el score el cuantil puede no alcanzar el objetivo.
         candidates = np.unique(negatives[negatives >= threshold])
         for candidate in candidates:
             if float(np.mean(negatives >= candidate)) <= target_fpr:
@@ -121,10 +108,9 @@ def threshold_for_fpr(labels: np.ndarray, scores: np.ndarray, target_fpr: float)
 
 
 def threshold_for_precision(labels: np.ndarray, scores: np.ndarray, target_precision: float) -> dict[str, Any]:
-    """Umbral mas bajo que alcanza la precision objetivo, para maximizar recall.
+    """Umbral mas bajo que alcanza la precision objetivo, para maximizar el recall.
 
-    Si ninguno la alcanza, devuelve N/A con motivo. El plan prohibe explicitamente
-    reportar una precision ficticia.
+    Si ningun umbral la alcanza devuelve N/A con el motivo.
     """
     labels = np.asarray(labels)
     scores = np.asarray(scores, dtype=float)
@@ -157,7 +143,7 @@ def threshold_for_precision(labels: np.ndarray, scores: np.ndarray, target_preci
 def recall_at_constraint(
     labels: np.ndarray, scores: np.ndarray, threshold: float, *, kind: str
 ) -> dict[str, Any]:
-    """Recall en un umbral congelado, junto al FPR o la precision REALMENTE obtenidos."""
+    """Recall en un umbral fijo, junto al FPR y la precision obtenidos."""
     if not np.isfinite(threshold):
         return {"recall": NA, "motivo": "umbral_no_disponible", "restriccion": kind}
     stats = f1_at_threshold(labels, scores, threshold)
@@ -263,8 +249,8 @@ def decision_metrics(outcomes: pd.DataFrame, *, analyst_hours_rate: float = 10.0
 def legitimate_block_rate(outcomes: pd.DataFrame) -> dict[str, Any]:
     """Tasa de bloqueo de clientes legitimos.
 
-    Distinta del FPR del clasificador: aqui cuenta el desenlace del SISTEMA,
-    incluidas las legitimas que el analista bloqueo por error.
+    A diferencia del FPR del clasificador, mide el desenlace del sistema e incluye
+    las legitimas que el analista bloqueo por error.
     """
     legit = outcomes[outcomes["y"] == 0]
     if legit.empty:
@@ -291,11 +277,9 @@ def segment_disparity(
 ) -> pd.DataFrame:
     """Bloqueo de legitimas por grupo, con soporte, intervalos y alerta de brecha.
 
-    Los grupos con soporte insuficiente se conservan en la tabla marcados como
-    ``evidencia_insuficiente``: ocultarlos daria una falsa impresion de cobertura.
-
-    Esto es disparidad OPERATIVA por variables de negocio. IEEE-CIS no contiene
-    atributos protegidos verificables, asi que no es una auditoria demografica.
+    Los grupos con soporte insuficiente se conservan marcados como
+    ``evidencia_insuficiente``. Los segmentos son variables de negocio, porque
+    IEEE-CIS no contiene atributos protegidos.
     """
     frame = outcomes.copy()
     frame["_segmento"] = segment_values.fillna("desconocido").astype(str).to_numpy()
@@ -354,12 +338,9 @@ def block_bootstrap_ci(
 ) -> dict[str, float]:
     """Intervalo por remuestreo de bloques contiguos de dias.
 
-    El bootstrap i.i.d. sobre filas seria demasiado optimista: dentro de una semana
-    los eventos comparten regimen y no son independientes. Remuestrear BLOQUES de 7
-    dias preserva esa correlacion.
-
-    Es un intervalo DESCRIPTIVO de una sola semilla. No mide variabilidad entre
-    semillas ni entre inicializaciones del modelo.
+    Los eventos de una misma semana comparten regimen, asi que un bootstrap por
+    filas daria intervalos demasiado estrechos. El intervalo describe una corrida y
+    no incluye la variabilidad entre semillas de entrenamiento.
     """
     values = np.asarray(values, dtype=float)
     days = np.asarray(days)
@@ -402,11 +383,10 @@ def paired_block_bootstrap(
     confidence: float = 0.95,
     seed: int = 42,
 ) -> dict[str, float]:
-    """Intervalo de la DIFERENCIA a-b remuestreando los mismos bloques para ambas.
+    """Intervalo de la diferencia a-b remuestreando los mismos bloques para ambas.
 
-    El pareo es esencial: dos estrategias evaluadas sobre los mismos eventos
-    comparten el ruido del periodo. Remuestrearlas por separado inflaria el
-    intervalo y ocultaria diferencias reales.
+    Dos estrategias evaluadas sobre los mismos eventos comparten el ruido del
+    periodo; remuestrearlas por separado ensancharia el intervalo.
     """
     values_a = np.asarray(values_a, dtype=float)
     values_b = np.asarray(values_b, dtype=float)
@@ -428,7 +408,7 @@ def metrics_by_period(
     threshold_fpr: float = NA,
     threshold_precision: float = NA,
 ) -> pd.DataFrame:
-    """Serie temporal de metricas, para ver la degradacion en vez de afirmarla."""
+    """Serie temporal de metricas por periodo."""
     rows = []
     for period, group in outcomes.groupby(period_column, sort=True):
         labels = group["y"].to_numpy()

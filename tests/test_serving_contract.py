@@ -1,8 +1,7 @@
 """Contrato del servicio HTTP.
 
-Se comprueba lo que el servicio debe RECHAZAR tanto como lo que debe responder:
-sin paquete valido no decide, no acepta la etiqueta y no acepta un esquema que no
-sea el suyo.
+Se comprueba lo que el servicio responde y lo que rechaza: sin paquete valido no
+decide, no acepta la etiqueta como entrada y no acepta otro esquema.
 """
 
 from __future__ import annotations
@@ -121,7 +120,7 @@ def test_predict_devuelve_el_contrato_completo(client):
 
 
 def test_sin_paquete_valido_responde_503():
-    """C21: nunca se decide un pago sin modelo. 503, no una accion por defecto."""
+    """Sin modelo el servicio responde 503 y no decide el pago."""
     client = TestClient(create_app(package_dir=None, configs=CONFIGS))
     response = client.post("/predict", json=_payload())
     assert response.status_code == 503
@@ -204,9 +203,8 @@ def test_paridad_entre_el_servicio_y_el_calculo_offline(client, package_dir):
     assert body["p_raw"] == pytest.approx(offline_raw, rel=1e-9)
     assert body["p_calibrated"] == pytest.approx(offline_calibrated, rel=1e-9)
 
-    # La paridad de probabilidad no basta. El servicio debe emitir la MISMA accion
-    # que el calculo offline: comparar solo `p` dejo pasar que el servicio decidiera
-    # por umbrales mientras el backtest decidia por costo esperado.
+    # Ademas de la probabilidad, el servicio debe emitir la misma accion y los
+    # mismos costos esperados que el calculo offline.
     from fraud_adaptive.decision import CostModel, Policy, policy_from_dict
 
     policy = policy_from_dict(

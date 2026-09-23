@@ -1,23 +1,18 @@
 """Politica de alertas, escalamiento y observabilidad del servicio.
 
-Principio que gobierna el modulo
---------------------------------
-NO existe la cadena ``alerta -> deploy``. Una senal genera, como maximo, una
-RECOMENDACION dirigida a una persona. El reentrenamiento y la promocion requieren
-autorizacion humana registrada, incluso cuando todos los gates tecnicos pasan.
+Una senal genera como maximo una recomendacion dirigida a una persona; el
+reentrenamiento y la promocion requieren autorizacion humana registrada aunque
+todos los gates tecnicos pasen.
 
-Escalamiento del avance (§6.6), implementado tal cual:
+Escalamiento definido en la propuesta:
 
-* S1 o S2 -> alerta y abstencion (ampliar revision), no retuning automatico
-* + S3    -> recomendacion de reentrenamiento
-* S4      -> antecedente historico, no detector operativo
+* S1 o S2: alerta y ampliacion de la revision, sin reajuste automatico.
+* S1 o S2 junto con S3: recomendacion de reentrenamiento.
+* S4: antecedente historico, sin uso operativo.
 
-Rollback tecnico frente a deterioro de negocio
-----------------------------------------------
-Son dos cosas distintas y el modulo las separa. Un error HTTP o una latencia p95
-excedida son observables al instante y habilitan un rollback tecnico bajo regla
-humana preautorizada. Un deterioro de costo solo se puede afirmar con etiquetas
-maduras, es decir L=30 dias despues, y nunca justifica un rollback inmediato.
+Un error HTTP o una latencia p95 excedida se observan al instante y habilitan un
+rollback tecnico con una regla preautorizada. Un deterioro de costo solo se puede
+afirmar con etiquetas maduras, 30 dias despues, y se revisa aparte.
 """
 
 from __future__ import annotations
@@ -104,7 +99,7 @@ class AlertPolicy:
                     dia_evento=event_day, dia_disponibilidad=available_day,
                     mensaje="Desplazamiento de covariables en %.0f%% del panel"
                             % (float(row.get("fraccion_disparada", 0)) * 100),
-                    accion_recomendada="ampliar revision humana; NO retunear automaticamente",
+                    accion_recomendada="ampliar revision humana, sin reajuste automatico",
                     evidencia={
                         "psi_max": row.get("psi_max"),
                         "ks_d_max": row.get("ks_d_max"),
@@ -133,7 +128,7 @@ class AlertPolicy:
         return self.alerts
 
     def evaluate_adwin(self, detections: pd.DataFrame) -> list[Alert]:
-        """ADWIN es la unica senal basada en error real; llega con L dias de retraso."""
+        """ADWIN es la unica senal basada en el error; llega con L dias de retraso."""
         if detections.empty:
             return []
         for _, row in detections.iterrows():
@@ -150,7 +145,7 @@ class AlertPolicy:
     def evaluate_performance(
         self, ap_reference: float, ap_current: float, *, day: int, available_day: int
     ) -> Alert | None:
-        """Caida relativa de AP como senal DIAGNOSTICA, no como prueba de drift."""
+        """Caida relativa de AP como senal diagnostica."""
         if not (np.isfinite(ap_reference) and np.isfinite(ap_current)) or ap_reference <= 0:
             return None
         relative_drop = (ap_reference - ap_current) / ap_reference
@@ -183,7 +178,7 @@ class AlertPolicy:
         return self.alerts
 
     def escalation(self) -> dict[str, Any]:
-        """Aplica el escalamiento del avance sobre las alertas acumuladas."""
+        """Aplica el escalamiento sobre las alertas acumuladas."""
         signals = {a.senal for a in self.alerts}
         covariate = bool(signals & {"S_KS_PSI", "S1", "S2"})
         analyst = "S3" in signals
@@ -208,7 +203,7 @@ class AlertPolicy:
                 severity: sum(1 for a in self.alerts if a.severidad == severity)
                 for severity in SEVERIDAD
             },
-            "autonomia": "Ninguna alerta despliega por si sola. Reentrenar y promover exigen humano.",
+            "autonomia": "Reentrenar y promover requieren autorizacion humana.",
         }
 
     def to_frame(self) -> pd.DataFrame:
@@ -219,10 +214,10 @@ class AlertPolicy:
 
 @dataclass
 class ServiceHealthPolicy:
-    """Regla de rollback TECNICO, preautorizada por el responsable.
+    """Regla de rollback tecnico, preautorizada por el responsable.
 
-    Solo cubre fallos observables al instante. El deterioro economico necesita
-    etiquetas maduras y se revisa aparte, con evidencia y decision humana.
+    Cubre fallos observables al instante. El deterioro economico necesita etiquetas
+    maduras y se revisa aparte, con decision humana.
     """
 
     http_error_rate_max: float = 0.01
@@ -254,7 +249,7 @@ class ServiceHealthPolicy:
 
 
 def observability_contract() -> dict[str, Any]:
-    """Que se registra y que NO, para que el equipo lo configure en la nube."""
+    """Que se registra y que se excluye, para configurarlo en la nube."""
     return {
         "logs": {
             "formato": "JSON por linea en stdout",
@@ -294,7 +289,5 @@ def build_monitoring_report(
         "alertas": alerts,
         "n_alertas": len(alerts),
         "observabilidad": observability_contract(),
-        "senales_sin_alerta": (
-            "Una senal que no dispara tambien es evidencia: se conserva la bitacora completa."
-        ),
+        "senales_sin_alerta": "Se conserva la bitacora completa, incluidas las senales sin alerta.",
     }

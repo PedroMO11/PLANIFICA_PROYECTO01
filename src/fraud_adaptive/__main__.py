@@ -1,8 +1,8 @@
 """Interfaz de linea de comandos del sistema.
 
-Todos los comandos son LOCALES. Ninguno crea recursos cloud, ejecuta ``gcloud`` ni
-despliega nada: el runbook de ``deploy/`` describe los pasos que el equipo hace a
-mano.
+Todos los comandos se ejecutan en local; ninguno crea recursos en la nube ni
+ejecuta ``gcloud``. El runbook de ``deploy/`` describe los pasos manuales de
+despliegue.
 
 Flujo habitual:
 
@@ -148,8 +148,8 @@ def cmd_train(args: argparse.Namespace) -> int:
             "familia_elegida": results["familia_elegida"],
             "prerregistro": results["prerregistro"],
             "baselines": results["baselines"],
-            # Economia congelada. Todo consumidor posterior la lee de aqui y no
-            # del config, que ya no contiene c_fp.
+            # Economia calibrada; las fases posteriores la leen de aqui porque el
+            # config no contiene c_fp.
             "costos": results["costos"],
             "calibracion_c_fp": {
                 **{k: v for k, v in calibration.items() if k != "tabla"},
@@ -166,8 +166,8 @@ def cmd_train(args: argparse.Namespace) -> int:
                     "policy": info["policy"].to_dict(),
                     "umbral_fpr": info["umbral_fpr"],
                     "umbral_precision": info["umbral_precision"],
-                    # La curva de confiabilidad se conserva: son 10 bins y es lo
-                    # que alimenta la figura de calibracion del informe.
+                    # La curva de confiabilidad (10 bins) alimenta la figura de
+                    # calibracion del informe.
                     "calibracion": info["calibracion"],
                     "segundos": info["segundos"],
                     "n_fit": info["n_fit"],
@@ -268,7 +268,7 @@ def cmd_package(args: argparse.Namespace) -> int:
 
     static_path = run.dir / "static_results.json"
     if static_path.exists():
-        # Reutiliza la seleccion ya congelada: exportar no puede reabrir decisiones.
+        # Reutiliza la seleccion congelada del prerregistro.
         static_results = read_json(static_path)
     else:
         summary_path = Path(configs["base"]["paths"]["reports"]) / "tables" / "tuning.csv"
@@ -323,8 +323,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     reports_dir = Path(configs["base"]["paths"]["reports"])
     no_verificado: list[str] = []
 
-    # Regenerar sin ejecutar borraria las salidas de la corrida anterior y dejaria
-    # notebooks vacios en la entrega, que es peor que no tocarlos.
+    # Sin ejecucion, los notebooks existentes se conservan con sus salidas.
     if not args.execute_notebooks:
         print("1/4  Notebooks: se conservan los existentes (no se regeneran sin ejecutar).")
         notebooks = {}
@@ -528,7 +527,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_package = sub.add_parser("package", help="exporta un paquete desplegable")
     p_package.add_argument("action", choices=["export"], nargs="?", default="export")
-    p_package.add_argument("--strategy", default="W30", help="solo estrategias desplegables")
+    p_package.add_argument("--strategy", default="W30", help="E15, W30, W60 o W90")
     p_package.add_argument("--update-time", type=int, default=None,
                            help="corte T; por defecto el ultimo de la grilla")
     p_package.set_defaults(func=cmd_package)

@@ -1,8 +1,8 @@
-"""Trazabilidad reproducible sin MLflow: manifests JSON, logs JSONL y presupuesto.
+"""Trazabilidad sin servidor de tracking: manifests JSON, logs JSONL y presupuesto.
 
-Sustituye el tracking server por artefactos planos versionables (F0, paso 6 del plan).
-Todo lo que se escribe pasa por ``atomic_write``: se escribe a un temporal en el mismo
-directorio y se renombra, de modo que una interrupcion nunca deja un manifest a medias.
+Los archivos de estado se escriben con ``atomic_write``, que escribe a un temporal
+en el mismo directorio y lo renombra, de modo que una interrupcion no deja un
+manifest a medias.
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ LOGGER = logging.getLogger("fraud_adaptive")
 def utc_now() -> str:
     """Marca de tiempo ISO-8601 en UTC.
 
-    Es el reloj de pared de la ejecucion. Nunca se mezcla con el reloj de evento
-    del backtest (dias relativos), que vive en splits.py.
+    Es el reloj de pared de la ejecucion, independiente del reloj de evento del
+    backtest definido en splits.py.
     """
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -53,19 +53,18 @@ def sha256_bytes(payload: bytes) -> str:
 def sha256_obj(obj: Any) -> str:
     """Hash estable de una estructura de datos.
 
-    ``sort_keys`` es lo que hace reproducible el hash: sin el, dos dicts equivalentes
-    con distinto orden de insercion darian hashes distintos y el prerregistro de
-    configuracion (C17) no serviria para detectar un retuning.
+    ``sort_keys`` hace que dos dicts equivalentes con distinto orden de insercion
+    tengan el mismo hash, requisito para que el prerregistro detecte un reajuste.
     """
     payload = json.dumps(obj, sort_keys=True, ensure_ascii=False, default=str)
     return sha256_bytes(payload.encode("utf-8"))
 
 
 def atomic_write(path: str | Path, data: str | bytes, *, binary: bool = False) -> Path:
-    """Escribe a temporal y renombra.
+    """Escribe a un temporal y lo renombra.
 
-    Un corte durante la corrida nocturna deja el archivo anterior intacto en lugar
-    de uno truncado que al reanudar se leeria como estado valido.
+    Si la corrida se interrumpe, el archivo anterior queda intacto y al reanudar no
+    se lee un estado truncado.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +93,7 @@ def read_json(path: str | Path) -> Any:
 
 
 def append_jsonl(path: str | Path, record: dict[str, Any]) -> None:
-    """Append de una linea JSON. No es atomico por diseno: es un log, no un checkpoint."""
+    """Agrega una linea JSON a un log. A diferencia de los checkpoints, no es atomico."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as handle:
@@ -102,10 +101,9 @@ def append_jsonl(path: str | Path, record: dict[str, Any]) -> None:
 
 
 def environment_fingerprint() -> dict[str, Any]:
-    """Versiones, hardware y commit.
+    """Versiones, hardware y commit, guardados en cada manifest.
 
-    Se guarda en cada manifest para que un resultado sea atribuible a un entorno
-    concreto. El plan prohibe presentar versiones supuestas como si estuvieran probadas.
+    Asi cada resultado queda asociado al entorno que lo produjo.
     """
     versions: dict[str, str] = {}
     for name in ("numpy", "pandas", "sklearn", "scipy", "lightgbm", "pyarrow", "river", "matplotlib"):
@@ -135,8 +133,7 @@ def environment_fingerprint() -> dict[str, Any]:
 def source_code_hash(package_dir: str | Path | None = None) -> str:
     """Hash del arbol de codigo.
 
-    Si cambia, un artefacto cacheado deja de ser reutilizable: el modo de
-    reproduccion desde cache exige identidad de codigo, datos y config.
+    Reutilizar un artefacto de cache exige el mismo codigo, datos y configuracion.
     """
     package_dir = Path(package_dir) if package_dir else Path(__file__).parent
     parts = []
@@ -149,10 +146,10 @@ def source_code_hash(package_dir: str | Path | None = None) -> str:
 
 @dataclass
 class BudgetState:
-    """Contador acumulado de computo (C26).
+    """Contador acumulado de computo.
 
-    ``consumed_seconds`` no se reinicia al reanudar: el tope de 8 h es del proyecto,
-    no de la sesion. Esa persistencia es justamente la garantia que pide el plan.
+    ``consumed_seconds`` se conserva al reanudar, porque el tope de 8 horas
+    corresponde al proyecto completo.
     """
 
     total_minutes: float = 480.0
@@ -213,9 +210,8 @@ class BudgetTracker:
     ) -> Iterator[dict[str, Any]]:
         """Cronometra un bloque y lo registra aunque falle.
 
-        Un limite excedido se marca ``exceeded_limit`` y sigue contando contra el
-        presupuesto: el plan exige que un timeout sea visible, nunca presentado
-        como un fit exitoso.
+        Un limite excedido se marca con ``exceeded_limit`` y cuenta contra el
+        presupuesto.
         """
         started = time.perf_counter()
         record: dict[str, Any] = {
@@ -306,11 +302,7 @@ class RunContext:
         return data
 
     def register_artifact(self, key: str, path: str | Path, *, extra: dict[str, Any] | None = None) -> None:
-        """Registra un artefacto con su hash.
-
-        Sin hash, la palabra reproducible seria una afirmacion vacia: el informe
-        cita run_id y hash para cada cifra.
-        """
+        """Registra un artefacto con su hash, que el indice de evidencia cita."""
         path = Path(path)
         data = self.manifest()
         entry: dict[str, Any] = {

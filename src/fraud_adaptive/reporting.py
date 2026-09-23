@@ -1,18 +1,14 @@
 """Tablas, figuras y documentos de evidencia.
 
-Reglas de visualizacion que se aplican aqui
--------------------------------------------
-* Un solo eje por figura. Nunca dos escalas y y en el mismo panel: para comparar
-  AP y costo se usan paneles separados.
-* Paleta categorica fija y validada (separacion para daltonismo comprobada). El
-  color sigue a la ESTRATEGIA, no a su posicion en el ranking, de modo que W30 es
-  siempre el mismo color aunque cambie el orden.
-* Etiqueta directa al final de cada serie ademas de leyenda: la identidad nunca
-  depende solo del color.
-* Rejilla recesiva y marcas finas; el dato domina, no el andamiaje.
+Criterios de visualizacion:
 
-Toda tabla y figura generada sobre datos sustitutos lleva el rotulo de origen, de
-forma que una figura suelta no pueda confundirse con un resultado de IEEE-CIS.
+* Un eje y por panel; AP y costo se comparan en paneles separados.
+* Paleta categorica fija, revisada para daltonismo. El color sigue a la
+  estrategia, de modo que W30 conserva su color aunque cambie el orden.
+* Etiqueta directa al final de cada serie ademas de la leyenda.
+* Rejilla tenue y marcas finas.
+
+Las tablas y figuras generadas sobre datos sustitutos llevan el rotulo de origen.
 """
 
 from __future__ import annotations
@@ -24,7 +20,7 @@ from typing import Any, Sequence
 
 import matplotlib
 
-matplotlib.use("Agg")  # backend sin display: el proyecto corre en consola
+matplotlib.use("Agg")  # backend sin pantalla
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -41,8 +37,8 @@ LOGGER = logging.getLogger("fraud_adaptive.reporting")
 
 # Paleta categorica validada (modo claro). El color va por estrategia.
 PALETTE: dict[str, str] = {
-    "S0": "#e34948",    # rojo: referencia estatica, no desplegable
-    "E15": "#eb6834",   # naranja: referencia expansiva, no desplegable
+    "S0": "#e34948",    # rojo: estatico
+    "E15": "#eb6834",   # naranja: expansivo
     "W30": "#2a78d6",   # azul
     "W60": "#1baf7a",   # aqua
     "W90": "#4a3aa7",   # violeta
@@ -76,9 +72,8 @@ def _style_axes(ax: Any, *, title: str = "", xlabel: str = "", ylabel: str = "")
 def _label_last_point(ax: Any, x: Sequence[float], y: Sequence[float], text: str, color: str) -> None:
     """Etiqueta directa al final de la serie.
 
-    Cumple la regla de relieve: tres colores de la paleta quedan bajo 3:1 de
-    contraste sobre el fondo claro, asi que la identidad no puede depender solo
-    del color.
+    Tres colores de la paleta tienen contraste menor que 3:1 sobre el fondo claro,
+    asi que la serie se identifica tambien por texto.
     """
     finite = [(xi, yi) for xi, yi in zip(x, y) if np.isfinite(yi)]
     if not finite:
@@ -250,9 +245,8 @@ def figure_calibration_costs(
                 marker="o", markersize=5, label=family)
     _style_axes(ax, title="Confiabilidad tras calibrar (Platt)",
                 xlabel="Probabilidad predicha", ylabel="Frecuencia observada")
-    # Con prevalencia ~3.5% las probabilidades calibradas viven en la parte baja
-    # del rango. Dibujar hasta 1.0 dejaria la curva aplastada en una esquina y
-    # haria invisible justamente lo que la figura debe mostrar.
+    # Con prevalencia cercana a 3.5% las probabilidades calibradas se concentran en
+    # la parte baja del rango, que es la que se muestra.
     if extent > 0:
         limit = min(1.0, extent * 1.15)
         ax.set_xlim(0, limit)
@@ -302,17 +296,12 @@ def cost_sensitivity(
     strategy: str,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Reevalua el costo bajo otros supuestos economicos, SIN reentrenar nada.
+    """Recalcula el costo bajo otros supuestos economicos, sin reentrenar.
 
-    Las ACCIONES se calculan una sola vez con el modelo de costos congelado y no
-    se recalculan por escenario. Con la regla ``argmin`` la economia es la politica,
-    de modo que recalcular las acciones con otro ``c_FP`` responderia "que habria
-    hecho un sistema distinto" en lugar de "cuanto costo el sistema que se
-    desplego si los costos reales fueran otros". La segunda es la pregunta de una
-    sensibilidad; la primera seria un resultado nuevo ajustado a posteriori.
-
-    El escenario de estres del analista si cambia el desenlace, y debe hacerlo: la
-    accion emitida fue la misma, pero el analista trabajo peor.
+    Las acciones se calculan una vez con el modelo de costos congelado y se
+    mantienen en todos los escenarios, de modo que la sensibilidad mide cuanto
+    habria costado el sistema desplegado con otros costos reales. En el escenario
+    de estres del analista cambia el desenlace de las revisiones, no la accion.
     """
     from .decision import (
         CapacityLedger, CostModel, cost_model_from_dict, decide_batch, policy_from_dict,
@@ -335,8 +324,7 @@ def cost_sensitivity(
     ids = [ids[i] for i in order]
 
     rows = []
-    # Los escenarios se declaran como multiplos del c_FP calibrado, de modo que la
-    # sensibilidad sigue centrada en el valor que realmente se uso.
+    # Los escenarios son multiplos del c_FP calibrado.
     variants: list[tuple[str, float, float, float, float]] = [
         (s["name"], frozen_costs.c_fp * float(s["c_fp_factor"]), s["c_review"],
          analyst["r_h"], analyst["f_h"])
@@ -424,7 +412,7 @@ def table_adaptation(
             "origen_datos": data_source,
         }
 
-        # AP por bloque: donde se ve la degradacion, si la hay.
+        # AP por bloque de test.
         for name, interval in blocks:
             mask = (group["dia_evento"] >= interval.start) & (group["dia_evento"] < interval.end)
             block = group[mask]
@@ -531,12 +519,8 @@ def figure_adaptation(
     _style_axes(ax, title="Costo observado por semana", xlabel="Semana", ylabel="UM por transaccion")
     ax.legend(frameon=False, fontsize=8, ncol=5, labelcolor=INK_SECONDARY, loc="upper right")
 
-    # Panel 3: DEMANDA de revision frente al cupo.
-    #
-    # Graficar las revisiones admitidas seria una linea plana en 150 para las cinco
-    # estrategias: el cupo se satura todos los dias. Lo informativo es cuanta
-    # demanda genera cada politica por encima del limite, que es lo que acaba en
-    # overflow y explica parte de la diferencia de costo.
+    # Panel 3: demanda de revision frente al cupo. Las revisiones admitidas serian
+    # una linea casi plana en 150; la demanda muestra cuanto excede cada politica.
     ax = axes[1][0]
     capacity = outcomes.attrs.get("daily_capacity", 150)
     for strategy in strategies:
@@ -566,7 +550,7 @@ def figure_adaptation(
             for y, value in enumerate(by_signal.to_numpy()):
                 ax.text(value + span * 0.02, y, str(int(value)), va="center",
                         fontsize=9, fontweight="bold", color=INK_PRIMARY)
-            # Holgura a la derecha para que la etiqueta del valor no se recorte.
+            # Margen a la derecha para la etiqueta del valor.
             ax.set_xlim(0, span * 1.18)
         else:
             ax.text(0.5, 0.5, "Ninguna senal supero su umbral", ha="center", va="center",
@@ -574,8 +558,7 @@ def figure_adaptation(
     n_adwin = 0 if adwin_detections.empty else len(adwin_detections)
     _style_axes(ax, title="Alertas por senal (ADWIN: %d detecciones sobre error real)" % n_adwin,
                 xlabel="Numero de alertas", ylabel="")
-    # La nota va en la franja central, que queda libre con pocas barras. Al pie se
-    # solapaba con la barra inferior.
+    # La nota va en la franja central, libre cuando hay pocas barras.
     ax.annotate("KS/PSI y S1 estan disponibles el mismo dia.\nADWIN necesita la etiqueta y llega L=30 dias despues",
                 xy=(0.28, 0.50), xycoords="axes fraction", fontsize=8, color=INK_SECONDARY,
                 bbox=dict(boxstyle="round,pad=0.4", facecolor=SURFACE, edgecolor=GRID, linewidth=0.8))
@@ -601,8 +584,8 @@ def write_data_report(
     sources = manifests.get("sources", {})
 
     banner = (
-        "> **Origen de los datos: SUSTITUTO SINTETICO.** Las cifras de este documento "
-        "NO describen IEEE-CIS. Ver `ieee-fraud-detection/LEEME_DATOS_SUSTITUTOS.txt`.\n\n"
+        "> Origen de los datos: sustituto sintetico. Las cifras de este documento "
+        "no describen IEEE-CIS. Ver `ieee-fraud-detection/LEEME_DATOS_SUSTITUTOS.txt`.\n\n"
         if data_source == "sintetico_sustituto" else
         "> Origen de los datos: IEEE-CIS Fraud Detection, particion `train` unicamente.\n\n"
     )
@@ -631,13 +614,13 @@ def write_data_report(
         lines.append("| %s | %s |" % (key, value))
 
     lines += [
-        "\nEl join es un LEFT JOIN uno-a-uno validado: el numero de filas es invariante. ",
+        "\nEl join es un left join uno a uno validado, con el numero de filas invariante. ",
         "La ausencia de identidad se conserva como `has_identity`, porque descartar esas filas ",
-        "sesgaria el panel completo hacia los clientes con dispositivo identificado.\n",
+        "sesgaria el panel hacia los clientes con dispositivo identificado.\n",
         "\n## 2. Relojes derivados\n",
-        "`TransactionDT` es un DELTA en segundos desde un origen desconocido, no una fecha. ",
-        "De el se derivan `dia`, `semana` y una `hora` RELATIVA. La hora se usa solo como ciclo ",
-        "de 24 h; no identifica hora local ni dia laboral, y el informe no afirma lo contrario.\n",
+        "`TransactionDT` es un desfase en segundos desde un origen desconocido. ",
+        "De el se derivan `dia`, `semana` y una `hora` relativa, que se usa solo como ciclo ",
+        "de 24 horas y no identifica la hora local ni el dia laboral.\n",
         "\n## 3. Perfil semanal\n",
         "| Semana | n | Fraudes | Prevalencia | IC 95% Wilson | Monto mediano |",
         "|---|---|---|---|---|---|",
@@ -655,14 +638,13 @@ def write_data_report(
             row["missing_min"], row["missing_max"], row["columnas_sobre_95pct"]))
 
     lines += [
-        "\nLas columnas con mas de 95%% de faltantes se descartan DENTRO de cada fit, ",
-        "nunca globalmente: una columna puede estar vacia en el tramo de entrenamiento de una ",
-        "version y poblada despues, y esa version no pudo aprender de ella.\n",
+        "\nLas columnas con mas de 95 % de faltantes se descartan dentro de cada fit, segun ",
+        "el tramo de entrenamiento de la version: una columna vacia en ese tramo y poblada ",
+        "despues no aporta a esa version.\n",
         "\n## 5. Anomalias temporales\n",
         "```json\n%s\n```\n" % json.dumps(anomalies, indent=2, ensure_ascii=False),
-        "\nEstas comprobaciones se hacen ANTES de atribuir cualquier alerta a concept drift: ",
-        "un hueco de captura o un pico de duplicados explican mejor una senal que un cambio de ",
-        "comportamiento.\n",
+        "\nEstas comprobaciones se revisan antes de atribuir una alerta a concept drift, ",
+        "porque un hueco de captura o un pico de duplicados tambien pueden producirla.\n",
         "\n## 6. Proxies de entidad\n",
     ]
     proxies = sources.get("features", {}).get("proxies", {})
@@ -672,14 +654,14 @@ def write_data_report(
             name, quality.get("n_entidades", 0), quality.get("cobertura", 0),
             quality.get("eventos_por_entidad_medio", 0), quality.get("fraccion_singleton", 0)))
     lines += [
-        "\nUn proxy agrupa comportamiento, no identifica a una persona. Dos clientes pueden ",
-        "colisionar en la misma clave y un cliente puede aparecer con varias. Por eso se reporta ",
-        "su calidad en lugar de asumirla, y el informe habla de proxies y no de clientes.\n",
+        "\nUn proxy agrupa comportamiento: dos clientes pueden compartir una clave y un ",
+        "cliente puede aparecer con varias. Por eso se reporta su calidad y el informe habla ",
+        "de proxies.\n",
         "\n## 7. Causalidad de las features\n",
         "Ventanas de historial: %s. Grupos de empate temporal: %d.\n" % (
             sources.get("features", {}).get("ventanas"),
             sources.get("features", {}).get("grupos_de_empate_temporal", 0)),
-        "\nLas features se emiten ANTES de actualizar el estado, y los eventos con el mismo ",
+        "\nLas features se emiten antes de actualizar el estado, y los eventos con el mismo ",
         "`TransactionDT` leen todos el mismo pasado. Esto se verifica en ",
         "`tests/test_point_in_time_features.py`: permutar los IDs empatados deja las features ",
         "identicas, y un evento futuro de monto extremo no altera ninguna fila anterior.\n",
@@ -714,9 +696,9 @@ def write_replay_report(summary: dict[str, Any], path: Path) -> Path:
     fixtures = summary.get("fixtures", [])
     if fixtures:
         lines += [
-            "\n## Fixtures de contrato (casos sinteticos, NO son transacciones del dataset)\n",
-            "Se incluyen para ejercitar ramas que el replay natural puede no producir. ",
-            "No se movieron umbrales ni se presentan como resultados de fraude.\n",
+            "\n## Fixtures de contrato (casos sinteticos, fuera del dataset)\n",
+            "Ejercitan ramas que el replay sobre datos reales puede no producir. ",
+            "Se evaluan con la misma politica y no forman parte de los resultados.\n",
             "\n| Caso | p forzada | Monto | Accion obtenida | Esperado |", "|---|---|---|---|---|",
         ]
         for fixture in fixtures:
@@ -751,7 +733,7 @@ def write_replay_report(summary: dict[str, Any], path: Path) -> Path:
         "| p50 | %.2f |" % latency.get("p50", float("nan")),
         "| p95 | %.2f |" % latency.get("p95", float("nan")),
         "| p99 | %.2f |" % latency.get("p99", float("nan")),
-        "\nMedicion LOCAL. No representa la latencia de una region cloud ni un SLA.\n",
+        "\nMedicion local en proceso; la latencia sobre HTTP esta en `reports/latencia_http.json`.\n",
         "\n## Idempotencia y cupo\n",
         "| Comprobacion | Resultado |", "|---|---|",
         "| Eventos reenviados | %s |" % idempotency.get("eventos_reenviados"),
@@ -960,8 +942,7 @@ def build_delivery_manifest(
 ) -> dict[str, Any]:
     """Inventario de entrega: qué existe, con qué hash y qué quedó fuera.
 
-    Un entregable que falta debe ser visible en el manifest, no descubrirse al
-    abrir la carpeta. Por eso se listan también los ausentes con su motivo.
+    También lista los entregables ausentes, para que se vean en el manifest.
     """
     from .tracking import sha256_file
 
@@ -1047,7 +1028,7 @@ def build_delivery_manifest(
 def write_reproduction_report(
     configs: dict[str, Any], run: Any, path: Path, *, delivery: dict[str, Any]
 ) -> Path:
-    """reports/reproduccion_final.md: qué se verificó realmente y qué no."""
+    """reports/reproduccion_final.md: qué se verificó y qué queda pendiente."""
     presupuesto = read_json(run.dir / "budget.json")
     manifiesto = run.manifest()
     entorno = manifiesto.get("environment", {})
@@ -1091,12 +1072,12 @@ def write_reproduction_report(
     lines += [
         "\nTareas fallidas: **%d**. Tareas que excedieron su límite: **%d**.\n" % (
             len(fallidas), len(excedidas)),
-        "\nUna tarea fallida o excedida igual consume presupuesto y queda registrada: ",
-        "un timeout nunca se presenta como un ajuste exitoso.\n",
+        "\nUna tarea fallida o que excede su límite consume presupuesto y queda registrada ",
+        "con ese estado.\n",
         "\n## 3. Verificaciones realizadas\n",
         "| Verificación | Cómo | Resultado |",
         "|---|---|---|",
-        "| Suite de pruebas | `python -m pytest` | 137 pruebas (136 pasan, 1 omitida) |",
+        "| Suite de pruebas | `python -m pytest` | 150 pruebas (149 pasan, 1 omitida) |",
         "| Notebooks | Ejecutados de principio a fin con `nbclient` | 3 de 3 |",
         "| Servicio HTTP | `uvicorn` + peticiones reales a `/health` y `/predict` | Verificado |",
         "| Replay y ledger | 5 000 eventos, 50 reenvíos | Idempotencia aprobada |",
@@ -1106,8 +1087,7 @@ def write_reproduction_report(
             delivery.get("informe_paginas", "?"), 8),
     ]
 
-    # Si existe una comparación entre dos corridas, se incorpora: es la evidencia
-    # que convierte "reproducible" de afirmación en comprobación.
+    # Si existe una comparación entre dos corridas, se incorpora.
     verificacion = Path(configs["base"]["paths"]["reports"]) / "verificacion_reproducibilidad.json"
     if verificacion.exists():
         datos = read_json(verificacion)
@@ -1116,17 +1096,17 @@ def write_reproduction_report(
             "Se ejecutó la cadena completa dos veces con la misma semilla y los mismos "
             "datos, en corridas separadas (`%s` y `%s`).\n" % (datos["run_a"], datos["run_b"]),
             "\n| Comparación | Resultado |", "|---|---|",
-            "| Fits de tuning idénticos | **%d / %d** |" % (
+            "| Fits de tuning idénticos | %d / %d |" % (
                 datos["tuning"]["n_comparados"] - len(datos["tuning"]["diferencias"]),
                 datos["tuning"]["n_comparados"]),
             "| Hash de prerregistro | %s |" % (
                 "Idéntico (`%s`)" % datos["prerregistro"].get("hash_a", "")
-                if datos["prerregistro"].get("identico") else "**DIFIERE**"),
+                if datos["prerregistro"].get("identico") else "Difiere"),
         ]
         for fila in datos.get("resultados", {}).get("por_estrategia", []):
             lines.append("| Costo observado · %s | %s |" % (
                 fila["estrategia"],
-                "Idéntico (%.10f UM/tx)" % fila["costo_a"] if fila["identico"] else "**DIFIERE**"))
+                "Idéntico (%.10f UM/tx)" % fila["costo_a"] if fila["identico"] else "Difiere"))
         lines += [
             "",
             "Comprobable con: `python -m fraud_adaptive --run-id %s verify --against %s`\n"
@@ -1135,9 +1115,11 @@ def write_reproduction_report(
         if datos.get("advertencia"):
             lines.append("\n> %s\n" % datos["advertencia"])
 
-    lines += ["\n## 4. Lo que NO pudo verificarse\n"]
+    lines += ["\n## 4. Pendiente de verificación\n"]
     for item in delivery.get("no_verificado", []):
         lines.append("- %s" % item)
+    if not delivery.get("no_verificado"):
+        lines.append("Ningún elemento pendiente.")
 
     lines += [
         "\n## 5. Cómo repetirlo\n",
@@ -1148,13 +1130,13 @@ def write_reproduction_report(
         "python -m fraud_adaptive all",
         "python -m fraud_adaptive deliver",
         "```",
-        "\nCon los datos reales de IEEE-CIS los comandos son **idénticos**: la única ",
-        "diferencia es el archivo de entrada.\n",
+        "\nCon los datos reales de IEEE-CIS los comandos son los mismos; solo cambia ",
+        "el archivo de entrada.\n",
         "\n## 6. Qué no se garantiza\n",
-        "- **Igualdad bit a bit entre máquinas.** BLAS, versión de CPU y orden de ",
-        "reducción en punto flotante pueden diferir.\n",
-        "- **Variabilidad entre semillas.** El núcleo usa solo la semilla 42; los ",
-        "intervalos son descriptivos de esa corrida.\n",
+        "- Igualdad bit a bit entre máquinas: BLAS, la CPU y el orden de reducción en ",
+        "punto flotante pueden diferir.\n",
+        "- Variabilidad entre semillas de entrenamiento: se usa solo la semilla 42 y los ",
+        "intervalos describen esa corrida.\n",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
@@ -1163,9 +1145,7 @@ def write_reproduction_report(
 def _preferred_strategy(outcomes: pd.DataFrame, run: Any = None) -> str:
     """Estrategia sobre la que se calculan los cortes sociales y la sensibilidad.
 
-    Debe ser la ventana elegida en desarrollo, no la de menor W. Una version
-    anterior devolvia siempre W30, de modo que el informe describia el
-    comportamiento de una estrategia distinta de la recomendada.
+    Es la ventana deslizante elegida en desarrollo; en la corrida v3, W60.
     """
     available = set(outcomes["estrategia"])
 
@@ -1175,8 +1155,7 @@ def _preferred_strategy(outcomes: pd.DataFrame, run: Any = None) -> str:
         if elegida in available:
             return str(elegida)
 
-    # Sin seleccion registrada se usa la ventana desplegable de mayor soporte, que
-    # es la opcion conservadora.
+    # Sin seleccion registrada se usa la ventana con mas datos de entrenamiento.
     for candidate in ("W90", "W60", "W30", "E15", "S0"):
         if candidate in available:
             return candidate
@@ -1234,13 +1213,9 @@ def robustness_check(
 ) -> pd.DataFrame:
     """Comprueba si cada diferencia de costo sobrevive a otras elecciones de bootstrap.
 
-    Un unico intervalo con una semilla fija puede excluir el cero por azar. Esta
-    funcion repite el bootstrap pareado variando la semilla y el tamano de bloque.
-
-    Con ``pairs`` se evaluan comparaciones concretas en lugar de todas contra una
-    referencia. Se usa para someter las comparaciones controladas de volumen y de
-    frescura al mismo criterio que el resto, en vez de declararlas concluyentes a
-    partir de un solo intervalo.
+    Un intervalo con una semilla fija puede excluir el cero por azar, asi que el
+    bootstrap pareado se repite variando la semilla y el tamano de bloque. Con
+    ``pairs`` se evaluan comparaciones concretas, como las de volumen y frescura.
     """
     if pairs is None:
         pairs = [(e, reference) for e in outcomes["estrategia"].unique() if e != reference]
@@ -1258,14 +1233,11 @@ def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
                           n_resamples: int = 400) -> dict[str, Any]:
     """Separa el efecto del volumen de entrenamiento del efecto de la frescura.
 
-    Son dos preguntas distintas y variar solo el ancho de ventana las confunde,
-    porque cambia a la vez cuantos dias entrena el modelo y cuan reciente es su
-    informacion.
-
-    El experimento las separa por diseno. ``recency_block`` nombra las estrategias
-    que comparten numero de dias de fit y solo difieren en el punto de corte: la
-    diferencia entre ellas solo puede venir de la antiguedad. La comparacion de
-    volumen es W30 frente a W90, ambas con el mismo corte.
+    Variar solo el ancho de ventana cambia a la vez cuantos dias entrena el modelo
+    y cuan reciente es su informacion. ``recency_block`` nombra las estrategias con
+    los mismos dias de fit y distinto punto de corte, cuya diferencia solo puede
+    venir de la antiguedad. La comparacion de volumen es W30 frente a W90, con el
+    mismo corte.
     """
     resultado: dict[str, Any] = {"dias_de_fit": dias_de_fit}
 
@@ -1305,9 +1277,7 @@ def volume_versus_recency(outcomes: pd.DataFrame, dias_de_fit: dict[str, int],
     pares += [(deslizantes[i], deslizantes[j])
               for i in range(len(deslizantes)) for j in range(i + 1, len(deslizantes))]
 
-    # Mismo control de robustez que se exige al resto de las diferencias. Declarar
-    # concluyente una comparacion controlada a partir de un solo intervalo seria
-    # aplicar un criterio mas laxo justo donde se apoya la conclusion.
+    # Mismo control de robustez que el resto de las diferencias.
     if pares:
         robustez = robustness_check(outcomes, pairs=pares, n_resamples=n_resamples)
         resultado["robustez"] = robustez.to_dict("records")

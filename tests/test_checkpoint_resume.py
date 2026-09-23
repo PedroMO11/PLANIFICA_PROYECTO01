@@ -1,8 +1,7 @@
 """Reanudacion, presupuesto y escritura atomica.
 
-La corrida nocturna puede interrumpirse. Lo que no puede pasar es que al reanudar
-se repita trabajo ya pagado, se reinicie el contador de computo o se lea un
-manifest escrito a medias.
+Si la corrida se interrumpe, al reanudar no debe repetirse trabajo ya hecho,
+reiniciarse el contador de computo ni leerse un manifest incompleto.
 """
 
 from __future__ import annotations

@@ -29,16 +29,16 @@ Generado: 2026-09-20T18:01:34+00:00
 | columnas_identidad | 40 |
 | nota | La ausencia de identidad es informativa (has_identity), no se imputa ni se descarta la fila. |
 
-El join es un LEFT JOIN uno-a-uno validado: el numero de filas es invariante. 
-La ausencia de identidad se conserva como `has_identity`, porque descartar esas filas 
-sesgaria el panel completo hacia los clientes con dispositivo identificado.
+El join es un left join uno a uno validado, con el numero de filas invariante.
+La ausencia de identidad se conserva como `has_identity`, porque descartar esas filas
+sesgaria el panel hacia los clientes con dispositivo identificado.
 
 
 ## 2. Relojes derivados
 
-`TransactionDT` es un DELTA en segundos desde un origen desconocido, no una fecha. 
-De el se derivan `dia`, `semana` y una `hora` RELATIVA. La hora se usa solo como ciclo 
-de 24 h; no identifica hora local ni dia laboral, y el informe no afirma lo contrario.
+`TransactionDT` es un desfase en segundos desde un origen desconocido.
+De el se derivan `dia`, `semana` y una `hora` relativa, que se usa solo como ciclo
+de 24 horas y no identifica la hora local ni el dia laboral.
 
 
 ## 3. Perfil semanal
@@ -85,9 +85,9 @@ de 24 h; no identifica hora local ni dia laboral, y el informe no afirma lo cont
 | id_ | 38 | 0.848 | 0.756 | 0.992 | 9 |
 | otras | 52 | 0.376 | 0.000 | 0.936 | 0 |
 
-Las columnas con mas de 95%% de faltantes se descartan DENTRO de cada fit, 
-nunca globalmente: una columna puede estar vacia en el tramo de entrenamiento de una 
-version y poblada despues, y esa version no pudo aprender de ella.
+Las columnas con mas de 95 % de faltantes se descartan dentro de cada fit, segun
+el tramo de entrenamiento de la version: una columna vacia en ese tramo y poblada
+despues no aporta a esa version.
 
 
 ## 5. Anomalias temporales
@@ -108,9 +108,8 @@ version y poblada despues, y esa version no pudo aprender de ella.
 ```
 
 
-Estas comprobaciones se hacen ANTES de atribuir cualquier alerta a concept drift: 
-un hueco de captura o un pico de duplicados explican mejor una senal que un cambio de 
-comportamiento.
+Estas comprobaciones se revisan antes de atribuir una alerta a concept drift,
+porque un hueco de captura o un pico de duplicados tambien pueden producirla.
 
 
 ## 6. Proxies de entidad
@@ -121,9 +120,9 @@ comportamiento.
 | cliente | 217850 | 1.000 | 2.71 | 0.575 |
 | device | 1943 | 0.244 | 74.23 | 0.260 |
 
-Un proxy agrupa comportamiento, no identifica a una persona. Dos clientes pueden 
-colisionar en la misma clave y un cliente puede aparecer con varias. Por eso se reporta 
-su calidad en lugar de asumirla, y el informe habla de proxies y no de clientes.
+Un proxy agrupa comportamiento: dos clientes pueden compartir una clave y un
+cliente puede aparecer con varias. Por eso se reporta su calidad y el informe habla
+de proxies.
 
 
 ## 7. Causalidad de las features
@@ -131,7 +130,7 @@ su calidad en lugar de asumirla, y el informe habla de proxies y no de clientes.
 Ventanas de historial: {'1h': 3600, '24h': 86400, '7d': 604800}. Grupos de empate temporal: 16741.
 
 
-Las features se emiten ANTES de actualizar el estado, y los eventos con el mismo 
-`TransactionDT` leen todos el mismo pasado. Esto se verifica en 
-`tests/test_point_in_time_features.py`: permutar los IDs empatados deja las features 
+Las features se emiten antes de actualizar el estado, y los eventos con el mismo
+`TransactionDT` leen todos el mismo pasado. Esto se verifica en
+`tests/test_point_in_time_features.py`: permutar los IDs empatados deja las features
 identicas, y un evento futuro de monto extremo no altera ninguna fila anterior.

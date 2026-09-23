@@ -1,18 +1,16 @@
 """Roles temporales, relojes y elegibilidad de etiquetas.
 
-Este modulo es el arbitro de la causalidad del proyecto. Todo intervalo es
-SEMIABIERTO ``[inicio, fin)`` y se expresa en dias relativos al primer evento.
+Todos los intervalos son semiabiertos ``[inicio, fin)`` y se expresan en dias
+relativos al primer evento. El backtest usa dos relojes:
 
-Dos relojes conviven durante el backtest y nunca se mezclan:
+* reloj de evento: dia de la transaccion y de la decision; determina que features
+  son visibles;
+* reloj de disponibilidad: ``available_at = dia_evento + L``; determina cuando una
+  etiqueta puede entrar a un fit, a una metrica o a ADWIN.
 
-* **reloj de evento**: el dia en que ocurrio la transaccion y en que se emitio la
-  decision. Determina que features son visibles.
-* **reloj de disponibilidad**: ``available_at = dia_evento + L``. Determina cuando
-  una etiqueta puede entrar a un fit, a una metrica o a ADWIN.
-
-La regla de elegibilidad es ``available_at < cutoff`` con desigualdad ESTRICTA.
-Usar ``<=`` admitiria una etiqueta que madura exactamente el dia del corte, que en
-una operacion real todavia no estaria confirmada al lanzar el job.
+Una etiqueta es elegible si ``available_at`` es estrictamente menor que el momento
+del job. Con ``<=`` se admitiria una etiqueta que madura el mismo dia en que se
+lanza el ajuste.
 """
 
 from __future__ import annotations
@@ -53,8 +51,8 @@ class Interval:
     def overlaps(self, other: "Interval") -> bool:
         """Solapamiento de intervalos semiabiertos.
 
-        Dos intervalos que solo se tocan en el borde ([0,10) y [10,20)) NO se
-        solapan: es exactamente lo que permite encadenar roles sin fuga.
+        Dos intervalos que solo comparten el borde, como [0,10) y [10,20), no se
+        solapan, lo que permite encadenar roles.
         """
         if self.empty or other.empty:
             return False
@@ -65,11 +63,7 @@ class Interval:
         return (values >= self.start) & (values < self.end)
 
     def clip(self, max_day: int) -> "Interval":
-        """Recorta el extremo final a la cobertura real de los datos.
-
-        El plan es explicito: si faltan periodos se reporta como limitacion, nunca
-        se mueven los cortes para mejorar metricas.
-        """
+        """Recorta el extremo final a la cobertura real de los datos."""
         return Interval(min(self.start, max_day), min(self.end, max_day))
 
     def as_list(self) -> list[int]:
@@ -103,7 +97,7 @@ def find_overlaps(named: dict[str, Interval]) -> list[tuple[str, str]]:
 
 @dataclass
 class TemporalConfig:
-    """Parametros temporales cerrados del plan, cargados desde configs/temporal.yaml."""
+    """Parametros temporales, cargados desde configs/temporal.yaml."""
 
     label_delay_days: int = 30
     cadence_days: int = 15
@@ -156,14 +150,13 @@ class TemporalConfig:
 class VersionRoles:
     """Los roles disjuntos de una version de paquete en un cutoff dado.
 
-    ``predictor`` -> ``calibration`` -> ``promotion_validation`` se suceden en el
-    tiempo sin solaparse. Que la validacion de promocion sea la cola mas reciente
-    permite comparar champion y challenger sobre datos que ninguno de los dos vio,
-    sin recurrir a shadow deployment.
+    ``predictor``, ``calibration`` y ``promotion_validation`` se suceden en el
+    tiempo sin solaparse. La validacion de promocion es el tramo mas reciente, de
+    modo que la version vigente y la candidata se comparan sobre datos que ninguna
+    vio.
 
-    No existe reserva de politica por version. Los umbrales se eligen una vez en
-    desarrollo y quedan congelados, de modo que reservarla en cada actualizacion
-    restaba dias al predictor sin cumplir ninguna funcion.
+    La politica y sus umbrales se eligen una vez en desarrollo, por eso no hay una
+    reserva de politica por version.
     """
 
     strategy: str
@@ -195,19 +188,16 @@ class VersionRoles:
 
     @property
     def job_time(self) -> int:
-        """Momento en que corre el job. Es contra ESTE reloj que se mide la madurez.
+        """Momento en que corre el job, contra el que se mide la madurez.
 
-        Distincion que es facil de equivocar y rompe el pipeline en silencio:
+        * ``cutoff = T - L`` delimita que dias de evento pueden usarse y es el
+          origen de los roles.
+        * ``job_time = T`` es cuando se lanza el ajuste y es el valor contra el que
+          se compara ``available_at``.
 
-        * ``cutoff = T - L`` delimita QUE DIAS DE EVENTO pueden usarse, y es el
-          origen desde el que se miden los cuatro roles.
-        * ``job_time = T`` es cuando se lanza el ajuste, y es el valor contra el
-          que se compara ``available_at``.
-
-        Con T=120 y L=30, el ultimo dia de evento con etiqueta confirmada es el 89,
-        justamente ``cutoff - 1``. Comparar ``available_at`` contra ``cutoff`` en
-        lugar de contra ``job_time`` exigiria ``dia < 60`` y dejaria vacias las
-        colas de calibracion, politica y validacion.
+        Con T=120 y L=30 el ultimo dia de evento con etiqueta confirmada es el 89,
+        ``cutoff - 1``. Comparar contra ``cutoff`` dejaria elegibles solo los dias
+        anteriores al 60 y vaciaria las colas de calibracion y validacion.
         """
         return self.update_time
 
@@ -246,9 +236,8 @@ def build_version_roles(
     * ``sliding``  ventana de ``window_days`` que termina en ``c-14``. El fit
       efectivo es ``window_days - 14`` dias.
     * ``lagged``   ventana de ``fit_days`` exactos que termina en ``c - lag_days``.
-      Permite variar la antiguedad manteniendo constante el volumen de
-      entrenamiento, que es la unica forma de medir el efecto de la frescura sin
-      confundirlo con el del tamano de muestra.
+      Varia la antiguedad con el volumen de entrenamiento fijo, para medir la
+      frescura por separado del tamano de muestra.
     """
     cutoff = update_time - config.label_delay_days
     predictor_end = cutoff + config.predictor_offset_end
@@ -265,10 +254,7 @@ def build_version_roles(
         if fit_days is None:
             raise ValueError("Una estrategia con lag requiere fit_days")
         end = cutoff - lag_days
-        # El proposito de esta estrategia es mantener constante el volumen de
-        # entrenamiento. Si el historial no alcanza, la ventana quedaria truncada
-        # y la comparacion mediria otra cosa, de modo que se falla de forma
-        # explicita en lugar de devolver una ventana mas corta en silencio.
+        # Una ventana truncada cambiaria el volumen que esta estrategia fija.
         if end - fit_days < 0:
             raise ValueError(
                 "La estrategia %s con lag_days=%d y fit_days=%d no cabe en T=%d. "
@@ -301,8 +287,7 @@ def build_all_version_roles(
 ) -> dict[str, list[VersionRoles]]:
     """Genera la grilla completa de versiones: estrategia x tiempo de actualizacion.
 
-    S0 es la excepcion deliberada: se crea solo en el primer corte porque, por
-    definicion, no se reentrena.
+    Las estrategias estaticas solo tienen version en el primer corte.
     """
     out: dict[str, list[VersionRoles]] = {}
     for spec in strategies:
@@ -330,10 +315,10 @@ def available_at_day(event_day: "pd.Series[Any] | np.ndarray", label_delay_days:
 def label_eligible(
     event_day: "pd.Series[Any] | np.ndarray", cutoff: int | float, label_delay_days: int
 ) -> np.ndarray:
-    """Mascara de etiquetas ya maduras en ``cutoff``.
+    """Mascara de etiquetas maduras antes de ``cutoff``.
 
-    Desigualdad estricta: una etiqueta que madura exactamente el dia del corte no
-    esta disponible para el job que se lanza ese dia.
+    Los llamadores pasan como ``cutoff`` el ``job_time`` de la version. La
+    desigualdad es estricta.
     """
     return available_at_day(event_day, label_delay_days) < cutoff
 
@@ -344,11 +329,10 @@ def mature_training_mask(
     cutoff: int | float,
     label_delay_days: int,
 ) -> np.ndarray:
-    """Filas utilizables para entrenar: dentro del rol Y con etiqueta madura.
+    """Filas utilizables para entrenar: dentro del rol y con etiqueta madura.
 
-    Ambas condiciones son necesarias. Estar dentro del intervalo no basta: con
-    L=30 e intervalos cercanos al corte, parte del tramo todavia no tiene
-    desenlace confirmado.
+    Con L=30, parte de un intervalo cercano al corte puede no tener desenlace
+    confirmado todavia.
     """
     return interval.mask(event_day) & label_eligible(event_day, cutoff, label_delay_days)
 
@@ -358,8 +342,8 @@ def check_support(
 ) -> tuple[bool, dict[str, int]]:
     """Verifica el soporte minimo de fraudes y legitimas de un rol.
 
-    Si falla, la version se marca no valida. El plan prohibe explicitamente la
-    salida facil de ampliar W o de incorporar etiquetas inmaduras para completar.
+    Si falla, la version se marca no valida; no se amplia la ventana ni se usan
+    etiquetas inmaduras para completar el soporte.
     """
     values = np.asarray(labels)
     counts = {"fraud": int((values == 1).sum()), "legit": int((values == 0).sum())}
@@ -401,11 +385,10 @@ def build_splits_manifest(
 
 
 def assert_no_leakage_between_roles(roles: VersionRoles, ids_by_role: dict[str, set[Any]]) -> None:
-    """Comprueba sobre IDs REALES que los roles no comparten filas.
+    """Comprueba que los roles no comparten filas, sobre los TransactionID usados.
 
-    La disjuncion de intervalos es condicion necesaria pero no suficiente: un bug
-    de filtrado podria reintroducir filas. Esta verificacion trabaja sobre los
-    conjuntos de TransactionID efectivamente usados por cada rol.
+    Que los intervalos sean disjuntos no basta si un error de filtrado reintroduce
+    filas.
     """
     names = list(ids_by_role)
     for i, role_a in enumerate(names):

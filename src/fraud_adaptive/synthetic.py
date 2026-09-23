@@ -1,41 +1,26 @@
-"""Generador de un dataset SUSTITUTO con la forma de IEEE-CIS.
+"""Generador de un dataset sustituto con la forma de IEEE-CIS.
 
-Por que existe este modulo
---------------------------
-El nucleo del proyecto se define sobre IEEE-CIS Fraud Detection. Ese dataset
-requiere aceptar las reglas de la competencia y un token individual de Kaggle, y
-no puede versionarse en el repositorio. En una maquina sin los CSV el pipeline
-completo quedaria sin ejecutar y sin verificar.
+IEEE-CIS requiere aceptar las reglas de la competencia y un token de Kaggle, y no
+se versiona en el repositorio. Este generador produce tablas con el mismo esquema,
+patrones de faltantes parecidos y el mismo eje temporal, con drift inyectado de
+parametros conocidos. Sirve para:
 
-Este generador produce una tabla con el MISMO esquema, los mismos patrones de
-faltantes y el mismo eje temporal, con drift inyectado de forma controlada. Sirve
-para dos cosas legitimas:
+1. verificar que el pipeline corre de punta a punta y que los controles de fuga
+   funcionan;
+2. comprobar que los detectores encuentran un drift conocido.
 
-1. Verificar de punta a punta que el pipeline corre, que los controles de fuga
-   disparan y que los artefactos se producen.
-2. Dar un caso con drift de referencia CONOCIDA para comprobar que los detectores
-   lo encuentran (validacion del instrumento, no del fraude real).
+Las cifras obtenidas sobre estos datos no describen IEEE-CIS. Cada artefacto
+derivado queda marcado con ``data_source = "sintetico_sustituto"`` y las tablas y
+figuras llevan el rotulo.
 
-Lo que este modulo NO autoriza
-------------------------------
-Ninguna cifra obtenida sobre datos sustitutos puede presentarse como resultado de
-IEEE-CIS. Todo artefacto generado a partir de aqui queda marcado con
-``data_source = "sintetico_sustituto"`` en su manifest, y las tablas y figuras
-llevan el rotulo correspondiente. El plan es explicito en que no se fabrican
-resultados para llenar una tabla.
+El drift inyectado separa dos fenomenos:
 
-Diseno del drift inyectado
---------------------------
-Se separan deliberadamente los dos fenomenos que el benchmark historico no pudo
-distinguir del todo:
+* covariate shift: la mezcla de productos y dominios de correo cambia de forma
+  gradual entre ``drift_start_day`` y ``drift_end_day``;
+* concept drift: el vector de coeficientes que genera la etiqueta rota a velocidad
+  constante, de modo que P(y|X) cambia con el tiempo.
 
-* **Covariate shift**: P(X) cambia de forma gradual (medias y prevalencias de
-  categorias que derivan con el dia).
-* **Concept drift**: P(y|X) cambia, porque el vector de coeficientes que genera la
-  etiqueta rota en dos regimenes con una transicion suave.
-
-Esa separacion es la que permite comprobar que S1 (domain classifier) reacciona al
-primero y que ADWIN sobre el Brier reacciona al segundo.
+Asi se puede comprobar que S1 reacciona al primero y ADWIN sobre el Brier al segundo.
 """
 
 from __future__ import annotations
@@ -109,9 +94,8 @@ class SyntheticConfig:
 def _drift_weight(day: np.ndarray, config: SyntheticConfig) -> np.ndarray:
     """Peso del segundo regimen en [0,1]: 0 antes del drift, 1 despues.
 
-    La transicion es suave (smoothstep) en lugar de un escalon porque un salto
-    instantaneo haria trivial la deteccion y no representaria como cambia el
-    comportamiento de un defraudador real.
+    La transicion es suave (smoothstep), mas parecida a un cambio de comportamiento
+    que un escalon.
     """
     span = max(1, config.drift_end_day - config.drift_start_day)
     t = np.clip((day - config.drift_start_day) / span, 0.0, 1.0)
@@ -142,7 +126,7 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
     hour_component = rng.beta(2.2, 2.0, size=total) * 24.0
     seconds_in_day = np.clip(hour_component, 0, 23.999) * 3600.0 + rng.uniform(0, 3600, size=total)
     transaction_dt = (day * SECONDS_PER_DAY + seconds_in_day).astype(np.int64)
-    # Un origen arbitrario distinto de cero recuerda que DT es un delta, no una fecha.
+    # Origen arbitrario distinto de cero, como en el dataset real.
     transaction_dt = transaction_dt + 86_400
     order = np.argsort(transaction_dt, kind="mergesort")
     transaction_dt = transaction_dt[order]
@@ -152,14 +136,10 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
 
     # --- entidades ----------------------------------------------------------
     #
-    # Se crea primero un POOL de tarjetas, cada una con sus atributos fijos, y
-    # despues se sortea que tarjeta hace cada transaccion.
-    #
-    # Es la diferencia entre un sustituto util y uno inservible. Si card2, card5 y
-    # addr1 se sortearan por fila, la combinacion card1..card6+addr1 seria casi
-    # unica en cada evento: el proxy de tarjeta tendria ~100% de singletons y todas
-    # las features de historial saldrian vacias. En IEEE-CIS esas columnas
-    # describen la tarjeta, no la transaccion, y por eso se repiten juntas.
+    # Primero se crea un conjunto de tarjetas con atributos fijos y despues se
+    # sortea que tarjeta hace cada transaccion. Si card2, card5 y addr1 se sortearan
+    # por fila, casi todas las claves de tarjeta serian unicas y el historial
+    # quedaria vacio; en IEEE-CIS esas columnas describen la tarjeta.
     n_cards = config.n_cards
     card_pool = {
         "card1": (rng.integers(1000, 19000, size=n_cards)).astype(np.int32),
@@ -192,8 +172,8 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
     device_id = (rng.zipf(1.5, size=total) % config.n_devices).astype(np.int32)
 
     # --- covariate shift ----------------------------------------------------
-    # La mezcla de productos y dominios de correo deriva con el tiempo: eso es
-    # cambio en P(X) y debe activar S1/KS/PSI aunque P(y|X) no cambie.
+    # La mezcla de productos y dominios de correo deriva con el tiempo (cambio en
+    # P(X)), que S1 y KS/PSI deben detectar.
     drift_w = _drift_weight(day, config)
     product_probs_early = np.array([0.74, 0.12, 0.06, 0.05, 0.03])
     product_probs_late = np.array([0.52, 0.26, 0.10, 0.08, 0.04])
@@ -265,22 +245,16 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
 
     # --- etiqueta con concept drift ----------------------------------------
     #
-    # El vector generador ROTA a velocidad angular constante en el plano que
-    # definen dos vectores ortonormales:
+    # El vector generador rota a velocidad angular constante en el plano de dos
+    # vectores ortonormales:
     #
     #     beta(t) = norma * [cos(w*t) * b1 + sin(w*t) * b2]
     #
-    # Esta parametrizacion separa dos cosas que una interpolacion entre dos
-    # regimenes mezcla:
+    #   * ``signal_norm`` fija cuanta senal hay y no cambia con el tiempo;
+    #   * ``drift_rate`` fija la velocidad del cambio: la correlacion entre beta(t)
+    #     y beta(t+d) es cos(w*d), independiente del instante.
     #
-    #   * ``signal_norm`` fija CUANTA senal hay (que AP alcanza un modelo puesto
-    #     al dia), y no cambia con el tiempo;
-    #   * ``drift_rate`` fija CUAN RAPIDO caduca (la correlacion entre beta(t) y
-    #     beta(t+d) es exactamente cos(w*d), independiente del instante).
-    #
-    # Es lo que produce un trade-off real entre ventanas: con w tal que 30 dias de
-    # antiguedad conservan cos(w*30) alto y 90 dias no, W30 tiene ventaja sobre
-    # W90 por frescura, y W90 la compensa con mas datos.
+    # Asi hay un compromiso entre ventanas: W30 gana en frescura y W90 en volumen.
     signal_names = ["V%d" % i for i in sorted(signal_idx)]
     signal_matrix = np.column_stack([np.nan_to_num(v_cols[name], nan=0.0) for name in signal_names])
     n_signal = len(signal_names)
@@ -299,8 +273,8 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
     )
     logit = np.einsum("ij,ij->i", signal_matrix, beta_mix)
 
-    # Contribuciones interpretables y ESTABLES: dan al modelo una parte de senal
-    # que no caduca, para que el estatico se degrade sin caer a cero.
+    # Contribuciones estables: una parte de la senal no caduca y el modelo
+    # estatico se degrada sin caer a cero.
     logit = logit + 0.45 * (np.log1p(amount) - float(np.mean(np.log1p(amount))))
     logit = logit + np.where(product_cd == "C", 0.90, 0.0)
     logit = logit + np.where(p_email == "anonymous.com", 1.05, 0.0)
@@ -310,10 +284,8 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
     logit = logit + np.where(has_identity_flag, -0.25, 0.20)
 
     # --- episodios de tarjeta comprometida ---------------------------------
-    # Un subconjunto de tarjetas se "compromete" durante una ventana corta y
-    # concentra fraude en ella (card testing). Es lo que da sentido a las features
-    # de velocidad por entidad: sin este patron, el conteo en 1h/24h tendria la
-    # misma media en ambas clases y el historial causal seria decorativo.
+    # Un subconjunto de tarjetas concentra fraude durante una ventana corta (card
+    # testing), lo que da senal a las features de velocidad por entidad.
     n_compromised = max(1, int(n_cards * config.compromised_card_fraction))
     compromised = rng.choice(n_cards, size=n_compromised, replace=False)
     episode_start = rng.uniform(0, max(1, n_days - config.compromise_window_days), size=n_compromised)
@@ -323,10 +295,8 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
     in_episode = (day >= card_start) & (day < card_start + config.compromise_window_days)
     logit = logit + np.where(in_episode, config.compromise_logit_boost, 0.0)
 
-    # Velocidad reciente por tarjeta, calculada de forma CAUSAL (solo pasado
-    # estricto). Hacer que el fraude dependa de ella es lo que convierte las
-    # features de historial en predictores reales y no en columnas decorativas.
-    # Debe replicar la semantica de features.py: ventana semiabierta [t-w, t).
+    # Velocidad reciente por tarjeta con el pasado estricto, con la misma semantica
+    # que features.py: ventana semiabierta [t-w, t).
     velocity_24h = np.zeros(total, dtype=float)
     order_by_card = np.argsort(card_index, kind="mergesort")
     sorted_cards = card_index[order_by_card]
@@ -343,17 +313,10 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
         velocity_24h[rows] = before - window_start
     logit = logit + config.velocity_logit_weight * np.log1p(velocity_24h)
 
-    # Calibrar el intercepto POR DIA para mantener la prevalencia casi constante.
-    #
-    # Esta es la decision de diseno central del sustituto. Con un unico intercepto
-    # global, la rotacion del vector generador arrastra tambien P(y): la prevalencia
-    # caia de 4.7% a 0.8% entre bloques. Eso es label shift, detectable con solo
-    # contar fraudes, y haria trivial el problema.
-    #
-    # Fijando la prevalencia diaria, lo unico que cambia es QUE combinaciones de X
-    # predicen y. Un modelo estatico se degrada aunque la tasa de fraude luzca
-    # estable, que es precisamente el escenario que el sistema adaptativo debe
-    # resolver y que el monitoreo de prevalencia no detectaria.
+    # El intercepto se calibra por dia para mantener la prevalencia casi constante.
+    # Con un intercepto global, la rotacion arrastraba P(y) de 4.7% a 0.8% entre
+    # bloques. Con la prevalencia fija, lo que cambia es que combinaciones de X
+    # predicen y, y un modelo estatico se degrada con una tasa de fraude estable.
     target = config.base_prevalence
     probability = np.empty(total, dtype=float)
     # Estacionalidad suave de la prevalencia, para no fabricar una serie plana.
@@ -395,7 +358,7 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
         "P_emaildomain": p_email,
         "R_emaildomain": r_email,
     })
-    # Un solo concat en lugar de cientos de asignaciones: evita fragmentar el frame.
+    # Un solo concat evita fragmentar el frame con cientos de asignaciones.
     panel = {}
     panel.update(c_cols)
     panel.update(d_cols)
@@ -404,8 +367,7 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
     transactions = pd.concat([transactions, pd.DataFrame(panel, index=transactions.index)], axis=1)
 
     # --- identidad ----------------------------------------------------------
-    # Cobertura parcial: solo un subconjunto de TransactionID aparece aqui, que es
-    # exactamente lo que obliga a un left join y a tratar la ausencia como senal.
+    # Cobertura parcial: solo un subconjunto de TransactionID tiene identidad.
     identity_mask = has_identity_flag
     n_identity = int(identity_mask.sum())
     identity = pd.DataFrame({"TransactionID": transaction_id[identity_mask]})
@@ -420,10 +382,8 @@ def generate(config: SyntheticConfig | None = None) -> tuple[pd.DataFrame, pd.Da
             values = rng.choice(levels, size=n_identity, p=[0.42, 0.34, 0.16, 0.08]).astype(object)
             values[rng.random(n_identity) < 0.22] = None
             identity[name] = values
-    # DeviceInfo lleva familia + build, como en el real ("Windows", "rv:11.0",
-    # "SM-G950F Build/NRD90M", ...). Sin ese sufijo solo habria 7 valores y el
-    # proxy de dispositivo agruparia decenas de miles de eventos en una entidad,
-    # que es tan inutil como tener todos singletons.
+    # DeviceInfo lleva familia y build, como en el real ("SM-G950F Build/NRD90M");
+    # con solo siete valores el proxy de dispositivo agruparia demasiados eventos.
     device_family = np.array(DEVICE_INFO, dtype=object)[device_id[identity_mask] % len(DEVICE_INFO)]
     device_build = (device_id[identity_mask] % 400).astype(str)
     identity["DeviceType"] = np.where(
@@ -500,8 +460,7 @@ def write_surrogate(
 def make_adwin_streams(n_obs: int = 2000, seed: int = 42, jump_at: int = 1000) -> dict[str, np.ndarray]:
     """Dos streams de perdidas acotadas para probar ADWIN contra verdad conocida.
 
-    Sirven para medir retardo de deteccion y falsas alarmas del detector. No son
-    resultados de fraude y el plan exige rotularlos como prueba del instrumento.
+    Miden el retardo de deteccion y las falsas alarmas del detector.
     """
     rng = np.random.default_rng(seed)
     stationary = rng.beta(2.0, 8.0, size=n_obs)

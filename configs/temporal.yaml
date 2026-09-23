@@ -1,10 +1,10 @@
-# Relojes, particiones y roles temporales. F2 y §"Division temporal y relojes" del plan.
-# Todos los intervalos son en dias relativos y SEMIABIERTOS [inicio, fin).
+# Relojes, particiones y roles temporales.
+# Todos los intervalos son en dias relativos y semiabiertos [inicio, fin).
 
-label_delay_days: 30          # L=30 (C5). available_at = TransactionDT + L*86400
-cadence_days: 15              # unica cadencia del nucleo (C1)
+label_delay_days: 30          # available_at = TransactionDT + L*86400
+cadence_days: 15              # cadencia de reentrenamiento
 
-# Regla de elegibilidad de etiqueta: available_at < cutoff_job  (estricto, nunca <=)
+# Una etiqueta es elegible si available_at < job_time (desigualdad estricta).
 eligibility_strict: true
 
 development:
@@ -30,16 +30,15 @@ update_times: [120, 135, 150, 165]
 
 # Reservas relativas al cutoff c, identicas para todas las estrategias.
 #
-# Solo hay DOS reservas por version. Los umbrales se eligen una vez en desarrollo,
-# sobre [76,83), y quedan congelados, de modo que reservar una ventana de politica
-# en cada actualizacion no cumplia ninguna funcion. Liberarla devuelve 7 dias al
-# predictor en cada corte. Para W30 eso son 16 dias de fit en lugar de 9.
+# Hay dos reservas por version. Los umbrales se eligen una vez en desarrollo,
+# sobre [76,83), asi que no hace falta una reserva de politica por actualizacion.
+# Con dos reservas W30 entrena con 16 dias en lugar de 9.
 reserves_days:
   calibration: [-14, -7]
   promotion_validation: [-7, 0]
 predictor_offset_end: -14     # el predictor termina en c-14; usa W-14 dias efectivos
 
-# Soporte minimo por rol; si no se cumple la version se marca no valida (no se amplia W)
+# Soporte minimo por rol; si no se cumple, la version se marca no valida.
 min_support:
   fit: {fraud: 200, legit: 2000}
   calibration: {fraud: 50, legit: 500}

@@ -2,24 +2,20 @@
 
 Bucle por dia del periodo de test, para cada estrategia:
 
-1. Si el dia es un tiempo de actualizacion, construir la nueva version con datos
-   MADUROS, pasarla por el gate y activarla si procede.
-2. Puntuar los eventos del dia con la version activa, ANTES de mirar su etiqueta.
+1. Si el dia es de actualizacion, construir la nueva version con datos maduros,
+   pasarla por el gate y activarla si corresponde.
+2. Puntuar los eventos del dia con la version activa, antes de conocer su etiqueta.
 3. Decidir con la politica congelada y el cupo del dia.
-4. Guardar la prediccion de forma inmutable, con su version.
-5. Madurar las etiquetas de hace L dias y solo entonces alimentar ADWIN y calcular
-   costos observados.
+4. Guardar la prediccion con su version, sin modificarla despues.
+5. Madurar las etiquetas de hace L dias y recien entonces alimentar ADWIN y
+   calcular los costos observados.
 
-Lo que hace honesto al resultado
---------------------------------
-Una prediccion emitida nunca se reescribe. Cuando llega una version nueva, los
-scores antiguos se quedan como estaban, atribuidos a la version que los emitio. La
-tentacion contraria -recalcular todo el periodo con el mejor modelo final- daria
-curvas mas bonitas y mediria algo que en operacion no existe.
+Las predicciones emitidas no se recalculan cuando llega una version nueva: quedan
+atribuidas a la version que las emitio, como ocurriria en operacion.
 
-El reloj de eventos se PAUSA mientras se ajusta un paquete. El backtest mide el
-efecto de la adaptacion con actualizacion logica en el corte, no la latencia real
-de un reentrenamiento ni el tiempo de una aprobacion humana.
+El reloj de eventos se detiene mientras se ajusta un paquete. El backtest mide el
+efecto de actualizar en el corte, sin la latencia real de un reentrenamiento ni el
+tiempo de una aprobacion humana.
 """
 
 from __future__ import annotations
@@ -60,8 +56,8 @@ class StrategyState:
 
     def detector_for(self, version_id: str, *, delta: float, clock: int) -> BrierAdwin:
         if version_id not in self.detectors:
-            # Un detector por version. Los de versiones retiradas se conservan
-            # hasta que maduren todas sus predicciones.
+            # Los detectores de versiones retiradas se conservan hasta que maduren
+            # todas sus predicciones.
             self.detectors[version_id] = BrierAdwin(version_id=version_id, delta=delta, clock=clock)
         return self.detectors[version_id]
 
@@ -107,10 +103,9 @@ def run_backtest(
 ) -> BacktestResult:
     """Ejecuta el replay completo sobre el periodo de test.
 
-    Si se indica ``models_dir``, cada version ACTIVADA se persiste ahi como
-    paquete completo. Es lo que permite que el servicio y el replay usen
-    exactamente el mismo artefacto que produjo las metricas, en vez de uno
-    reconstruido despues con otro codigo.
+    Con ``models_dir``, cada version activada se guarda como paquete completo, de
+    modo que el servicio y el replay usan el mismo artefacto que produjo las
+    metricas.
     """
     label_delay = temporal.label_delay_days
     days = frame["dia"].to_numpy()
@@ -141,7 +136,7 @@ def run_backtest(
     s1_config = adaptation_config["detectors"]["domain_classifier"]
     ks_window = adaptation_config["detectors"]["ks_psi"]["window_days"]
 
-    # Indice por dia, para no re-filtrar el frame completo 62 veces por estrategia.
+    # Indice por dia, para no filtrar el frame completo en cada dia y estrategia.
     index_by_day: dict[int, np.ndarray] = {
         int(day): np.where(days == day)[0] for day in np.unique(days)
     }
@@ -158,7 +153,7 @@ def run_backtest(
                 name = spec["name"]
                 state = states[name]
                 if spec["kind"] == "static" and state.active is not None:
-                    continue  # S0 se ajusta una sola vez, por definicion
+                    continue  # las estrategias estaticas se ajustan una sola vez
 
                 roles = build_version_roles(
                     name, current_day, temporal,
@@ -166,10 +161,9 @@ def run_backtest(
                     lag_days=spec.get("lag_days", 0), fit_days=spec.get("fit_days"),
                 )
 
-                # En T=120 varias estrategias tienen predictor identico [0,69).
-                # Reutilizar el mismo objeto no es un atajo: son literalmente el
-                # mismo ajuste sobre los mismos datos, config y semilla. Contarlo
-                # como tres fits inflaria el costo de computo reportado.
+                # En el primer corte, las estrategias de shared_initial tienen el
+                # mismo predictor, datos, configuracion y semilla; se ajusta una vez
+                # y se cuenta una vez en el costo de computo.
                 reuse = (
                     shared_package is not None
                     and name in shared_initial
@@ -211,8 +205,8 @@ def run_backtest(
                 )
                 gate["dia"] = current_day
                 gate["estrategia"] = name
-                # C23: dentro del benchmark, una recomendacion favorable se activa
-                # segun calendario con autorizacion previa y queda rotulada simulada.
+                # En el backtest, una recomendacion favorable se activa con la
+                # autorizacion previa de la corrida y queda rotulada como simulada.
                 gate["aprobacion"] = "simulada_preautorizada"
                 state.gate_records.append(gate)
 
@@ -220,8 +214,7 @@ def run_backtest(
                     state.previous = state.active
                     state.active = package
                     if models_dir is not None:
-                        # Se persiste al ACTIVAR, no al construir: un paquete que no
-                        # pasa el gate no debe quedar disponible para servir.
+                        # Solo se guardan los paquetes que pasaron el gate.
                         package.save(models_dir)
                     state.version_changes.append({
                         "dia": current_day, "estrategia": name,
@@ -242,7 +235,7 @@ def run_backtest(
                         "aprobacion": "simulada_preautorizada",
                     })
 
-                # S1: un domain classifier por bloque, no diario.
+                # S1: un domain classifier por bloque.
                 if name == strategies[0]["name"]:
                     recent = frame.loc[
                         Interval(max(0, current_day - s1_config["recent_window_days"]), current_day).mask(days)
@@ -267,8 +260,7 @@ def run_backtest(
 
         for name, state in states.items():
             if state.active is None or not state.active.valid:
-                # C21: sin version valida no se decide un pago. Se pausa y se
-                # registra, en lugar de degradar a una referencia no desplegable.
+                # Sin version valida la estrategia se pausa y el dia queda registrado.
                 state.unavailable_days.append(current_day)
                 continue
 
@@ -308,7 +300,7 @@ def run_backtest(
             drift_log.add("S_KS_PSI", event_day=current_day, available_day=current_day, **result)
 
         # ---------------- madurez de etiquetas ----------------
-        # Solo ahora, L dias despues del evento, se conoce el desenlace.
+        # El desenlace se conoce L dias despues del evento.
         for item in pending_maturity.pop(current_day, []):
             state = states[item["estrategia"]]
             outcomes = simulate_outcomes(item["decisions"], item["labels"], cost_model, seed=seed)
@@ -332,8 +324,8 @@ def run_backtest(
             on_day(current_day, states)
 
     # ---------------- cierre de madurez ----------------
-    # Se avanza SOLO el reloj de disponibilidad hasta madurar la ultima cohorte.
-    # No se generan transacciones nuevas ni se reentrena fuera de la grilla.
+    # Se avanza solo el reloj de disponibilidad hasta madurar la ultima cohorte,
+    # sin nuevas transacciones ni reentrenamientos.
     for available_day in sorted(pending_maturity):
         for item in pending_maturity[available_day]:
             state = states[item["estrategia"]]

@@ -1,14 +1,12 @@
 """Adquisicion, validacion e integracion de las dos fuentes tabulares.
 
-Cubre F2 del plan: join auditado transacciones-identidad, derivacion del reloj de
-evento y EDA temporal con intervalos de Wilson, KS y PSI.
+Incluye el join auditado entre transacciones e identidad, la derivacion del reloj
+de evento y el EDA temporal con intervalos de Wilson, KS y PSI.
 
-Dos advertencias que el codigo hace explicitas porque el dataset invita al error:
-
-* ``TransactionDT`` es un DELTA en segundos desde un origen desconocido, no una
-  fecha. La hora derivada es relativa; no identifica hora local ni dia laboral.
-* La ausencia de identidad NO es un dato faltante a imputar: es informacion
-  (``has_identity``). Eliminar esas filas sesgaria el panel completo.
+* ``TransactionDT`` es un desfase en segundos desde un origen desconocido. La hora
+  derivada es relativa y no identifica la hora local ni el dia laboral.
+* La ausencia de identidad se conserva como ``has_identity``; eliminar esas filas
+  sesgaria el panel hacia los clientes con dispositivo identificado.
 """
 
 from __future__ import annotations
@@ -54,11 +52,7 @@ def resolve_sources(data_root: str | Path, transactions_file: str, identity_file
 
 
 def build_sources_manifest(sources: dict[str, SourceSpec], *, extra: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Manifest con hash y esquema de cada fuente.
-
-    El hash es lo que permite afirmar mas tarde que un resultado corresponde a
-    estos archivos y no a una version distinta descargada despues.
-    """
+    """Manifest con hash y esquema de cada fuente, para identificar los archivos usados."""
     entries: dict[str, Any] = {}
     for key, spec in sources.items():
         entry: dict[str, Any] = {
@@ -80,11 +74,9 @@ def build_sources_manifest(sources: dict[str, SourceSpec], *, extra: dict[str, A
 
 
 def assert_no_forbidden_files(data_root: str | Path, forbidden: Sequence[str]) -> None:
-    """Falla si los CSV de test de Kaggle estan al alcance del pipeline.
+    """Falla si los CSV de test de Kaggle estan en el directorio de datos.
 
-    No tienen etiqueta: usarlos no produciria fuga de etiquetas, pero si una
-    evaluacion sin ground truth que el informe no podria sustentar. El plan los
-    prohibe de forma explicita, asi que el codigo lo verifica en vez de confiar.
+    Esos archivos no tienen etiqueta y no sirven para el backtest temporal.
     """
     root = Path(data_root)
     present = [name for name in forbidden if (root / name).exists()]
@@ -95,18 +87,14 @@ def assert_no_forbidden_files(data_root: str | Path, forbidden: Sequence[str]) -
 
 
 def load_dotenv(path: str | Path = ".env", *, override: bool = False) -> dict[str, str]:
-    """Carga variables de un archivo ``.env`` al entorno del PROCESO ACTUAL.
+    """Carga variables de un archivo ``.env`` al entorno del proceso actual.
 
-    Existe para no obligar a instalar credenciales a nivel de usuario. El cliente
-    de Kaggle lee ``KAGGLE_API_TOKEN`` del entorno, asi que basta con exportarlo
-    aqui: el token vive en el ``.env`` del proyecto (ignorado por git) y nunca
-    toca ``~/.kaggle/``.
+    El cliente de Kaggle lee ``KAGGLE_API_TOKEN`` del entorno, de modo que el token
+    puede vivir en el ``.env`` del proyecto, ignorado por git, sin instalarlo en
+    ``~/.kaggle/``.
 
-    Por defecto NO pisa variables ya definidas: una variable exportada en la shell
-    es una decision mas explicita que un archivo, y debe ganar.
-
-    Devuelve las claves cargadas, nunca sus valores: este diccionario acaba en
-    logs y mensajes.
+    Por defecto no reemplaza variables ya definidas en la shell. Devuelve las claves
+    cargadas sin sus valores, porque el resultado puede terminar en logs.
     """
     path = Path(path)
     loaded: dict[str, str] = {}
@@ -149,10 +137,10 @@ def kaggle_download_instructions(data_root: str | Path) -> str:
         "1. Acepta las reglas de la competencia en:\n"
         "   https://www.kaggle.com/competitions/ieee-fraud-detection/rules\n"
         "2. Crea un token en Kaggle > Settings > API Tokens > Generate New Token.\n"
-        "   Guardalo de UNA de estas formas; el cliente acepta las tres:\n"
+        "   Guardalo de una de estas formas; el cliente acepta las tres:\n"
         "     a) en el .env del proyecto:  KAGGLE_API_TOKEN=<token>\n"
-        "        Es la opcion que NO instala nada a nivel de usuario. El .env esta\n"
-        "        en .gitignore y el codigo lo carga solo al proceso que descarga.\n"
+        "        No instala nada a nivel de usuario. El .env esta en .gitignore\n"
+        "        y el codigo lo carga solo en el proceso que descarga.\n"
         "     b) %USERPROFILE%\\.kaggle\\access_token   (archivo con el token a secas)\n"
         "     c) %USERPROFILE%\\.kaggle\\kaggle.json    (credenciales legacy)\n"
         "3. Instala el cliente y descarga solo los dos archivos etiquetados:\n"
@@ -162,17 +150,17 @@ def kaggle_download_instructions(data_root: str | Path) -> str:
         "4. Descomprime los .zip en el mismo directorio.\n"
         "5. Verifica con: fraud-adaptive data inspect\n"
         "\n"
-        "Los archivos test_* NO se descargan: no tienen etiqueta y el backtest es temporal interno.\n"
+        "Los archivos test_* no se descargan: no tienen etiqueta y el backtest usa solo train.\n"
         "El token es individual y nunca se versiona.\n"
         "\n"
         "Sin acceso a Kaggle\n"
         "-------------------\n"
         "     fraud-adaptive data surrogate --scale 1.0\n"
         "\n"
-        "Genera un dataset SUSTITUTO sintetico con el mismo esquema, eje temporal y\n"
+        "Genera un dataset sintetico sustituto con el mismo esquema, eje temporal y\n"
         "prevalencia, con drift de parametros conocidos. Sirve para ejecutar y verificar\n"
-        "el pipeline completo, pero NINGUNA de sus cifras describe el fraude real: cada\n"
-        "artefacto queda marcado con data_source=sintetico_sustituto.\n"
+        "el pipeline; sus cifras no describen el fraude real y cada artefacto queda\n"
+        "marcado con data_source=sintetico_sustituto.\n"
     )
 
 
@@ -195,8 +183,8 @@ def validate_schema(transactions: pd.DataFrame, identity: pd.DataFrame, *, join_
                     time_col: str, amount_col: str) -> dict[str, Any]:
     """Comprobaciones de integridad previas a cualquier fit.
 
-    Se ejecutan antes del join porque un duplicado en ``identity`` convertiria un
-    left join en many-to-many y multiplicaria filas silenciosamente.
+    Se ejecutan antes del join porque un duplicado en ``identity`` convertiria el
+    left join en uno de muchos a muchos.
     """
     problems: list[str] = []
 
@@ -247,8 +235,7 @@ def join_sources(
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Left join uno-a-uno que preserva todas las transacciones.
 
-    Devuelve tambien la auditoria del join: cobertura, huerfanos y el conteo
-    invariante que prueba que no se multiplicaron filas.
+    Devuelve tambien la auditoria del join: cobertura, huerfanos y conteo de filas.
     """
     n_before = len(transactions)
     identity_ids = set(identity[join_key])
@@ -280,8 +267,8 @@ def join_sources(
 def derive_time_columns(frame: pd.DataFrame, *, time_col: str) -> pd.DataFrame:
     """Deriva el reloj de evento a partir del delta en segundos.
 
-    ``dia`` es el eje de todo el protocolo temporal. ``hora`` es relativa al origen
-    desconocido del dataset: sirve como ciclo de 24 h, no como hora local.
+    ``dia`` es el eje del protocolo temporal. ``hora`` es relativa al origen
+    desconocido del dataset y se usa como ciclo de 24 horas.
     """
     out = frame.copy()
     origin = int(out[time_col].min())
@@ -290,7 +277,7 @@ def derive_time_columns(frame: pd.DataFrame, *, time_col: str) -> pd.DataFrame:
     out["dia"] = (seconds // SECONDS_PER_DAY).astype("int32")
     out["semana"] = (out["dia"] // 7).astype("int32")
     out["hora"] = ((seconds // 3600) % 24).astype("int16")
-    # Codificacion ciclica: evita el salto artificial entre la hora 23 y la 0.
+    # Codificacion ciclica, sin salto entre la hora 23 y la 0.
     angle = 2.0 * np.pi * out["hora"].to_numpy() / 24.0
     out["hora_sin"] = np.sin(angle)
     out["hora_cos"] = np.cos(angle)
@@ -298,11 +285,10 @@ def derive_time_columns(frame: pd.DataFrame, *, time_col: str) -> pd.DataFrame:
 
 
 def order_events(frame: pd.DataFrame, *, time_col: str, join_key: str) -> pd.DataFrame:
-    """Orden canonico (tiempo, id).
+    """Orden canonico por tiempo e id.
 
-    El id solo desempata para que la corrida sea reproducible; no introduce
-    informacion, porque las features de eventos empatados se calculan contra el
-    mismo estado previo (ver features.py).
+    El id solo desempata para que la corrida sea reproducible; los eventos empatados
+    leen el mismo estado previo (ver features.py).
     """
     return frame.sort_values([time_col, join_key], kind="mergesort").reset_index(drop=True)
 
@@ -312,8 +298,7 @@ def order_events(frame: pd.DataFrame, *, time_col: str, join_key: str) -> pd.Dat
 def wilson_interval(successes: int, total: int, confidence: float = 0.95) -> tuple[float, float]:
     """Intervalo de Wilson para una proporcion.
 
-    Se prefiere a la aproximacion normal porque con prevalencias de ~3.5% y
-    semanas de pocos miles de filas el intervalo de Wald puede salirse de [0,1].
+    Con prevalencias cercanas a 3.5% se comporta mejor que la aproximacion normal.
     """
     if total == 0:
         return (float("nan"), float("nan"))
@@ -367,8 +352,7 @@ def daily_profile(frame: pd.DataFrame, *, target: str, amount_col: str) -> pd.Da
 def missingness_by_family(frame: pd.DataFrame) -> pd.DataFrame:
     """Faltantes agregados por familia de columnas (V, C, D, M, id_, card, addr).
 
-    IEEE-CIS tiene cientos de columnas anonimas; reportarlas una a una no es
-    interpretable. La familia es la unidad util para hablar de patrones de captura.
+    Con cientos de columnas anonimas, la familia es la unidad interpretable.
     """
     families: dict[str, list[str]] = {}
     for col in frame.columns:
@@ -402,8 +386,7 @@ def psi(reference: np.ndarray, current: np.ndarray, *, bins: np.ndarray | None =
         n_bins: int = 10, epsilon: float = 1e-6) -> float:
     """Population Stability Index.
 
-    Los bordes se toman de la REFERENCIA, nunca del periodo actual: si los bins se
-    recalcularan en cada ventana, el indice mediria el rebinning en lugar del
+    Los bordes de los bins se toman de la referencia, de modo que el indice mide el
     desplazamiento de la distribucion.
     """
     reference = np.asarray(reference, dtype=float)
@@ -432,8 +415,8 @@ def psi(reference: np.ndarray, current: np.ndarray, *, bins: np.ndarray | None =
 def ks_test(reference: np.ndarray, current: np.ndarray) -> tuple[float, float]:
     """Kolmogorov-Smirnov de dos muestras.
 
-    Solo para variables continuas. Aplicarlo a codigos nominales (card1, addr1)
-    produciria un estadistico que depende del orden arbitrario de los codigos.
+    Se usa en variables continuas; en codigos nominales como card1 el estadistico
+    dependeria del orden arbitrario de los codigos.
     """
     reference = np.asarray(reference, dtype=float)
     current = np.asarray(current, dtype=float)
@@ -446,11 +429,7 @@ def ks_test(reference: np.ndarray, current: np.ndarray) -> tuple[float, float]:
 
 
 def benjamini_hochberg(pvalues: Sequence[float], q: float = 0.05) -> np.ndarray:
-    """Correccion BH.
-
-    Con paneles de decenas de variables comparadas cada semana, sin correccion el
-    numero esperado de falsos positivos convierte cualquier alerta en ruido.
-    """
+    """Correccion de Benjamini-Hochberg para comparaciones multiples."""
     values = np.asarray(pvalues, dtype=float)
     finite = np.isfinite(values)
     rejected = np.zeros(values.shape, dtype=bool)
@@ -480,9 +459,8 @@ def drift_panel(
 ) -> pd.DataFrame:
     """KS y PSI por variable entre una referencia fija y un periodo actual.
 
-    Reporta efecto (D, PSI) junto a significacion: con cientos de miles de filas
-    un p-valor diminuto acompana diferencias irrelevantes, asi que el tamano del
-    efecto es lo que decide la alerta.
+    Reporta el efecto (D, PSI) junto a la significacion, porque con cientos de
+    miles de filas un p-valor bajo puede acompanar diferencias irrelevantes.
     """
     rows = []
     for col in columns:
@@ -510,8 +488,7 @@ def drift_panel(
 def select_monitor_panel(frame: pd.DataFrame, candidate_columns: Sequence[str], *, max_columns: int = 20) -> list[str]:
     """Elige el panel de monitoreo por completitud y varianza, usando solo desarrollo.
 
-    Fijarlo en desarrollo evita que el panel cambie cuando cambia el periodo
-    observado, que haria incomparables las alertas entre bloques.
+    Un panel fijo mantiene comparables las alertas entre bloques.
     """
     scored: list[tuple[float, str]] = []
     for col in candidate_columns:
@@ -530,11 +507,7 @@ def select_monitor_panel(frame: pd.DataFrame, candidate_columns: Sequence[str], 
 
 
 def detect_anomalies(frame: pd.DataFrame, *, amount_col: str, target: str) -> dict[str, Any]:
-    """Anomalias temporales y de monto que deben verse antes de culpar al drift.
-
-    Un hueco de captura o un pico de duplicados explican una alerta mejor que un
-    cambio de comportamiento; el plan exige descartarlos primero.
-    """
+    """Anomalias temporales y de monto, revisadas antes de atribuir una alerta al drift."""
     daily = frame.groupby("dia").size()
     expected_days = set(range(int(frame["dia"].min()), int(frame["dia"].max()) + 1))
     missing_days = sorted(expected_days - set(daily.index.astype(int)))
