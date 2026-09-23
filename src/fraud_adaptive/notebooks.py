@@ -1,11 +1,8 @@
-"""Generacion de los tres notebooks ejecutables.
+"""Generacion de los tres notebooks del proyecto.
 
-Los notebooks NARRAN resultados; no duplican logica. Cada celda llama a los
-modulos de ``fraud_adaptive`` y lee artefactos ya verificados por hash, de modo que
-abrirlos no dispara 35 reajustes ni depende del orden manual de ejecucion.
-
-Se generan por codigo, no a mano, para que el contenido no se desincronice de la
-API real: si una funcion cambia de firma, el notebook regenerado la refleja.
+Cada celda llama a los modulos de ``fraud_adaptive`` o lee artefactos de la corrida,
+sin reentrenar modelos. Los notebooks se generan por codigo para que sigan la API
+del paquete.
 """
 
 from __future__ import annotations
@@ -41,9 +38,7 @@ from fraud_adaptive.pipeline import load_configs
 from fraud_adaptive.tracking import read_json
 
 CONFIGS = load_configs(ROOT / "configs")
-# La corrida se fija al generar el notebook, de modo que las cifras de aqui son
-# las mismas del informe. Dejarla escrita a mano dejaba los notebooks describiendo
-# una corrida distinta de la entregada.
+# Corrida de la que provienen las cifras del informe.
 RUN_ID = "__RUN_ID__"
 RUN_DIR = ROOT / CONFIGS["base"]["paths"]["runs"] / RUN_ID
 REPORTS = ROOT / CONFIGS["base"]["paths"]["reports"]
@@ -52,7 +47,7 @@ MANIFEST = read_json(ROOT / CONFIGS["base"]["paths"]["manifests"] / "sources.jso
 DATA_SOURCE = MANIFEST.get("data_source", "desconocido")
 
 if DATA_SOURCE == "sintetico_sustituto":
-    print("AVISO: los datos son un SUSTITUTO SINTETICO. Ninguna cifra describe IEEE-CIS.")
+    print("Aviso: los datos son un sustituto sintetico y las cifras no describen IEEE-CIS.")
 else:
     print("Datos: IEEE-CIS Fraud Detection (particion train).")
 print("Run:", RUN_DIR)
@@ -73,14 +68,13 @@ Qué se responde aquí:
 
 1. ¿Las dos fuentes se integran sin perder ni duplicar filas?
 2. ¿Cómo cambian el fraude, el volumen y los faltantes a lo largo de 182 días?
-3. ¿Las features de historial son realmente causales?
+3. ¿Las features de historial usan solo el pasado?
 
-El notebook **no** recalcula nada pesado: lee el Parquet y los manifests que
-produjo `fraud-adaptive data prepare`.
+El notebook lee el Parquet y los manifests que produce `fraud-adaptive data prepare`.
 """),
         _code(_PREAMBLE),
-        _markdown("## 1. Auditoría del join\n\nEl número de filas debe ser invariante: un join "
-                  "many-to-many las multiplicaría en silencio."),
+        _markdown("## 1. Auditoría del join\n\nEl número de filas debe mantenerse; un join "
+                  "de muchos a muchos las multiplicaría sin aviso."),
         _code("""
 join = MANIFEST["join"]
 esquema = MANIFEST["esquema"]
@@ -95,9 +89,9 @@ for clave, valor in join.items():
 assert join["filas_invariantes"], "el join alteró el número de filas"
 print("\\nOK: el join es uno-a-uno y preserva todas las transacciones.")
 """),
-        _markdown("## 2. Los dos relojes\n\n`TransactionDT` es un **delta en segundos**, no una "
-                  "fecha. La hora derivada es relativa a un origen desconocido: sirve como ciclo "
-                  "de 24 h, no identifica hora local ni día laboral."),
+        _markdown("## 2. Reloj de los eventos\n\n`TransactionDT` es un desfase en segundos desde "
+                  "un origen desconocido. La hora derivada sirve como ciclo de 24 horas y no "
+                  "permite inferir la hora local ni el día laboral."),
         _code("""
 eventos = pd.read_parquet(ROOT / CONFIGS["base"]["paths"]["processed"] / "eventos.parquet")
 
@@ -106,8 +100,8 @@ print(f"Días cubiertos: {eventos['dia'].min()} a {eventos['dia'].max()}")
 print(f"Transacciones por día (mediana): {int(eventos.groupby('dia').size().median()):,}")
 eventos[["TransactionDT", "s_rel", "dia", "semana", "hora"]].head()
 """),
-        _markdown("## 3. Perfil semanal con intervalos de Wilson\n\nCon prevalencias del ~3,5 % y "
-                  "miles de filas por semana, el intervalo de Wald puede salirse de [0,1]; Wilson no."),
+        _markdown("## 3. Perfil semanal con intervalos de Wilson\n\nCon prevalencias cercanas a "
+                  "3,5 %, el intervalo de Wilson se comporta mejor que el de Wald cerca de cero."),
         _code("""
 from fraud_adaptive.data import weekly_profile
 
@@ -122,17 +116,17 @@ from fraud_adaptive.data import missingness_by_family
 
 missingness_by_family(eventos).round(3)
 """),
-        _markdown("## 5. Anomalías antes de culpar al drift\n\nUn hueco de captura o un pico de "
-                  "duplicados explican una alerta mejor que un cambio de comportamiento. Se "
-                  "descartan primero."),
+        _markdown("## 5. Anomalías temporales\n\nUn hueco de captura o un pico de duplicados "
+                  "pueden disparar una alerta de drift, así que se revisan antes."),
         _code("""
 from fraud_adaptive.data import detect_anomalies
 
 print(json.dumps(detect_anomalies(eventos, amount_col="TransactionAmt", target="isFraud"),
                  indent=2, ensure_ascii=False))
 """),
-        _markdown("## 6. Calidad de los proxies de entidad\n\nUn proxy agrupa comportamiento; "
-                  "**no identifica a una persona**. Se mide en vez de asumirse."),
+        _markdown("## 6. Calidad de los proxies de entidad\n\nUn proxy agrupa comportamiento y "
+                  "puede reunir a varias personas bajo una misma clave, por eso se reporta su "
+                  "calidad."),
         _code("""
 for nombre, calidad in MANIFEST["features"]["proxies"].items():
     print(f"{nombre}:")
@@ -142,10 +136,10 @@ for nombre, calidad in MANIFEST["features"]["proxies"].items():
     print()
 """),
         _markdown("""
-## 7. Causalidad: la prueba que importa
+## 7. Causalidad de las features
 
-Las features se emiten **antes** de actualizar el estado. La comprobación decisiva
-es que añadir un evento futuro no mueva ninguna fila anterior.
+Cada feature se calcula antes de incorporar el evento al estado. Al agregar un
+evento futuro, ninguna fila anterior debe cambiar.
 """),
         _code("""
 from fraud_adaptive.features import prepare_features
@@ -194,22 +188,22 @@ Qué se responde aquí:
 2. ¿Sirve de algo calibrar?
 3. ¿Se degrada el sistema estático, y cómo se distingue eso de un cambio de tasa base?
 
-Lee artefactos ya calculados: **no reentrena**.
+Lee artefactos ya calculados, sin reentrenar.
 """),
         _code(_PREAMBLE),
-        _markdown("## 1. Tuning: 18 fits\n\n3 familias × 3 configuraciones × 2 folds forward. "
-                  "La selección es por AP media de validación; los folds son **internos** y sus "
-                  "métricas nunca se reportan como resultado final."),
+        _markdown("## 1. Tuning: 18 fits\n\n3 familias × 3 configuraciones × 2 folds temporales. "
+                  "Cada configuración se elige por AP media de validación. Los folds son internos "
+                  "y sus métricas no se reportan como resultado final."),
         _code("""
 tuning = pd.read_csv(REPORTS / "tables" / "tuning.csv")
 tuning.sort_values(["familia", "ap_media"], ascending=[True, False]).round(4)
 """),
-        _markdown("## 2. Comparación de las tres familias\n\nEl criterio de decisión es el "
-                  "**costo**, no el AP. Una familia con mejor AP puede decidir peor si su "
-                  "calibración está sesgada, porque la política compara costos esperados y "
-                  "esos costos se calculan con `p`.\n\nLa columna `costo_um_tx_umbral_fijo` "
-                  "es el costo que alcanzaría el mejor par de umbrales globales sobre `p`. "
-                  "La diferencia con `costo_um_tx_politica` mide lo que cuesta ignorar el monto."),
+        _markdown("## 2. Comparación de las tres familias\n\nLa familia se elige por costo. Una "
+                  "familia con mejor AP puede decidir peor si su calibración está sesgada, "
+                  "porque la política compara costos esperados calculados con `p`.\n\nLa "
+                  "columna `costo_um_tx_umbral_fijo` es el costo del mejor par de umbrales "
+                  "globales sobre `p`. Su diferencia con `costo_um_tx_politica` mide lo que "
+                  "cuesta ignorar el monto."),
         _code("""
 modelos = pd.read_csv(REPORTS / "tables" / "comparacion_modelos.csv")
 modelos[["familia", "config", "ap_politica", "costo_um_tx_politica",
@@ -219,10 +213,10 @@ modelos[["familia", "config", "ap_politica", "costo_um_tx_politica",
         _markdown("""
 ### Por qué calibrar
 
-La política compara `p·monto` con `(1−p)·c_FP`. Esa aritmética solo tiene sentido si
-`p` es una probabilidad, no un puntaje ordenado. Un modelo con `scale_pos_weight`
-produce puntajes inflados: usarlos como probabilidad haría bloquear de más, y el
-AP no lo notaría.
+La política compara `p·monto` con `(1−p)·c_FP`, lo que exige que `p` sea una
+probabilidad calibrada. Un modelo entrenado con pesos de clase produce puntajes
+inflados; usados como probabilidad llevarían a bloquear de más sin que el AP lo
+refleje.
 """),
         _code("""
 estaticos = read_json(RUN_DIR / "static_results.json")
@@ -236,18 +230,14 @@ print(f"\\nFamilia congelada para adaptación: {estaticos['familia_elegida']}")
 print(f"Hash de prerregistro: {estaticos['prerregistro']['hash'][:32]}")
 """),
         _markdown("""
-## 3. La política: argmin económico, no umbrales
+## 3. La política de decisión
 
-La acción es el mínimo de los tres costos esperados, caso por caso. No hay cortes
-sobre `p` que decidan.
+Cada transacción recibe la acción de menor costo esperado. El punto de indiferencia
+entre aprobar y bloquear es `p* = c_FP / (monto + c_FP)` y depende del monto, de modo
+que un corte fijo sobre `p` bloquea de más en montos bajos y de menos en montos altos.
 
-El motivo es que el punto de indiferencia entre aprobar y bloquear es
-`p* = c_FP / (monto + c_FP)`, de modo que depende del monto. Un corte fijo bloquea
-de más en los montos bajos y de menos en los altos.
-
-`c_FP` tampoco se fija a mano. No es observable, pero la fracción de legítimas
-rechazadas sí lo es y es lo que la operación restringe. Se declara el objetivo y se
-busca el menor `c_FP` que lo cumple.
+`c_FP` se deriva del objetivo de bloqueo de legítimas: es el menor valor que lo
+cumple sobre datos de desarrollo.
 """),
         _code("""
 elegida = estaticos["familias"][estaticos["familia_elegida"]]
@@ -279,11 +269,11 @@ for nombre, valores in estaticos["baselines"].items():
     print(f"   {nombre:<18} {valores['costo_por_tx']:.4f}")
 """),
         _markdown("""
-## 4. Degradación del sistema estático
+## 4. Comportamiento del modelo estático
 
-La evidencia clave no es que el AP baje, sino que baje **mientras la tasa base se
-mantiene plana**. Si la prevalencia cayera a la vez, el AP bajaría por aritmética y
-no habría nada que concluir sobre el modelo.
+Una caída de AP indica pérdida de capacidad del modelo solo si la tasa base se
+mantiene; si la prevalencia también cae, el AP baja por aritmética. Por eso la serie
+se muestra junto a la prevalencia.
 """),
         _code("""
 from fraud_adaptive.metrics import metrics_by_period
@@ -303,9 +293,9 @@ display(Image(filename=str(REPORTS / "figures" / "calibracion_costos.png")))
         _markdown("""
 ## 5. Lectura
 
-Si el AP cae y la prevalencia no, el modelo perdió capacidad discriminante sobre
-las mismas clases: es consistente con un cambio en P(y|X). La comparación temporal
-por sí sola **no identifica causalmente** el drift, y el informe no lo afirma.
+Una caída de AP con prevalencia estable es consistente con un cambio en P(y|X),
+aunque la comparación temporal no identifica su causa. El notebook 03 compara esta
+serie con las estrategias que se reentrenan.
 """),
     ]
     return nb
@@ -315,21 +305,22 @@ def build_drift_notebook(run_id: str = "principal") -> Any:
     nb = nbf.v4.new_notebook()
     nb.cells = [
         _markdown("""
-# 03 · Drift, adaptación por olvido y decisión
+# 03 · Drift, adaptación y decisión
 
 Qué se responde aquí:
 
-1. ¿Compensa olvidar? ¿Qué tamaño de ventana?
+1. ¿Compensa olvidar datos antiguos, y con qué tamaño de ventana?
 2. ¿Los detectores encuentran el cambio, y con cuánto retraso?
-3. ¿Qué **no** consigue el sistema?
+3. ¿Qué límites tiene el resultado?
 
-Este es el experimento central: cinco estrategias sobre **los mismos eventos**, la
-misma semilla, la misma política y la misma familia.
+Siete estrategias sobre los mismos eventos, con la misma semilla, la misma política
+y la misma familia de modelos.
 """),
         _code(_PREAMBLE),
-        _markdown("## 1. El protocolo temporal\n\nLas tres reservas de 7 días son idénticas para "
-                  "todas las estrategias. Eso es lo que hace que una diferencia de costo sea "
-                  "atribuible al **tamaño de ventana** y no a otra cosa."),
+        _markdown("## 1. El protocolo temporal\n\nEn cada actualización, cada versión usa tres "
+                  "roles: predictor, calibrador y validación de promoción. Las dos reservas de "
+                  "7 días son idénticas para todas las estrategias, de modo que una diferencia "
+                  "de costo se puede atribuir a la ventana."),
         _code("""
 splits = read_json(ROOT / CONFIGS["base"]["paths"]["manifests"] / "splits.json")
 
@@ -348,44 +339,46 @@ for estrategia, versiones in splits["versions"].items():
         })
 pd.DataFrame(filas)
 """),
-        _markdown("## 2. Resultado central\n\nUna fila por estrategia, con las tres familias de "
-                  "métricas. `S0` y `E15` son **referencias no desplegables**."),
+        _markdown("## 2. Resultado central\n\nUna fila por estrategia con métricas técnicas, de "
+                  "decisión y sociales. `S0` es el modelo estático de referencia y `E15`, que "
+                  "reentrena con todo el histórico, es la estrategia recomendada. F1 y balanced "
+                  "accuracy se evalúan en el umbral de FPR 1 % fijado en validación."),
         _code("""
 adaptacion = pd.read_csv(REPORTS / "tables" / "adaptacion.csv")
-adaptacion[["estrategia", "ap", "skill", "brier", "f1", "costo_um_tx",
+adaptacion[["estrategia", "ap", "skill", "brier", "f1", "balanced_accuracy", "costo_um_tx",
             "costo_ic_low", "costo_ic_high", "bloqueo_legitimas",
             "n_revisiones", "versiones_activadas"]].round(4)
 """),
-        _markdown("### Degradación por bloque\n\nAquí se ve si el olvido sirve: una ventana corta "
-                  "debería sostener el AP mientras el estático cae."),
+        _markdown("### AP por bloque\n\nSi olvidar compensara, las ventanas cortas sostendrían "
+                  "el AP en los bloques donde el estático cae."),
         _code("""
 adaptacion[["estrategia", "ap_B1", "ap_B2", "ap_B3", "ap_B4"]].round(4)
 """),
         _markdown("### Diferencia pareada frente a las referencias\n\nRemuestreo de bloques "
-                  "contiguos de 7 días sobre los **mismos eventos**. Un intervalo que no cruza "
-                  "el cero indica una diferencia consistente."),
+                  "contiguos de 7 días sobre los mismos eventos. Un intervalo que no cruza el "
+                  "cero indica una diferencia consistente."),
         _code("""
 cols = [c for c in adaptacion.columns if c.startswith("delta_costo_vs_")]
 adaptacion[["estrategia"] + cols].round(4)
 """),
-        _markdown("## 3. ¿Se cumplen los objetivos declarados?\n\nUn objetivo **puede incumplirse**. "
-                  "Se reporta el nivel realmente obtenido, no el objetivo."),
+        _markdown("## 3. Objetivos diagnósticos\n\nLos umbrales se fijaron en validación y se "
+                  "aplican sin reajuste. La tabla muestra el FPR y la precisión que obtiene cada "
+                  "estrategia en test."),
         _code("""
 objetivos = CONFIGS["decision"]["diagnostic_targets"]
 tabla = adaptacion[["estrategia", "recall_at_fpr1", "fpr_obtenido",
                     "recall_at_precision80", "precision_obtenida"]].round(4)
+tabla["cumple_fpr"] = tabla["fpr_obtenido"] <= objetivos["fpr_target"]
+tabla["cumple_precision"] = tabla["precision_obtenida"] >= objetivos["precision_target"]
 print(f"Objetivos: FPR <= {objetivos['fpr_target']}, precisión >= {objetivos['precision_target']}\\n")
 display(tabla)
 
-print("\\nFPR objetivo alcanzado en test:",
-      bool((tabla['fpr_obtenido'] <= objetivos['fpr_target']).any()))
-print("Precisión objetivo alcanzada en test:",
-      bool((tabla['precision_obtenida'] >= objetivos['precision_target']).any()))
-print("\\nLa economía se calibró en validación y se aplicó CONGELADA.")
-print("Que no se sostengan en test es un resultado, no un error a corregir moviendo el umbral.")
+cumplen = tabla.loc[tabla["cumple_fpr"] & tabla["cumple_precision"], "estrategia"]
+print("\\nCumplen ambos objetivos:", ", ".join(cumplen) if len(cumplen) else "ninguna")
 """),
-        _markdown("## 4. Señales de drift y sus dos relojes\n\nKS/PSI y S1 están disponibles el "
-                  "mismo día. ADWIN observa el **error real** y por eso llega L=30 días después."),
+        _markdown("## 4. Señales de drift y sus dos relojes\n\nKS/PSI y el domain classifier (S1) "
+                  "están disponibles el mismo día. ADWIN observa el error con etiquetas maduras y "
+                  "por eso llega 30 días después."),
         _code("""
 drift_path = RUN_DIR / "drift_log.csv"
 if drift_path.exists():
@@ -411,14 +404,15 @@ if adwin_path.exists():
 else:
     print("ADWIN no detectó cambios en ninguna versión.")
 """),
-        _markdown("### El detector, probado contra verdad conocida\n\nValidación del "
-                  "**instrumento**: no son resultados sobre fraude."),
+        _markdown("### Validación del detector\n\nADWIN se prueba sobre dos series sintéticas, "
+                  "una estacionaria y otra con un salto conocido. Estos resultados validan el "
+                  "instrumento y no describen el fraude."),
         _code("""
 pd.read_csv(REPORTS / "tables" / "adwin_selftest.csv")
 """),
-        _markdown("## 5. Sensibilidad económica\n\nRescoring de predicciones guardadas con la "
-                  "política **congelada**. Responde *cuánto cambiaría la conclusión*, no *qué "
-                  "política sería óptima*."),
+        _markdown("## 5. Sensibilidad económica\n\nSe recalcula el costo de las predicciones "
+                  "guardadas de W60 con las acciones congeladas y otros parámetros económicos. "
+                  "Mide cuánto cambia el costo, sin reoptimizar la política."),
         _code("""
 sens_path = REPORTS / "tables" / "sensibilidad_economica.csv"
 if sens_path.exists():
@@ -426,8 +420,9 @@ if sens_path.exists():
 else:
     print("Sensibilidad no disponible en este run.")
 """),
-        _markdown("## 6. Equidad operativa\n\nSegmentos de **negocio**. IEEE-CIS no tiene "
-                  "atributos protegidos verificables: esto no es una auditoría demográfica."),
+        _markdown("## 6. Equidad operativa\n\nSegmentos de negocio sobre la estrategia W60. "
+                  "IEEE-CIS no tiene atributos protegidos, de modo que la tabla mide disparidad "
+                  "operativa."),
         _code("""
 seg_path = REPORTS / "tables" / "segmentos.csv"
 if seg_path.exists():
@@ -451,14 +446,15 @@ print(f"\\nConsumido: {presupuesto['consumed_minutes']:.1f} min de "
       f"{presupuesto['total_minutes']:.0f}  ({presupuesto['remaining_minutes']:.1f} restantes)")
 """),
         _markdown("""
-## 8. Qué no demuestra este experimento
+## 8. Alcance
 
-- No es una validación prospectiva: es un backtest retrospectivo, y la selección
-  previa del dataset ya examinó periodos tardíos.
-- Los costos son simulados bajo supuestos declarados; no hay ahorro causal medido.
-- Una sola semilla no permite afirmar variabilidad entre semillas.
-- La ventana recomendada es la elegida **en desarrollo**. Si otra resulta mejor en
-  el test final, eso es un diagnóstico retrospectivo, no un permiso para retunear.
+- Es un backtest retrospectivo, y la selección previa del dataset ya examinó
+  periodos tardíos.
+- Los costos son simulados bajo supuestos declarados.
+- Cada estrategia se entrena con una sola semilla; las 18 combinaciones de robustez
+  varían el remuestreo y no el entrenamiento.
+- W60 se eligió en desarrollo. Que otra ventana rinda mejor en test es un
+  diagnóstico retrospectivo y no justifica reajustar.
 """),
     ]
     return nb
