@@ -1,0 +1,74 @@
+// Arquitectura del sistema adaptativo de decision ante fraude.
+// Render: dot -Tpng -Gdpi=220 docs/arquitectura.dot -o reports/figures/arquitectura.png
+// Fila superior: flujo de cada transaccion. Fila inferior: ciclo de retroalimentacion.
+// Linea punteada: extension no implementada.
+
+digraph arquitectura {
+  graph [rankdir=LR, fontname="Segoe UI", fontsize=13, nodesep=0.16, ranksep=0.22,
+         pad=0.05, bgcolor="white", newrank=true, compound=true];
+  node  [shape=box, style="rounded,filled", fontname="Segoe UI", fontsize=12,
+         color="#8a8984", fillcolor="#ffffff", margin="0.06,0.03", penwidth=0.9];
+  edge  [color="#52514e", arrowsize=0.6, penwidth=1.0, fontname="Segoe UI", fontsize=11,
+         fontcolor="#52514e"];
+
+  subgraph cluster_datos {
+    label="Adquisición e integración"; style="rounded,filled"; fillcolor="#eef4fb"; color="#2a78d6";
+    src  [label="Transacciones\n+ identidad (24 %)\njoin 1:1 auditado"];
+    ext  [label="Texto, sesión\n(extensión)", style="rounded,dashed", color="#9e9e9e", fontcolor="#6b6a66"];
+    feat [label="Features\ncausales\n1 h · 24 h · 7 d"];
+  }
+
+  subgraph cluster_pred {
+    label="Predicción"; style="rounded,filled"; fillcolor="#f1effa"; color="#4a3aa7";
+    mod [label="LightGBM\n(frente a logística\ny Random Forest)"];
+  }
+
+  subgraph cluster_inc {
+    label="Incertidumbre"; style="rounded,filled"; fillcolor="#f1effa"; color="#4a3aa7";
+    platt [label="Platt\npor versión"];
+  }
+
+  subgraph cluster_dec {
+    label="Decisión"; style="rounded,filled"; fillcolor="#fff3e0"; color="#eb6834";
+    cost [label="Mínimo costo\nesperado según\np, monto y\nprecio del cupo"];
+  }
+
+  subgraph cluster_acc {
+    label="Acción"; style="rounded,filled"; fillcolor="#e8f7f0"; color="#1baf7a";
+    apr [label="Aprobar"];
+    rev [label="Revisión\n150/día"];
+    blq [label="Bloquear\n+ apelación"];
+  }
+
+  subgraph cluster_ad {
+    label="Monitoreo y adaptación"; style="rounded,filled"; fillcolor="#f7f7f5"; color="#8a8984";
+    lab   [label="Etiqueta\na 30 días"];
+    adwin [label="ADWIN\nsobre el error"];
+    cov   [label="KS/PSI y\ndomain classifier"];
+    hum1  [label="Autoriza\nhumano", shape=hexagon, fillcolor="#fff3e0", color="#eb6834"];
+    fit   [label="Reentrena cada 15 d\nE15 recomendado\nW30·W60·W90"];
+    gate  [label="Gates: costo,\nAP, Brier, equidad"];
+    hum2  [label="Aprueba\nhumano", shape=hexagon, fillcolor="#fff3e0", color="#eb6834"];
+  }
+
+  ext -> src [style=dashed, color="#9e9e9e"];
+  src -> feat -> mod -> platt;
+  platt -> cost [label="p"];
+  cost -> apr; cost -> rev; cost -> blq;
+
+  { rank=same; apr; rev; blq; lab; }
+  { rank=same; cost; adwin; cov; }
+  { rank=same; platt; hum1; }
+  { rank=same; mod; fit; }
+  { rank=same; feat; gate; }
+  { rank=same; src; ext; hum2; }
+
+  blq -> lab [ltail=cluster_acc, label="desenlace"];
+  adwin -> lab [dir=back];
+  hum1 -> adwin [dir=back];
+  hum1 -> cov [dir=back];
+  fit -> hum1 [dir=back];
+  gate -> fit [dir=back];
+  hum2 -> gate [dir=back];
+  hum2 -> mod [constraint=false, label="nueva versión"];
+}

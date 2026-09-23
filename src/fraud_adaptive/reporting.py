@@ -495,7 +495,7 @@ def figure_adaptation(
 ) -> Path:
     """Cuatro paneles: AP, costo acumulado, revisiones y alertas por estrategia."""
     figure, axes = plt.subplots(2, 2, figsize=(13, 8), facecolor=SURFACE)
-    figure.suptitle("Olvido por ventanas fijas frente a referencias estaticas",
+    figure.suptitle("Estrategias de adaptacion sobre los mismos eventos",
                     fontsize=13, fontweight="bold", color=INK_PRIMARY, x=0.01, ha="left")
 
     strategies = [s for s in ("S0", "E15", "W30", "W60", "W90")
@@ -514,7 +514,7 @@ def figure_adaptation(
         _label_last_point(ax, series["semana"], series["ap"], strategy, color)
     _style_axes(ax, title="Average Precision por semana", xlabel="Semana", ylabel="AP")
     ax.legend(frameon=False, fontsize=8, ncol=5, labelcolor=INK_SECONDARY, loc="upper right")
-    ax.annotate("linea discontinua = referencia no desplegable",
+    ax.annotate("linea discontinua = sin olvido (S0 estatico, E15 expansivo)",
                 xy=(0.02, 0.04), xycoords="axes fraction", fontsize=8, color=INK_SECONDARY)
 
     # Panel 2: costo por semana
@@ -973,8 +973,8 @@ def build_delivery_manifest(
                           "configs/models.yaml", "configs/adaptation.yaml", "configs/serving.yaml",
                           "configs/gcp.yaml"],
         "documentacion": ["README.md", "docs/contrato_sistema.md", "docs/protocolo_experimental.md",
-                          "docs/reproducibilidad.md", "docs/decisiones_pendientes.md",
-                          "docs/arquitectura.mmd"],
+                          "docs/reproducibilidad.md", "docs/registro_decisiones.md",
+                          "docs/arquitectura.dot", "docs/decisiones_de_diseno.md"],
         "despliegue": ["Dockerfile", ".dockerignore", "deploy/gcp_runbook.md",
                        "deploy/promocion_rollback.md", "deploy/arquitectura_gcp.mmd"],
         "notebooks": ["notebooks/01_eda_temporal.ipynb", "notebooks/02_modelos_temporales.ipynb",
@@ -987,7 +987,8 @@ def build_delivery_manifest(
                    "reports/tables/adwin_selftest.csv",
                    "reports/tables/sensibilidad_economica.csv"],
         "figuras": ["reports/figures/eda_temporal.png", "reports/figures/rendimiento_estatico.png",
-                    "reports/figures/calibracion_costos.png", "reports/figures/drift_adaptacion.png"],
+                    "reports/figures/calibracion_costos.png", "reports/figures/drift_adaptacion.png",
+                    "reports/figures/arquitectura.png"],
         "evidencia": ["reports/datos_temporales.md", "reports/replay_local.md",
                       "data/manifests/sources.json", "data/manifests/splits.json"],
     }
