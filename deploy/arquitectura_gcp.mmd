@@ -1,10 +1,10 @@
 %% Propuesta de despliegue en GCP.
-%% IMPORTANTE: ningun recurso de este diagrama fue creado. El equipo ejecuta
-%% manualmente los pasos de deploy/gcp_runbook.md.
+%% Ningun recurso de este diagrama fue creado; el equipo ejecuta a mano los pasos
+%% de deploy/gcp_runbook.md.
 %% Linea continua = entregado y probado localmente.
 %% Linea punteada = diseno futuro, sin implementacion ni codigo de integracion.
 flowchart TB
-    subgraph LOCAL["Entregado y verificado localmente por el equipo de implementacion"]
+    subgraph LOCAL["Entregado y verificado en local"]
         PKG["Paquete versionado<br/>predictor + preprocesador + Platt + politica + manifest"]
         IMG["Imagen Docker<br/>linux/amd64, escucha en $PORT"]
         RPL["replay.py + ledger SQLite<br/>autoridad del cupo y de las decisiones"]
@@ -12,7 +12,7 @@ flowchart TB
     end
 
     PKG --> IMG
-    IMG --> MAN{{"EQUIPO: build / push / deploy manual"}}
+    IMG --> MAN{{"Equipo: build, push y deploy manual"}}
     RUN --> MAN
 
     MAN --> AR["Artifact Registry<br/>imagen fijada por digest"]
@@ -26,14 +26,14 @@ flowchart TB
     CR -.-> LOG["Cloud Logging / Monitoring"]
     BQ -.-> LOG
 
-    SCH["Cloud Scheduler<br/>solicitud cada 15 dias"] -.-> HUM{{"HUMANO aprueba<br/>el reentrenamiento"}}
+    SCH["Cloud Scheduler<br/>solicitud cada 15 dias"] -.-> HUM{{"Aprobacion humana<br/>del reentrenamiento"}}
     LOG -.-> HUM
     HUM -.-> JOB
-    JOB -.-> VALID["Validacion temporal separada<br/>predictor / Platt / politica / H"]
-    VALID -.-> HPROM{{"HUMANO aprueba<br/>la promocion"}}
+    JOB -.-> VALID["Validacion temporal separada<br/>predictor, Platt y H"]
+    VALID -.-> HPROM{{"Aprobacion humana<br/>de la promocion"}}
     HPROM -.-> CR
 
-    GCS -.-> VEP["Vertex AI Endpoints<br/>alternativa DESCARTADA para el MVP"]
+    GCS -.-> VEP["Vertex AI Endpoints<br/>alternativa descartada para la demo"]
 
     classDef humano fill:#fff3e0,stroke:#eb6834,stroke-width:2px;
     classDef futuro fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray:5 3;

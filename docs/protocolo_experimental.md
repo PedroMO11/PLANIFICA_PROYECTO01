@@ -1,233 +1,196 @@
-# Protocolo experimental (prerregistro)
+# Protocolo experimental
 
-Este documento se fija **antes** de abrir el periodo de test. Su contenido se
-resume en un hash que el pipeline verifica: si la configuración cambia entre la
-selección y el test, la corrida se detiene en lugar de producir un resultado
-retuneado.
+Este protocolo se fijó antes de abrir el periodo de test. Su contenido se resume en
+un hash que el pipeline verifica; si la configuración cambia entre la selección y el
+test, la corrida se detiene.
 
----
+## 1. Parámetros fijos
 
-## 1. Núcleo cerrado
-
-| Parámetro | Valor | Razón |
+| Parámetro | Valor | Observación |
 |---|---|---|
-| Semilla | 42 | Única en el núcleo. Una semilla **no** permite afirmar variabilidad entre semillas |
-| Retraso de etiqueta `L` | 30 días | Supuesto de simulación, no un plazo regulatorio |
-| Cadencia de reentrenamiento | 15 días | Única cadencia evaluada |
-| Ventanas `W` | {30, 60, 90} días | Incluyen predictor **y** las dos reservas |
-| Estrategias | S0, E15, W30, W60, W90, R46_medio, R46_antiguo | Dos bloques: volumen variable y antigüedad variable |
-| Configuraciones por familia | 3 | Congeladas antes del tuning |
-| Folds de tuning | 2, forward | Selección interna, nunca resultado final |
-| Presupuesto de cómputo | 480 min acumulados | Incluye reintentos; reanudar no reinicia el contador |
+| Semilla | 42 | Una sola semilla de entrenamiento |
+| Retraso de etiqueta `L` | 30 días | Supuesto de simulación |
+| Cadencia de reentrenamiento | 15 días | Las cadencias de 30 y 45 días se midieron aparte |
+| Ventanas `W` | 30, 60 y 90 días | Incluyen el predictor y las dos reservas |
+| Estrategias | S0, E15, W30, W60, W90, R46_medio, R46_antiguo | Volumen variable, antigüedad variable y referencias |
+| Configuraciones por familia | 3 | Fijadas antes del tuning |
+| Folds de tuning | 2, temporales | Selección interna |
+| Presupuesto de cómputo | 480 minutos acumulados | Incluye reintentos; reanudar no reinicia el contador |
 
----
+## 2. Relojes
 
-## 2. Los dos relojes
-
-| Reloj | Qué mide | Gobierna |
+| Reloj | Qué mide | Qué gobierna |
 |---|---|---|
-| **De evento** | Día en que ocurrió la transacción y se emitió la decisión | Qué features son visibles |
-| **De disponibilidad** | `available_at = día_evento + L` | Cuándo una etiqueta entra a un fit, a una métrica o a ADWIN |
+| De evento | Día de la transacción y de la decisión | Qué features son visibles |
+| De disponibilidad | `available_at = día_evento + L` | Cuándo una etiqueta entra a un fit, a una métrica o a ADWIN |
 
-Regla de elegibilidad: `available_at < job_time`, con desigualdad **estricta**.
+Una etiqueta es elegible si `available_at < job_time`, con desigualdad estricta.
 
-**Distinción que rompe el pipeline si se confunde.** `cutoff = T − L` delimita qué
-días de evento pueden usarse y es el origen desde el que se miden los roles.
-`job_time = T` es cuando corre el ajuste y es contra lo que se compara
-`available_at`. Con T=120 y L=30, el último día de evento con etiqueta confirmada
-es el **89**. Comparar contra `cutoff` en lugar de contra `job_time` exigiría
-`día < 60` y dejaría vacías las colas de calibración, política y validación.
-
----
+`cutoff = T − L` delimita qué días de evento pueden usarse y es el origen de los
+roles. `job_time = T` es el momento del ajuste y es contra lo que se compara
+`available_at`. Con T = 120 y L = 30, el último día de evento con etiqueta
+confirmada es el 89. Si la madurez se comparara contra `cutoff`, solo serían
+elegibles los días anteriores al 60 y las colas de calibración y validación
+quedarían vacías.
 
 ## 3. Particiones
 
 Todos los intervalos son semiabiertos `[inicio, fin)` en días relativos.
 
-| Tramo | Intervalo | Uso permitido |
+| Tramo | Intervalo | Uso |
 |---|---|---|
-| Tuning fold 1 | fit `[0,30)`, val `[30,45)` | Selección interna |
-| Tuning fold 2 | fit `[0,45)`, val `[45,60)` | Selección interna, mismos IDs de validación para las tres familias |
-| Fit base / S0 | `[0,69)` | Ajuste final con hiperparámetros ya elegidos |
+| Tuning fold 1 | fit `[0,30)`, validación `[30,45)` | Selección interna |
+| Tuning fold 2 | fit `[0,45)`, validación `[45,60)` | Selección interna con los mismos IDs para las tres familias |
+| Fit base y S0 | `[0,69)` | Ajuste final con los hiperparámetros elegidos |
 | Calibración inicial | `[69,76)` | Platt, sin filas del predictor |
-| Política y selección de W | `[76,83)` | Umbrales, familia y ventana. **Métricas de selección, no resultados** |
-| Validación de promoción | `[83,90)` | Gate de bootstrap. **No es test final** |
-| Warmup (solo X) | `[90,120)` | Calienta historial y referencia. **Sin scores ni acciones** |
+| Política y selección de W | `[76,83)` | Umbrales, familia y ventana |
+| Validación de promoción | `[83,90)` | Gate de bootstrap |
+| Warmup | `[90,120)` | Solo historial de features y referencia de covariables, sin scores ni acciones |
 | Test B1–B4 | `[120,135)`, `[135,150)`, `[150,165)`, `[165,182)` | Evaluación secuencial |
 
-### Roles por versión en cada actualización T ∈ {120, 135, 150, 165}
+### Roles por versión
 
-Con `c = T − 30`:
+En cada actualización T ∈ {120, 135, 150, 165}, con `c = T − 30`:
 
 | Rol | Intervalo | Días |
 |---|---|---|
-| Predictor | `[c−W, c−14)` | W − 14 (= 16, 46 o 76) |
+| Predictor | `[c−W, c−14)` | W − 14: 16, 46 o 76 |
 | Calibrador | `[c−14, c−7)` | 7 |
 | Validación de promoción (H) | `[c−7, c)` | 7 |
 
-Hay **dos** reservas por versión, no tres. Los umbrales de referencia se eligen una
-sola vez en desarrollo y quedan congelados, de modo que reservar una ventana de
-política en cada actualización excluía siete días del fit sin cumplir función.
-Liberarla devuelve esos días al predictor y beneficia sobre todo a las ventanas
-cortas, que son las que el experimento evalúa.
+La política y sus umbrales se eligen una vez en desarrollo y quedan congelados, así
+que cada versión usa dos reservas. Una tercera reserva de política por
+actualización restaba siete días al predictor sin cumplir función; sin ella W30
+entrena con 16 días en lugar de 9.
 
-Las dos reservas son **idénticas** para todas las estrategias. Eso es lo que aísla
-el efecto del tamaño de ventana: si W30 tuviera una cola de calibración distinta de
-W90, la diferencia de costo dejaría de ser atribuible al olvido.
+Las reservas son idénticas para todas las estrategias, de modo que una diferencia
+de costo se puede atribuir al tamaño de la ventana.
 
-En T=120, S0, E15 y W90 comparten exactamente el predictor `[0,76)`: es **un solo
-ajuste**, no tres, y así se cuenta en el costo de cómputo.
+En T = 120, E15 y W90 comparten el predictor `[0,76)` y se cuentan como un solo
+ajuste en el costo de cómputo.
 
-### 3.b Los dos bloques del experimento
+### Bloques del experimento
 
 Variar solo `W` cambia a la vez el volumen de entrenamiento y la antigüedad de la
-información, de modo que una diferencia de costo no sería atribuible a ninguno de
-los dos. El experimento los separa.
+información. El experimento los separa en dos bloques.
 
 | Bloque | Estrategias | Qué varía | Qué se mantiene |
 |---|---|---|---|
-| Volumen variable | W30, W60, W90 | días de fit | punto de corte en `c−14` |
-| Antigüedad variable | W60, R46_medio, R46_antiguo | punto de corte | 46 días de fit |
+| Volumen variable | W30, W60, W90 | Días de fit | Corte en `c−14` |
+| Antigüedad variable | W60, R46_medio, R46_antiguo | Punto de corte | 46 días de fit |
 
-`R46_medio` toma 46 días terminando 30 días antes del corte. `R46_antiguo` toma los
-primeros 46 días del histórico. `build_version_roles` rechaza de forma explícita una
-combinación de `lag_days` y `fit_days` que no quepa en el corte, en lugar de truncar
-la ventana en silencio.
+`R46_medio` usa 46 días que terminan 30 días antes que los de W60. `R46_antiguo` usa
+los primeros 46 días del histórico y no se reentrena. `build_version_roles` rechaza
+una combinación de `lag_days` y `fit_days` que no quepa antes del corte, en lugar de
+recortar la ventana.
 
----
+## 4. Construcción de un paquete
 
-## 4. Orden de construcción de un paquete
+1. Predictor `[c−W, c−14)`: ajusta preprocesamiento y modelo.
+2. Calibrador `[c−14, c−7)`: Platt sobre los scores del predictor ya ajustado.
+3. Validación `[c−7, c)`: gate de promoción.
 
-No es intercambiable:
+Cada paso usa scores del anterior sobre datos que ese paso no vio, de modo que el
+calibrador corrige exactamente el modelo que se despliega.
 
-1. **Predictor** `[c−W, c−14)` — ajusta preprocesamiento y modelo
-2. **Calibrador** `[c−14, c−7)` — Platt sobre scores del predictor ya ajustado
-3. **Validación** `[c−7, c)` — gate de promoción
+Si un rol no alcanza el soporte mínimo (fit: 200 fraudes y 2 000 legítimas;
+calibración y H: 50 y 500), la versión se marca no válida. El sistema no amplía la
+ventana ni usa etiquetas inmaduras, porque eso cambiaría la W que se mide.
 
-La política no consume una reserva propia. Se congela en desarrollo y consiste en
-el modelo de costos, cuyo `c_FP` se calibra una sola vez contra el objetivo de
-bloqueo de legítimas.
+## 5. Selección de la ventana
 
-Cada paso usa scores producidos por el anterior sobre datos que ese paso no vio.
-Invertir el orden haría que el calibrador corrigiera un modelo distinto del que se
-despliega.
+La ventana deslizante se elige con datos de desarrollo, antes de abrir el test,
+sobre la reserva de validación de cada paquete. Compiten W30, W60 y W90, que son las
+estrategias de olvido que el enunciado prioriza. Gana el menor costo observado, con
+desempate a 1 % en favor de la ventana menor.
 
-**Si un rol no alcanza el soporte mínimo** (fit: 200 fraudes / 2 000 legítimas;
-calibración y H: 50 / 500), la versión se marca **no válida**. No se amplía la
-ventana ni se incorporan etiquetas inmaduras: eso cambiaría en silencio la W que
-se está midiendo.
+`fraud-adaptive adapt run` guarda la selección en
+`runs/<run_id>/seleccion_ventana.json`. En la corrida v3:
 
-## 4.b Selección de la ventana desplegable
+| Estrategia | Días de fit | Costo UM/tx en validación |
+|---|---|---|
+| W60 | 46 | 2,2527 |
+| W90 | 76 | 2,2708 |
+| W30 | 16 | 2,3501 |
 
-La ventana se elige con datos de desarrollo, antes de abrir el test. La evaluación
-ocurre sobre la reserva de validación `[c−7, c)`, posterior al predictor y al
-calibrador de cada paquete.
+W60 queda elegida como ventana deslizante. El informe recomienda operar E15 a partir
+de la comparación en test, donde es la estrategia más barata; esa recomendación se
+declara como resultado del test y no como selección prerregistrada. Si ninguna
+versión resulta válida en operación, el sistema se pausa.
 
-Compiten únicamente W30, W60 y W90. S0 y E15 quedan excluidas porque son
-referencias de comparación y el plan prohíbe entregarlas como sistema. Gana el
-menor costo observado, con desempate a un 1 % en favor de la ventana menor, porque
-a igualdad de costo la ventana corta reentrena con menos datos.
+## 6. Controles de fuga
 
-El comando `fraud-adaptive adapt run` ejecuta esta selección y guarda el resultado
-en `runs/<run_id>/seleccion_ventana.json`. Si ninguna ventana resulta válida el
-sistema queda en pausa y no degrada a S0 ni a E15.
-
-Sobre IEEE-CIS la selección eligió W60 con 1,1909 UM/tx, frente a 1,1963 de W90 y
-1,4743 de W30. Que otra estrategia obtenga mejor costo en el test es un
-diagnóstico retrospectivo y no autoriza a cambiar la recomendación.
-
----
-
-## 5. Controles de fuga verificados
-
-Cada fila tiene una prueba automática que falla si el control se rompe.
+Cada control tiene una prueba automática que falla si se rompe.
 
 | Riesgo | Control | Prueba |
 |---|---|---|
-| Uso de los `test_*` de Kaggle | Allowlist de los dos `train_*` | `assert_no_forbidden_files` |
-| Join many-to-many | `validate="one_to_one"` + conteo invariante | `test_temporal_integrity` |
-| Preprocesamiento global | Ajuste dentro del fit | `test_preprocesamiento_no_cambia_al_alterar_filas_futuras` |
-| Ventana que incluye la fila actual | Emitir antes de actualizar estado | `test_la_fila_actual_nunca_entra_en_su_propio_agregado` |
-| Empates temporales | El grupo lee el mismo pasado; empuje canónico por ID | `test_permutar_ids_empatados_no_cambia_las_features` |
-| Evento futuro que altera el pasado | — | `test_un_evento_futuro_no_altera_features_anteriores` |
+| Uso de los `test_*` de Kaggle | Solo se aceptan los dos `train_*` | `assert_no_forbidden_files` |
+| Join de muchos a muchos | `validate="one_to_one"` y conteo invariante | `test_temporal_integrity` |
+| Preprocesamiento global | Ajuste dentro de cada fit | `test_preprocesamiento_no_cambia_al_alterar_filas_futuras` |
+| Ventana que incluye la fila actual | La feature se emite antes de actualizar el estado | `test_la_fila_actual_nunca_entra_en_su_propio_agregado` |
+| Empates temporales | El grupo empatado lee el mismo pasado | `test_permutar_ids_empatados_no_cambia_las_features` |
+| Evento futuro que altera el pasado | Estado incremental por entidad | `test_un_evento_futuro_no_altera_features_anteriores` |
 | Etiquetas inmaduras | Madurez contra `job_time` | `test_mutar_etiquetas_inmaduras_no_cambia_el_predictor` |
-| Roles contaminados | Cuatro conjuntos de IDs disjuntos | `test_roles_reales_no_comparten_ids` |
-| H contaminado | Gate rechaza si H tocó fit/Platt/política | `test_promotion_holdout` |
-| Memorización por ID | `TransactionID` y tiempo absoluto prohibidos | `assert_no_forbidden_features` |
+| Roles contaminados | Conjuntos de `TransactionID` disjuntos | `test_roles_reales_no_comparten_ids` |
+| Validación H contaminada | El gate rechaza si H participó en un ajuste | `test_promotion_holdout` |
+| Memorización por ID o fecha | `TransactionID` y tiempo absoluto excluidos | `assert_no_forbidden_features` |
 | Cupo duplicado en reintentos | Ledger transaccional idempotente | `test_replay_idempotency` |
-| Retuning tras ver el test | Hash de prerregistro verificado | `run_adaptation` aborta |
+| Reajuste tras ver el test | Hash de prerregistro | `run_adaptation` se detiene |
 
----
+## 7. Detectores
 
-## 6. Detectores y su alcance
-
-| Señal | Qué prueba | Qué **no** prueba | Disponibilidad |
+| Señal | Qué detecta | Qué no puede afirmar | Disponibilidad |
 |---|---|---|---|
-| **KS/PSI** | Desplazamiento de covariables | Cambio en P(y\|X) | Mismo día |
-| **S1** domain classifier | P(X) cambió (AUC ≥ 0.75) | Cambio en P(y\|X) | Una vez por bloque |
-| **S2** scores | Distribución de scores desplazada | Que la causa sea el entorno y no un cambio de versión | Mismo día |
-| **S3** analista | Tasa de confirmación | Ground truth; no es feedback rápido | Solo al madurar `y` |
-| **ADWIN** sobre Brier | Cambio en el **error real** | — | L = 30 días después |
-| **S4** stale-model gap | — | Antecedente histórico; no se recomputa | — |
+| KS/PSI | Desplazamiento de covariables | Cambio en P(y\|X) | Mismo día |
+| S1, domain classifier | Cambio en P(X) (alerta con AUC ≥ 0,75) | Cambio en P(y\|X) | Una vez por bloque |
+| S2, PSI de scores | Distribución de scores desplazada | Si la causa es el entorno o un cambio de versión | Mismo día |
+| S3, analista | Tasa de confirmación | No es ground truth | Al madurar la etiqueta |
+| ADWIN sobre Brier | Cambio en el error | | 30 días después |
 
-ADWIN: `delta=0.002`, `clock=32`, un detector por versión, cada etiqueta madura lo
-actualiza **exactamente una vez**. Sus parámetros se prueban contra dos streams
-sintéticos con cambio conocido (`fraud-adaptive selftest adwin`) y **no** se
-retocan después de mirar los datos reales.
+ADWIN usa `delta = 0,002` y `clock = 32`, con un detector por versión que cada
+etiqueta madura actualiza una sola vez. Sus parámetros se probaron sobre dos series
+sintéticas con cambio conocido (`fraud-adaptive selftest adwin`) y no se ajustaron
+después de ver los datos reales.
 
----
-
-## 7. Escalamiento de alertas
+## 8. Escalamiento de alertas
 
 ```
-S1 o S2        → alerta y abstención (ampliar revisión), sin retuning automático
+S1 o S2        → alerta y ampliación de la revisión, sin reajuste automático
 + S3           → recomendación de reentrenamiento
-ADWIN (error)  → reentrenamiento recomendado, con autorización humana
+ADWIN (error)  → reentrenamiento recomendado, sujeto a autorización humana
 ```
 
-Ninguna alerta despliega por sí sola.
+## 9. Gates de promoción
 
----
+1. Integridad: roles disjuntos, soporte suficiente, artefactos completos y cupo de
+   150. Una falla de fuga bloquea la versión.
+2. Arranque: costo en H inferior al de aprobar todo.
+3. No inferioridad: costo ≤ 1,01 veces el del modelo vigente, ΔAP ≥ −0,01 y
+   ΔBrier ≤ 0,005.
+4. Social: el bloqueo de legítimas no crece más de 2 pp en segmentos con soporte.
+5. Humano: obligatorio aunque los anteriores pasen.
 
-## 8. Gates de promoción
+Se exige no inferioridad con tolerancia al ruido. Pedir una mejora estricta en cada
+ciclo llevaría a no actualizar casi nunca, o a relajar la tolerancia hasta que pase.
 
-1. **Integridad**: roles disjuntos, soporte suficiente, artefactos completos, cupo ≤ 150. Una falla de fuga bloquea la versión.
-2. **Bootstrap inicial**: costo en H ≤ costo de aprobar todo.
-3. **No inferioridad**: costo ≤ 1.01 × champion, ΔAP ≥ −0.01, ΔBrier ≤ 0.005.
-4. **Social**: el bloqueo de legítimas no crece > 2 pp en segmentos con soporte.
-5. **Humano**: obligatorio aunque todo lo anterior pase.
+## 10. Incertidumbre
 
-La regla es de **no inferioridad tolerante a ruido**, no de superioridad: exigir
-una mejora en cada ciclo llevaría a no actualizar nunca bajo ruido, o a ajustar la
-tolerancia hasta que pase.
+Los intervalos se obtienen por bootstrap de bloques contiguos de 7 días con 200
+remuestreos, porque dentro de una semana los eventos comparten régimen y un
+bootstrap por filas sería demasiado estrecho. Las comparaciones entre estrategias
+son pareadas sobre los mismos eventos y bloques. La robustez de cada diferencia se
+revisa con 6 semillas de remuestreo y 3 tamaños de bloque; la semilla de
+entrenamiento es una sola.
 
----
+## 11. Exposición previa del test
 
-## 9. Incertidumbre
+El benchmark que seleccionó IEEE-CIS (`docs/antecedentes/benchmark_seleccion_dataset.md`)
+examinó periodos que aquí son test. Por eso el trabajo es un backtest retrospectivo.
+La ventana, la familia y los umbrales se eligieron solo con desarrollo.
 
-Intervalos por **bootstrap de bloques contiguos de 7 días**, 200 remuestreos. El
-bootstrap i.i.d. sobre filas sería demasiado optimista: dentro de una semana los
-eventos comparten régimen. Las comparaciones entre estrategias son **pareadas**
-sobre los mismos eventos y los mismos bloques.
+## 12. Fuera del alcance
 
-Es un intervalo **descriptivo de una sola semilla**. No mide variabilidad entre
-semillas ni entre inicializaciones.
-
----
-
-## 10. Exposición exploratoria previa (declarada)
-
-La selección de IEEE-CIS en el benchmark histórico (`concept_drift_findings.md`)
-ya examinó periodos tardíos del dataset, incluidos bloques que aquí son test. Se
-declara como limitación: **esto sigue siendo un backtest retrospectivo, no una
-validación prospectiva**. La ventana, la familia y los umbrales se eligen solo con
-desarrollo, y el test final no se usa para elegir un ganador desplegable.
-
----
-
-## 11. Fuera del núcleo
-
-Extensiones que **no** son criterio de cierre: semillas 43/44, benchmark v2 y
-ablaciones D*, L ∈ {60, 90, 120}, cadencias 7/30, W14, modelos incrementales,
-calibración isotónica, masked-label, MLflow, Terraform, shadow/canary y servicios
-cloud distribuidos.
+Semillas de entrenamiento adicionales, repetir el benchmark de selección, L de 60,
+90 o 120 días, cadencias menores de 15 días, W14, modelos incrementales, calibración
+isotónica, corrección de selective labels, MLflow, Terraform, despliegue shadow o
+canary y servicios distribuidos en la nube.

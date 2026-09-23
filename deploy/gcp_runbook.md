@@ -1,64 +1,57 @@
 # Runbook: despliegue manual en GCP
 
-**Escrito para:** el integrante del equipo encargado del despliegue (rol E), con
-acceso a un proyecto de GCP y permisos de Artifact Registry y Cloud Run.
+Guía para el integrante encargado del despliegue, con acceso a un proyecto de GCP y
+permisos de Artifact Registry y Cloud Run.
 
-**Alcance.** Ningún comando `gcloud` de este documento se ejecutó: no se creó
-ningún recurso cloud ni se estimó ninguna factura. Lo que **sí** está entregado y
-verificado localmente: el paquete del modelo, el servicio HTTP, el replay con su
-ledger, las pruebas de contrato y **la imagen Docker, construida y ejecutada**
-(`linux/amd64`, 1,06 GB, arranque en verde, paridad con el cálculo offline y 503
-sin paquete). El paso 2 de abajo es por tanto una repetición comprobada, no un
-salto al vacío.
+Los comandos `gcloud` de este documento no se ejecutaron: no hay recursos creados en
+la nube ni estimaciones de factura. Lo que está entregado y verificado en local es el
+paquete del modelo, el servicio HTTP, el replay con su ledger, las pruebas de contrato
+y la imagen Docker, construida y ejecutada (`linux/amd64`, 1,06 GB, HEALTHCHECK en
+verde, paridad con el cálculo offline y 503 sin paquete). El paso 2 repite un build
+ya comprobado.
 
-**La entrega académica no depende de que esto se despliegue.** Si el despliegue
-falla o no hay presupuesto, la demo local es suficiente y la propuesta de §3.4
-queda cubierta por el diseño, este runbook y la evidencia local.
+La propuesta de despliegue del enunciado (sección 3.4) queda cubierta por el diseño,
+este runbook y la demo local, de modo que la entrega no depende de publicar el
+servicio.
 
----
-
-## 0. Antes de empezar
+## 0. Requisitos
 
 | Verificación | Cómo |
 |---|---|
-| Proyecto y región elegidos | Perfil documental: `us-central1` (ajustable) |
-| Billing habilitado y límites revisados | Consola de GCP → Facturación. **Revisa tus propios límites**: este documento no estima costos |
+| Proyecto y región | Por defecto `us-central1` |
+| Facturación habilitada y límites revisados | Consola de GCP, sección Facturación |
 | Permisos | `roles/artifactregistry.writer`, `roles/run.admin`, `roles/iam.serviceAccountUser` |
-| Docker instalado y autenticado | `docker --version` |
-| Paquete del modelo disponible | `models/<version_id>/` con `manifest.json` |
+| Docker instalado | `docker --version` |
+| Paquete del modelo | `models/<version_id>/` con `manifest.json` |
 
-Sustituye en todos los comandos:
+Variables usadas en los comandos:
 
 ```bash
 PROJECT_ID=<tu-project-id>
 REGION=us-central1
 REPO=fraud-adaptive
 SERVICE=fraud-adaptive-serving
-VERSION=<version_id, p. ej. W30_T165>
+VERSION=<version_id, por ejemplo E15_T165>
 ```
 
----
+El paquete se obtiene con `python -m fraud_adaptive --run-id v3 package export --strategy E15`.
 
-## 1. Verificar el paquete localmente (antes de subir nada)
+## 1. Verificar el paquete en local
 
 ```bash
-# El servicio arranca y reporta la versión activa
 python -m fraud_adaptive serve --package models/$VERSION --port 8080 &
 curl -s localhost:8080/health | python -m json.tool
 ```
 
 `/health` debe devolver `status: ok`, el `model_version` esperado y el
-`package_hash`. Si devuelve `model_unavailable`, **no continúes**: el paquete está
-incompleto o corrupto.
+`package_hash`. Si devuelve `model_unavailable`, el paquete está incompleto y hay que
+regenerarlo antes de seguir.
 
 ```bash
-# Contrato completo, cupo, idempotencia y rollback
 python -m pytest tests/test_serving_contract.py tests/test_replay_idempotency.py -q
 ```
 
----
-
-## 2. Construir y subir la imagen
+## 2. Construir y publicar la imagen
 
 ```bash
 gcloud artifacts repositories create $REPO \
@@ -69,20 +62,16 @@ gcloud auth configure-docker $REGION-docker.pkg.dev
 
 IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/serving
 
-# --platform es obligatorio: Cloud Run solo ejecuta linux/amd64.
-# En un Mac con Apple Silicon, omitirlo produce una imagen arm64 que falla al arrancar.
+# Cloud Run ejecuta linux/amd64; en un Mac con Apple Silicon el build por defecto es arm64.
 docker build --platform linux/amd64 -t $IMAGE:$VERSION .
 docker push $IMAGE:$VERSION
 
-# Anota el digest: fija la imagen y hace el despliegue reproducible.
 docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:$VERSION
 ```
 
-**Verificación manual:** el digest anotado debe coincidir con el que muestre
-Cloud Run tras el despliegue. Las credenciales no viajan en la imagen: el
-`.dockerignore` excluye `.env`, `~/.kaggle` y los datos crudos.
-
----
+El digest fija la imagen y debe coincidir con el que muestre Cloud Run tras el
+despliegue. `.dockerignore` excluye `.env`, `~/.kaggle` y los datos crudos, así que
+las credenciales no viajan en la imagen.
 
 ## 3. Crear el servicio
 
@@ -101,30 +90,24 @@ gcloud run deploy $SERVICE \
   --set-env-vars=PACKAGE_DIR=/app/package,LOG_FORMAT=json
 ```
 
-**Por qué esta configuración y no otra:**
-
-- `--no-allow-unauthenticated` e `--ingress=internal`: el endpoint decide sobre
-  pagos. Nunca debe ser público.
-- `--max-instances=1` y `--concurrency=1`: la demo es **secuencial**. El cupo lo
-  garantiza el ledger local del replay, no el servicio. Con varias instancias, dos
-  peticiones concurrentes podrían sobreadmitir revisiones.
-- `--min-instances=0`: sin tráfico no se paga cómputo, a costa de cold start. El
-  cold start se mide y se reporta **aparte** de la latencia warm.
-
-Verificación:
+- `--no-allow-unauthenticated` e `--ingress=internal` mantienen privado un endpoint
+  que decide sobre pagos.
+- `--max-instances=1` y `--concurrency=1` corresponden a la demo secuencial: el cupo
+  lo garantiza el ledger del replay, y con varias instancias dos peticiones
+  concurrentes podrían admitir revisiones de más.
+- `--min-instances=0` evita pagar cómputo sin tráfico a cambio de cold start, que se
+  mide por separado de la latencia en caliente.
 
 ```bash
-gcloud run services describe $SERVICE --region=$REGION --format='value(status.url)'
+URL=$(gcloud run services describe $SERVICE --region=$REGION --format='value(status.url)')
 TOKEN=$(gcloud auth print-identity-token)
 curl -s -H "Authorization: Bearer $TOKEN" $URL/health | python -m json.tool
 ```
 
----
+## 4. Replay local contra el endpoint remoto
 
-## 4. Ejecutar el replay local contra el endpoint remoto
-
-El replay sigue siendo la **autoridad del estado**, aunque el scoring ocurra en la
-nube. El ledger vive en tu máquina, no en el contenedor.
+El scoring ocurre en la nube y el ledger sigue en la máquina local, que conserva el
+estado del cupo y de las decisiones.
 
 ```bash
 python -m fraud_adaptive replay \
@@ -134,34 +117,26 @@ python -m fraud_adaptive replay \
   --fixtures
 ```
 
-**Verificación manual:**
+Comprobar que `ledger.excedio_capacidad` es `false`, que `idempotencia.aprobado` es
+`true`, que aparecen las tres acciones (o que los fixtures rotulados cubren las
+faltantes) y que se regenera `reports/replay_local.md`.
 
-- `ledger.excedio_capacidad` = `false`
-- `idempotencia.aprobado` = `true`
-- las tres acciones aparecen en `acciones` (o los fixtures cubren las faltantes,
-  claramente rotulados)
-- `reports/replay_local.md` se regenera con la evidencia
+## 5. Promover o revertir
 
----
-
-## 5. Promover o volver a la versión anterior
-
-**Solo tras aprobación humana registrada.** Lee `deploy/promocion_rollback.md`
-antes de este paso.
+Este paso requiere aprobación humana registrada; los criterios están en
+`deploy/promocion_rollback.md`.
 
 ```bash
-# Promoción: desplegar el nuevo digest
+# Promoción
 gcloud run deploy $SERVICE --image=$IMAGE@<digest-nuevo> --region=$REGION
 
-# Rollback: devolver el tráfico a la revisión anterior
+# Rollback a la revisión anterior
 gcloud run services update-traffic $SERVICE --to-revisions=<revision-anterior>=100 --region=$REGION
 ```
 
-**Verificación:** `/health` debe informar el `model_version` y el `package_hash`
-esperados. No apruebes un modelo por la apariencia de la demo: la evidencia
-económica exige etiquetas maduras, que llegan 30 días después.
-
----
+`/health` debe informar el `model_version` y el `package_hash` esperados. La evidencia
+económica de una versión requiere etiquetas maduras, que llegan 30 días después, así
+que la demo sirve para verificar el funcionamiento y no para aprobar un modelo.
 
 ## 6. Cerrar la demo
 
@@ -170,36 +145,30 @@ gcloud run services delete $SERVICE --region=$REGION
 gcloud artifacts repositories delete $REPO --location=$REGION
 ```
 
-Conserva localmente: `runs/<run_id>/`, `reports/` y `models/<version>/`. Revisa
-tu propio consumo en la consola de facturación.
+Conservar en local `runs/<run_id>/`, `reports/` y `models/<version>/`, y revisar el
+consumo en la consola de facturación.
 
----
+## 7. Escala, costos e integración
 
-## 7. Desafíos de escala, costo e integración
+Los montos dependen de la cuenta, la región y el tráfico, así que el análisis es
+cualitativo.
 
-Análisis cualitativo. **No se estiman montos**: dependen de la cuenta, la región y
-el tráfico real del equipo.
-
-| Desafío | Causa y factor de costo | Decisión de diseño / responsable |
+| Desafío | Factores | Decisión de diseño |
 |---|---|---|
-| **Escala de serving** | CPU y RAM por petición, cold start, tamaño del paquete, número de réplicas | Entrenamiento separado del serving; tiempos y memoria medidos localmente; el equipo limita réplicas en la demo. Una prueba local **no** permite prometer un SLA Perú–región |
-| **Reentrenamiento** | W, volumen, ancho del panel y lectura de datos determinan la duración | Ventana fija y cadencia de 15 días; se adjunta el costo de cómputo local medido. Migrar a Cloud Run Jobs es trabajo futuro y manual |
-| **Almacenamiento y observabilidad** | Versiones retenidas y logs por evento crecen con el volumen | Dos paquetes activos como máximo y logs agregados de baja cardinalidad. **Sin series etiquetadas por `TransactionID`**. La retención la define el equipo |
-| **Integración** | Identidad incompleta o tardía, duplicados, orden y paridad de features | Contratos explícitos y pruebas locales de paridad offline/API. El prototipo asume identidad **simultánea** y features precomputadas; producción exige validación adicional |
-| **Concurrencia del cupo** | Varios emisores o reintentos pueden sobreadmitir revisiones | Un solo replay con ledger transaccional. El estado distribuido (Firestore) es diseño futuro. **No publicar un endpoint abierto de decisión con cupo arbitrario** |
-| **Presupuesto** | Créditos, precios y cuotas dependen de la cuenta y la región | El equipo verifica sus límites antes de crear recursos. Si no despliega, la entrega local cubre el alcance. **No se afirma costo cero** |
+| Escala del serving | CPU y memoria por petición, cold start, tamaño del paquete, réplicas | Entrenamiento separado del serving, tiempos medidos en local y réplicas limitadas en la demo. Una medición local no permite comprometer un SLA |
+| Reentrenamiento | Tamaño de la ventana, volumen, ancho del panel y lectura de datos | Cadencia de 15 días; E15 crece con el histórico, lo que conviene vigilar. Cloud Run Jobs queda como migración futura |
+| Almacenamiento y observabilidad | Versiones retenidas y logs por evento | Como máximo dos paquetes activos y logs agregados sin series por `TransactionID` |
+| Integración | Identidad incompleta o tardía, duplicados, orden y paridad de features | Contratos explícitos y pruebas de paridad. El prototipo asume identidad simultánea y features precomputadas |
+| Concurrencia del cupo | Varios emisores o reintentos pueden admitir revisiones de más | Un único replay con ledger transaccional; el estado distribuido en Firestore queda como diseño futuro |
+| Presupuesto | Créditos, precios y cuotas de la cuenta | El equipo revisa sus límites antes de crear recursos |
 
----
+## 8. Fuera del alcance
 
-## 8. Qué NO está incluido
+- Terraform u otra infraestructura como código.
+- Scripts que creen recursos automáticamente.
+- Pub/Sub, Firestore, BigQuery y Cloud Scheduler, que figuran solo en el diagrama.
+- Vertex AI Endpoints, descartado para esta demo por requerir configuración adicional.
+- Estimación de factura mensual.
 
-- Terraform ni infraestructura como código
-- Scripts de creación automática de recursos
-- Pub/Sub, Firestore, BigQuery o Cloud Scheduler (solo en el diagrama)
-- Vertex AI Endpoints (descartado para el MVP: configuración adicional sin
-  evidencia nueva para la rúbrica)
-- Estimación de factura mensual
-
-Si Docker no está disponible en tu máquina, el servicio corre de forma nativa
-(`python -m fraud_adaptive serve`) y el contrato es el mismo; el `Dockerfile` ya
-está verificado, así que el build solo hay que repetirlo donde vayas a publicarlo.
+Sin Docker, el servicio corre de forma nativa con `python -m fraud_adaptive serve` y
+el contrato es el mismo.

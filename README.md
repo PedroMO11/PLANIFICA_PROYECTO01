@@ -1,128 +1,110 @@
 # Sistema adaptativo de decisión ante fraude transaccional
 
-Proyecto del curso **Planificación y Toma de Decisiones en IA** (UTEC).
-Dataset: IEEE-CIS Fraud Detection.
+Proyecto 1 del curso Planificación y Toma de Decisiones en IA (UTEC), sobre el
+dataset IEEE-CIS Fraud Detection.
 
-El sistema no se limita a predecir fraude: **decide** entre aprobar, revisar o
-bloquear cada transacción minimizando el costo económico esperado bajo una
-capacidad limitada de revisión humana, y se **adapta** al paso del tiempo mediante
-olvido por ventanas fijas, con etiquetas que llegan 30 días tarde.
+El sistema decide para cada transacción entre aprobar, enviar a revisión o
+bloquear, minimizando el costo esperado con un cupo de 150 revisiones diarias. Las
+etiquetas confirmadas llegan 30 días después del evento, y el modelo se readapta
+cada 15 días con autorización humana.
 
----
+## Entregables
 
-## Qué problema resuelve
-
-Un modelo entrenado hoy deja de servir mañana, y no se entera hasta un mes después.
-
-| Restricción real | Cómo la enfrenta el sistema |
+| Entregable | Ubicación |
 |---|---|
-| La etiqueta confirmada llega **30 días** después del evento | Dos relojes separados: el de evento y el de disponibilidad. Nada se entrena ni se mide con una etiqueta que aún no maduró |
-| Solo se pueden revisar **150 casos al día** | Cola con cupo reservado de forma atómica, prioridad entre los casos ya llegados y desborde a la acción automática más barata |
-| Un falso positivo cuesta fricción; un falso negativo cuesta el monto | Política que compara costos esperados, no un umbral de 0.5 |
-| La distribución cambia con el tiempo | Ventanas de olvido W30/W60/W90 con cadencia de 15 días, frente a referencias estática y expansiva |
-| Reentrenar de forma autónoma es inaceptable | Toda promoción pasa por gates verificables **y** por una persona |
+| Documento técnico (8 páginas) | [reports/informe_final.pdf](reports/informe_final.pdf), fuente en [reports/informe_final.md](reports/informe_final.md) |
+| Infografía | [reports/infografia.pdf](reports/infografia.pdf), fuente en [reports/infografia.svg](reports/infografia.svg) |
+| Código | `src/fraud_adaptive/`, `tests/`, `configs/` y los notebooks de `notebooks/` |
+| Simulación de despliegue | servicio HTTP, replay con ledger, `Dockerfile` y `deploy/` |
+| Guion de exposición | [reports/guion_presentacion.md](reports/guion_presentacion.md) |
 
----
+## Resultados
 
-## Inicio rápido
+| Resultado | Valor |
+|---|---|
+| Costo simulado frente a aprobar todo | de 5,40 a 1,98 UM por transacción (−63,2 %) |
+| Estrategia recomendada | E15: reentrenar cada 15 días con todo el histórico |
+| E15 frente al modelo estático | −0,108 UM/tx, intervalo de 95 % [−0,205; 0,002] |
+| Ventanas deslizantes W30, W60 y W90 | entre 2,06 y 2,18 UM/tx; ninguna supera al estático de forma estable |
+| Drift en P(X) | domain classifier con AUC de 0,551 (alerta en 0,75) |
+| Drift en P(y\|X) | 30 días más de antigüedad cuestan 0,106 UM/tx con el volumen fijo, en las 18 combinaciones de robustez |
+| Cupo de revisión | 150 casos diarios respetados los 62 días del test |
+| Latencia sobre HTTP | p95 de 90,1 ms |
+
+El drift de IEEE-CIS está en la relación entre features y fraude y es menor que el
+costo de entrenar con menos datos, por eso reentrenar sin descartar histórico rinde
+más que las ventanas deslizantes. El análisis completo está en el informe.
+
+## Instalación y ejecución
 
 ```bash
-# 1. Entorno (usa uv)
 uv python install 3.12
 uv venv --python 3.12
 uv pip install -e ".[serving,dev]"
 
-# 2. Datos
-python -m fraud_adaptive data instructions   # para los datos reales de Kaggle
-# o, si no tienes acceso a Kaggle:
-python -m fraud_adaptive data surrogate --scale 1.0
-
-# 3. Cadena completa (reanudable)
-python -m fraud_adaptive all
+python -m fraud_adaptive data instructions   # pasos para descargar IEEE-CIS desde Kaggle
+python -m fraud_adaptive --run-id v3 all     # cadena completa, reanudable
 ```
 
-> ### Resultado principal
->
-> El olvido por ventanas fijas no reduce el costo sobre IEEE-CIS con este
-> protocolo. La ventana elegida en desarrollo, W60, resulta un 6,4 % más cara que
-> el modelo estático en el periodo de test. La ventana más corta, W30, es la peor
-> de las cinco estrategias evaluadas.
->
-> El sistema sí reduce el costo de 5,40 a 1,53 UM por transacción frente a aprobar
-> todo, una mejora del 71,7 %. Ese resultado proviene del modelo y de la política
-> económica, no de la adaptación.
->
-> El detalle está en [reports/informe_final.md](reports/informe_final.md).
->
-> Sin acceso a Kaggle, `data surrogate` genera un dataset sustituto con el mismo
-> esquema para ejecutar y verificar el pipeline. Sus cifras quedan marcadas con
-> `data_source: sintetico_sustituto` y no describen el fraude real.
-
----
+Los CSV de Kaggle, `data/processed/`, `models/` y `runs/` no se versionan. La
+descarga requiere aceptar las reglas de la competencia y un token personal; solo se
+usan `train_transaction.csv` y `train_identity.csv`. Sin acceso a Kaggle,
+`data surrogate` genera un dataset sintético con el mismo esquema para ejecutar el
+pipeline; sus artefactos quedan marcados con `data_source: sintetico_sustituto`.
+Los detalles están en [docs/reproducibilidad.md](docs/reproducibilidad.md).
 
 ## Comandos
 
 | Comando | Qué hace |
 |---|---|
 | `data inspect` | Hash, esquema y origen de las fuentes |
-| `data instructions` | Pasos de descarga desde Kaggle (no ejecuta nada) |
-| `data surrogate` | Genera el dataset sustituto |
-| `data prepare` | Join auditado, relojes, features causales → Parquet |
-| `train tune` | 18 fits: 3 familias × 3 configuraciones × 2 folds forward |
-| `train static` | 3 modelos finales, Platt, umbrales por costo, familia congelada |
-| `adapt run` | Backtest de las 5 estrategias sobre los mismos eventos |
-| `selftest adwin` | Prueba el detector contra streams con cambio conocido |
-| `report build` | Tablas, figuras y documentos de evidencia |
-| `package export` | Exporta un paquete desplegable (solo W30/W60/W90) |
-| `serve --package <dir>` | Servicio HTTP local (`/health`, `/predict`) |
+| `data instructions` | Pasos de descarga desde Kaggle |
+| `data surrogate` | Genera el dataset sintético sustituto |
+| `data prepare` | Join auditado, relojes y features causales en Parquet |
+| `train tune` | 18 fits: 3 familias × 3 configuraciones × 2 folds temporales |
+| `train static` | Modelos finales, calibración, política y prerregistro |
+| `adapt run` | Backtest de las siete estrategias sobre los mismos eventos |
+| `selftest adwin` | Prueba ADWIN sobre series con cambio conocido |
+| `report build` | Tablas, figuras y reportes de evidencia |
+| `package export --strategy E15` | Exporta un paquete de E15, W30, W60 o W90 |
+| `serve --package <dir>` | Servicio HTTP local con `/health` y `/predict` |
 | `replay --package <dir>` | Replay secuencial con ledger SQLite |
-| `verify --against <run>` | Compara dos corridas: ¿salen los mismos números? |
-| `deliver` | Cierra la entrega: notebooks, PDF ≤ 8 páginas y manifiesto |
-| `all` | La cadena completa |
+| `verify --against <run>` | Compara dos corridas |
+| `deliver` | Ejecuta los notebooks, exporta el PDF y escribe el manifiesto |
+| `all` | Cadena completa |
 
----
-
-## Cómo está construido
+## Estructura
 
 ```
+configs/            parámetros de datos, protocolo temporal, modelos, decisión y adaptación
+data/manifests/     hashes y esquema de las fuentes, particiones temporales
+docs/               contrato, protocolo, decisiones de diseño, arquitectura y antecedentes
+deploy/             runbook de GCP, política de promoción y rollback
+notebooks/          EDA temporal, modelos y adaptación, con salidas de la corrida v3
+reports/            informe, infografía, guion, tablas, figuras y evidencia
 src/fraud_adaptive/
-├── tracking.py     manifests, hashes, presupuesto y checkpoints (sustituye a MLflow)
-├── data.py         carga, validación, join 1:1, relojes, EDA, KS/PSI
-├── features.py     features causales por entidad, point-in-time
-├── splits.py       roles temporales, elegibilidad de etiquetas  ← árbitro de causalidad
-├── models.py       preprocesamiento por fold + tres familias
-├── calibration.py  Platt por versión, Brier, confiabilidad, ECE
-├── decision.py     costos esperados, tres acciones, cupo, umbrales
+├── data.py         carga, validación, join 1:1, relojes y EDA
+├── features.py     features causales por proxy de entidad
+├── splits.py       roles temporales y madurez de etiquetas
+├── models.py       preprocesamiento por fit y tres familias de modelos
+├── calibration.py  Platt por versión, Brier y ECE
+├── decision.py     costos esperados, tres acciones y cupo
 ├── metrics.py      métricas técnicas, de decisión y sociales; bootstrap por bloques
-├── drift.py        KS/PSI, S1, S2, S3, ADWIN
-├── adaptation.py   construcción de paquetes y gates de promoción
-├── backtest.py     replay prequential con dos relojes
-├── monitoring.py   política de alertas, escalamiento y rollback
+├── drift.py        KS/PSI, domain classifier y ADWIN
+├── adaptation.py   paquetes de modelo y gates de promoción
+├── backtest.py     simulación prequential con dos relojes
+├── monitoring.py   alertas, escalamiento y rollback
 ├── serving.py      API HTTP
 ├── replay.py       orquestador local con ledger transaccional
-├── pipeline.py     encadenado de fases
+├── pipeline.py     encadenamiento de fases
+├── reporting.py    tablas, figuras y manifiestos
+├── export.py       exportación del informe a PDF
+├── tracking.py     manifests, hashes, presupuesto y checkpoints
 └── synthetic.py    generador del dataset sustituto
+tests/              150 pruebas automáticas
 ```
 
-### Cinco invariantes que el código hace cumplir
-
-No son intenciones documentadas: cada una tiene una prueba que falla si se rompe.
-
-1. **Ninguna transformación se ajusta fuera del tramo de fit de su versión.**
-   Alterar las filas futuras no mueve medianas, escalado ni vocabulario.
-2. **Una etiqueta solo es visible cuando `available_at < job_time`**, con
-   desigualdad estricta. Invertir las etiquetas inmaduras no cambia el predictor.
-3. **Las features se emiten antes de actualizar el estado.** Un evento futuro de
-   monto extremo no altera ninguna fila anterior, y los eventos con el mismo
-   timestamp leen todos el mismo pasado.
-4. **Los cuatro roles por versión son disjuntos**, verificado sobre los
-   `TransactionID` reales y no solo sobre los intervalos.
-5. **El cupo se reserva de forma atómica e idempotente.** Reenviar un evento
-   devuelve su decisión anterior sin consumir un segundo cupo.
-
----
-
-## El protocolo temporal en una imagen
+## Protocolo temporal
 
 ```
 día:  0        30   45   60      69   76   83   90        120  135  150  165  182
@@ -133,57 +115,17 @@ día:  0        30   45   60      69   76   83   90        120  135  150  165  1
                                    [cal][pol][ H ]
                                                   [warmup X ]
                                                             [ B1][ B2][ B3][ B4 ]
-                                                              ↑    ↑    ↑    ↑
-                                                         actualizaciones (cadencia 15)
 ```
 
-En cada actualización `T`, con `c = T − 30`:
+En desarrollo se eligen la familia, la política, los umbrales y la ventana, y el hash
+de prerregistro los sella antes de abrir el test. En cada actualización `T` de
+{120, 135, 150, 165}, con `c = T − 30`:
 
 | Rol | Intervalo | Días |
 |---|---|---|
-| Predictor | `[c−W, c−21)` | 9 / 39 / 69 |
-| Calibrador | `[c−21, c−14)` | 7 |
-| Reserva de política | `[c−14, c−7)` | 7 |
+| Predictor | `[c−W, c−14)` | 16 con W30, 46 con W60, 76 con W90 |
+| Calibrador | `[c−14, c−7)` | 7 |
 | Validación de promoción | `[c−7, c)` | 7 |
-
-Las dos reservas son idénticas para todas las estrategias: eso es lo que hace que
-una diferencia de costo sea atribuible al tamaño de ventana y no a otra cosa.
-
----
-
-## Documentación
-
-| Documento | Para qué |
-|---|---|
-| [docs/contrato_sistema.md](docs/contrato_sistema.md) | Objetivos, métricas, política económica y límites de autonomía |
-| [docs/protocolo_experimental.md](docs/protocolo_experimental.md) | Prerregistro: particiones, controles de fuga, gates |
-| [docs/reproducibilidad.md](docs/reproducibilidad.md) | Cómo repetir la corrida y qué se garantiza |
-| [docs/decisiones_pendientes.md](docs/decisiones_pendientes.md) | Registro de decisiones resueltas (C1–C28) |
-| [docs/decisiones_de_diseno.md](docs/decisiones_de_diseno.md) | Las siete decisiones en que el sistema se aparta del plan, con la medición que las sustenta |
-| [docs/arquitectura.mmd](docs/arquitectura.mmd) | Diagrama del sistema |
-| [deploy/gcp_runbook.md](deploy/gcp_runbook.md) | Pasos manuales de despliegue para el equipo |
-| [deploy/promocion_rollback.md](deploy/promocion_rollback.md) | Cuándo promover, cuándo revertir y quién decide |
-| [reports/informe_final.md](reports/informe_final.md) | Informe de 8 páginas |
-
----
-
-## Local frente a nube
-
-**Todo lo de este repositorio es local.** Ningún comando crea recursos cloud,
-ejecuta `gcloud` ni despliega nada.
-
-| Entregado y verificado aquí | Ejecuta el equipo a mano |
-|---|---|
-| Paquete del modelo con hashes | `docker build` y `push` |
-| Imagen Docker construida y probada | `push` al registro y crear el servicio |
-| Servicio HTTP y replay con ledger | Apuntar el replay al endpoint remoto |
-| Runbook y política de promoción | Promover, revertir y cerrar recursos |
-
-El diagrama [deploy/arquitectura_gcp.mmd](deploy/arquitectura_gcp.mmd) distingue
-con línea continua lo entregado y con línea punteada el diseño futuro. Pub/Sub,
-Firestore, BigQuery y Cloud Scheduler **no** están implementados.
-
----
 
 ## Pruebas
 
@@ -191,61 +133,66 @@ Firestore, BigQuery y Cloud Scheduler **no** están implementados.
 python -m pytest
 ```
 
-137 pruebas (136 pasan; 1 se omite porque el sustituto reducido de las pruebas no
-tiene soporte suficiente en la cola de calibración). Agrupadas por la propiedad que
-protegen:
+Hay 150 pruebas: 149 pasan y una se omite porque el dataset reducido de las pruebas
+no alcanza el soporte mínimo en la cola de calibración.
 
-| Archivo | Qué protege |
+| Archivo | Qué verifica |
 |---|---|
 | `test_point_in_time_features.py` | Causalidad de las features y empates temporales |
-| `test_temporal_integrity.py` | Roles disjuntos y preprocesamiento por fold |
-| `test_delayed_feedback.py` | Que nada dependa de una etiqueta inmadura |
-| `test_decision_capacity.py` | Costos, cupo y causalidad de la cola |
-| `test_adaptation_windows.py` | Ventanas de olvido y detectores de drift |
-| `test_promotion_holdout.py` | Que un H contaminado haga rechazar el gate |
+| `test_temporal_integrity.py` | Roles disjuntos y preprocesamiento por fit |
+| `test_delayed_feedback.py` | Que ninguna decisión use etiquetas inmaduras |
+| `test_decision_capacity.py` | Costos, cupo y admisión causal a la cola |
+| `test_adaptation_windows.py` | Ventanas de adaptación y detectores de drift |
+| `test_promotion_holdout.py` | Rechazo del gate con una validación contaminada |
+| `test_backtest_end_to_end.py` | Recorrido completo del backtest con datos reducidos |
 | `test_checkpoint_resume.py` | Reanudación, presupuesto y escritura atómica |
-| `test_serving_contract.py` | Contrato HTTP, 503 sin modelo, paridad offline/API |
+| `test_serving_contract.py` | Contrato HTTP, 503 sin modelo y paridad con el cálculo offline |
 | `test_replay_idempotency.py` | Idempotencia del ledger y atomicidad del cupo |
-| `test_verification.py` | Que la comparación entre corridas distinga resultados de entorno |
-| `test_credentials.py` | Que el token se cargue del `.env` y nunca salga en un log |
+| `test_verification.py` | Comparación entre corridas |
+| `test_credentials.py` | Carga del token desde `.env` sin exponerlo en logs |
 
-### Reproducibilidad, comprobada
+Una segunda corrida independiente (`v3_repro`) reprodujo los 18 fits de tuning, el
+hash de prerregistro y el costo de S0, E15, W30, W60 y W90 sin diferencias
+([reports/verificacion_reproducibilidad.json](reports/verificacion_reproducibilidad.json)).
+La igualdad está comprobada en la misma máquina; entre máquinas distintas pueden
+aparecer diferencias de punto flotante.
 
-La cadena completa se ejecutó **dos veces en corridas independientes**. Los 18 fits
-de tuning, el hash de prerregistro y el costo observado de las cinco estrategias
-salieron idénticos, y ninguna de las 39 columnas de la tabla de resultados difiere:
+## Despliegue
 
-```bash
-python -m fraud_adaptive --run-id principal verify --against reproduccion
-```
+Todo lo del repositorio se ejecuta en local y ningún comando crea recursos en la
+nube.
 
-Dentro de la misma máquina y el mismo entorno. **No** se promete igualdad bit a bit
-entre máquinas distintas: BLAS, versión de CPU y orden de reducción en punto
-flotante pueden diferir.
+| Entregado y verificado | Paso manual del equipo |
+|---|---|
+| Paquete del modelo con hashes | Publicar la imagen en Artifact Registry |
+| Imagen Docker construida y probada | Crear el servicio en Cloud Run |
+| Servicio HTTP y replay con ledger | Apuntar el replay al endpoint remoto |
+| Runbook y política de promoción | Promover, revertir y cerrar recursos |
 
----
+[deploy/arquitectura_gcp.mmd](deploy/arquitectura_gcp.mmd) distingue lo entregado del
+diseño futuro (Pub/Sub, Firestore, BigQuery y Cloud Scheduler).
 
-## Límites declarados
+## Documentación
 
-- Los costos son **simulados** bajo supuestos (c_FP=5, c_R=1, r_H=0.90, f_H=0.02).
-  No hay ahorro causal medido sobre pagos reales.
-- El analista es simulado; su veredicto nunca entrena al modelo y solo se calcula
-  cuando la etiqueta madura.
-- Los segmentos son variables de negocio. IEEE-CIS no tiene atributos protegidos
-  verificables: esto es disparidad **operativa**, no auditoría demográfica.
-- El cupo está garantizado para un orquestador **secuencial**. La demo no certifica
-  decisiones concurrentes de producción.
-- La latencia es **local**; no representa una región cloud ni un SLA.
-- Es un **backtest retrospectivo**, no una validación prospectiva. La selección
-  previa del dataset ya examinó periodos tardíos, y se declara como limitación.
-- `L=30` es un supuesto de simulación, no un plazo regulatorio.
+| Documento | Contenido |
+|---|---|
+| [docs/contrato_sistema.md](docs/contrato_sistema.md) | Objetivos, métricas, política económica y límites de autonomía |
+| [docs/protocolo_experimental.md](docs/protocolo_experimental.md) | Particiones, controles de fuga, prerregistro y gates |
+| [docs/decisiones_de_diseno.md](docs/decisiones_de_diseno.md) | Decisiones de diseño y la medición que sustenta cada una |
+| [docs/registro_decisiones.md](docs/registro_decisiones.md) | Ambigüedades del enunciado y cómo se resolvieron |
+| [docs/reproducibilidad.md](docs/reproducibilidad.md) | Cómo repetir la corrida y qué se garantiza |
+| [docs/arquitectura.dot](docs/arquitectura.dot) | Fuente del diagrama de arquitectura |
+| [docs/antecedentes/](docs/antecedentes/) | Propuesta del avance y benchmark de selección del dataset |
+| [deploy/gcp_runbook.md](deploy/gcp_runbook.md) | Pasos de despliegue manual |
+| [deploy/promocion_rollback.md](deploy/promocion_rollback.md) | Criterios de promoción y rollback |
 
----
+## Límites
 
-## Antecedentes (no se modifican)
-
-`propuesta_proyecto1_final.md`, `concept_drift_findings.md` y
-`concept_drift_benchmark_instructions.md` son el registro histórico del avance. El
-benchmark que eligió IEEE-CIS se cita como evidencia **consistente** con concept
-drift, no como prueba causal, y su preprocesamiento tenía limitaciones que se
-declaran en lugar de corregirse retroactivamente.
+- Los costos son simulados con `c_FP = 25`, `c_R = 1`, `r_H = 0,90` y `f_H = 0,02`.
+- El analista es simulado y su veredicto no se usa para entrenar.
+- Los segmentos son variables de negocio; IEEE-CIS no tiene atributos protegidos.
+- El cupo está garantizado para un orquestador secuencial.
+- La latencia se midió en local.
+- Es un backtest retrospectivo, y la selección del dataset ya había examinado
+  periodos tardíos.
+- `L = 30` es un supuesto de simulación.

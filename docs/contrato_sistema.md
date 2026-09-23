@@ -1,50 +1,41 @@
 # Contrato del sistema: objetivos, métricas y política de decisión
 
-Documento de referencia para el equipo y para la revisión del curso. Fija qué mide
-el sistema, con qué criterio decide y qué **no** puede afirmar. Los valores aquí
-son los que el código carga desde `configs/`; cambiar uno invalida el hash de
-prerregistro y obliga a repetir la corrida.
+Este documento fija qué mide el sistema, con qué criterio decide y cuáles son los
+límites de sus conclusiones. Los valores se cargan desde `configs/`; cambiar uno
+modifica el hash de prerregistro y obliga a repetir la corrida.
 
----
+## 1. Objetivos O1–O5
 
-## 1. Matriz de objetivos O1–O5
+Los objetivos provienen de la propuesta del avance
+(`docs/antecedentes/propuesta_avance.md`) y aquí se expresan como criterios
+verificables.
 
-Los objetivos vienen del avance (`propuesta_proyecto1_final.md`). Aquí se
-convierten en criterios verificables con un artefacto que los sustenta.
-
-| Obj. | Enunciado | Métrica operativa | Criterio | Evidencia |
+| Obj. | Enunciado | Métrica | Criterio | Resultado en la corrida v3 |
 |---|---|---|---|---|
-| **O1** | Menor costo que la política actual y que el modelo estático | Costo observado simulado, UM/transacción | Inferior a `costo_aprobar_todo` y al de S0 | Parcial sobre IEEE-CIS. Supera aprobar todo. W60 queda 6,4 % por encima del estático |
-| **O2** | Limitar la caída de PR-AUC frente a una referencia reentrenada | Average Precision por bloque | Caída relativa de AP > 10 % genera alerta **diagnóstica** | `reports/figures/drift_adaptacion.png` |
-| **O3** | Respetar la capacidad diaria de revisión | Revisiones admitidas por día | ≤ 150/día, límite duro | `capacidad.*.excedio_capacidad` = `false` |
-| **O4** | Señales sin etiqueta que anticipen una caída confirmada | Retraso entre día del evento y día de disponibilidad | KS/PSI y S1 disponibles el mismo día; ADWIN a L=30 días | `runs/<run_id>/drift_log.csv` |
-| **O5** | Limitar la disparidad de falsos positivos entre segmentos | Bloqueo de legítimas por grupo | Brecha superior a 2 pp con al menos 1 000 legítimas | 6 de 14 segmentos superan el umbral |
+| O1 | Menor costo que la política actual y que el modelo estático | Costo observado simulado, UM/tx | Inferior al de aprobar todo y al de S0 | E15: 1,984 frente a 5,398 y 2,092. La ventaja sobre S0 tiene un intervalo que incluye el cero |
+| O2 | Limitar la caída de AP | AP por bloque | Una caída relativa superior a 10 % genera alerta diagnóstica | AP de S0: 0,526 en B1 y 0,514 en B4 |
+| O3 | Respetar la capacidad de revisión | Revisiones admitidas por día | Como máximo 150 | Se cumple en las siete estrategias |
+| O4 | Señales sin etiqueta que anticipen una caída confirmada | Retraso entre el día del evento y el día de disponibilidad | KS/PSI y S1 el mismo día; ADWIN a 30 días | Sin cambio en P(X); ADWIN detecta deriva del error a 30 días |
+| O5 | Limitar la disparidad del bloqueo de legítimas | Bloqueo de legítimas por segmento | Brecha superior a 2 pp con al menos 1 000 legítimas | 2 de 14 segmentos con soporte superan el umbral (W60) |
 
-**Lo que O1 no afirma.** El costo observado es *simulado* bajo supuestos
-declarados (c_FP, c_R, r_H, f_H). No es un ahorro causal medido sobre pagos
-reales, y "aprobar todo" es una referencia aritmética, no la política comercial de
-un comercio observado.
+El costo observado es simulado con los parámetros de la sección 3, y «aprobar todo»
+es una referencia aritmética. IEEE-CIS no contiene atributos protegidos, así que
+los segmentos son variables de negocio (dominio de correo, tipo de dispositivo,
+cuartil de monto, `addr1` y `addr2`) y O5 mide disparidad operativa.
 
-**Lo que O5 no afirma.** IEEE-CIS no contiene atributos protegidos verificables.
-Los segmentos son variables de negocio (dominio de correo, tipo de dispositivo,
-cuartil de monto, `addr1`/`addr2`). Esto es **disparidad operativa**, no una
-auditoría demográfica.
-
----
-
-## 2. Las tres familias de métricas
+## 2. Métricas
 
 ### Técnicas
 
-| Métrica | Definición operativa | Advertencia |
+| Métrica | Definición | Observación |
 |---|---|---|
-| **AP (PR-AUC)** | `average_precision_score`: Σ (Rₙ − Rₙ₋₁)·Pₙ, sin interpolación trapezoidal | Mezclar ambas convenciones cambia el valor varios puntos en datos desbalanceados |
-| **Skill** | (AP − prevalencia) / (1 − prevalencia) | Separa un cambio de tasa base de un cambio de calidad |
-| **F1 / balanced accuracy** | En un umbral **declarado** (τ_alto de la política) | Nunca en 0.5; el umbral lo fija el costo |
-| **Recall @ FPR ≤ 1 %** | Umbral elegido en validación, aplicado congelado | Se reporta el **FPR realmente obtenido**, que puede incumplir el objetivo |
-| **Recall @ precisión ≥ 80 %** | Igual, con restricción de precisión | Si ningún umbral la alcanza ⇒ **N/A con motivo**, nunca una cifra inventada |
-| **Brier / ECE** | Antes y después de calibrar, por versión | ECE depende de los bins: es complemento, no métrica principal |
-| **Latencia p50/p95/p99** | Warm, local, 1 000 peticiones tras 100 de calentamiento | Medición local; no representa una región cloud ni un SLA |
+| AP | `average_precision_score`, suma de (Rₙ − Rₙ₋₁)·Pₙ | Sin interpolación trapezoidal, que cambia el valor en datos desbalanceados |
+| Skill | (AP − prevalencia) / (1 − prevalencia) | Separa un cambio de tasa base de un cambio de calidad |
+| F1 y balanced accuracy | En el umbral de FPR 1 % fijado en validación | La política no tiene un corte sobre `p`, así que se usa ese umbral declarado |
+| Recall a FPR ≤ 1 % | Umbral elegido en validación y aplicado sin reajuste | Se reporta el FPR obtenido en test |
+| Recall a precisión ≥ 80 % | Igual, con restricción de precisión | Si ningún umbral alcanza la precisión se reporta N/A con el motivo |
+| Brier y ECE | Antes y después de calibrar, por versión | El ECE depende de los bins y se usa como complemento |
+| Latencia p50, p95 y p99 | 1 000 peticiones HTTP tras 100 de calentamiento | Medición local |
 
 ### De decisión
 
@@ -54,21 +45,19 @@ C_obs = [ Σ monto·1(fraude finalmente aprobado)
         + c_R  · N(revisadas) ] / N
 ```
 
-Se reportan además: monto de fraude evitado, costo de falsos positivos, retorno
-por analista-hora, revisiones/día, demanda excedente y utilización del cupo.
+Se reportan además el monto de fraude evitado, las revisiones por día, la demanda
+que excede el cupo y el uso del cupo.
 
 ### Sociales
 
-Bloqueo de clientes legítimos (distinto del FPR del clasificador: incluye las
-legítimas que el analista bloquea por error), disparidad por segmento con soporte
-e intervalos, y cobertura automática. Las apelaciones **no** son medibles en
-IEEE-CIS: quedan como especificación futura, no como métrica experimental.
+Tasa de bloqueo de clientes legítimos, que suma los bloqueos automáticos y los
+errores del analista; disparidad de esa tasa por segmento con intervalo y soporte
+mínimo; y cobertura automática. Las apelaciones no son medibles en IEEE-CIS y
+quedan especificadas para una operación real.
 
----
+## 3. Modelo económico
 
-## 3. Modelo económico de decisión
-
-Para probabilidad calibrada `p` y monto `m`:
+Para una probabilidad calibrada `p` y un monto `m`:
 
 ```
 E[aprobar]  = p · m
@@ -76,99 +65,81 @@ E[bloquear] = (1 − p) · c_FP
 E[revisar]  = c_R + p·(1 − r_H)·m + (1 − p)·f_H·c_FP
 ```
 
-| Parámetro | Valor | Naturaleza |
+| Parámetro | Valor | Origen |
 |---|---|---|
-| `c_FP` | Calibrado en desarrollo | Precio sombra del objetivo de bloqueo de legítimas |
-| `c_R` | 1 UM | Supuesto cerrado |
-| `r_H` | 0.90 | Recall del analista simulado |
-| `f_H` | 0.02 | Bloqueo erróneo del analista simulado |
+| `c_FP` | 25 UM | Menor valor que cumple el objetivo de bloqueo de legítimas en desarrollo |
+| `c_R` | 1 UM | Supuesto |
+| `r_H` | 0,90 | Recall del analista simulado |
+| `f_H` | 0,02 | Tasa de bloqueo erróneo del analista simulado |
 | Objetivo de bloqueo de legítimas | 1 % | Restricción operativa declarada |
-| Capacidad | 150 revisiones/día | Límite duro (2 × 8 h × 10 casos/h = 160; 10 de holgura declarada) |
+| Capacidad | 150 revisiones/día | Dos analistas, 8 horas y 10 casos por hora dan 160; se dejan 10 de holgura |
 
-UM es consistente con `TransactionAmt`; **no se convierte a PEN ni USD**.
+La unidad monetaria es la de `TransactionAmt` y no se convierte a otra moneda.
 
-**`c_FP` no se fija a mano.** No es observable, pero la fracción de transacciones
-legítimas rechazadas sí lo es y es lo que la operación restringe. Se declara el
-objetivo y se busca el menor `c_FP` que lo cumple, sobre la reserva de política de
-desarrollo `[76, 83)` y usando como referencia la familia de mayor AP. Un valor
-plano de 5 UM produce un 11,17 % de bloqueo de legítimas, incompatible con
-cualquier operación de pagos. El valor calibrado queda sellado en el prerregistro y
-viaja en el manifiesto del paquete desplegable.
+El costo de un falso positivo no es observable, pero la fracción de legítimas
+rechazadas sí lo es. Por eso `c_FP` se calibra como el menor valor que cumple el
+objetivo del 1 % sobre la reserva de política de desarrollo `[76, 83)`, con la
+familia de mayor AP como referencia. Con un valor fijo de 5 UM se bloqueaba el
+11,17 % de las legítimas. El valor calibrado queda sellado en el prerregistro y viaja
+en el manifiesto del paquete.
 
-Sensibilidad económica sobre predicciones ya guardadas, sin reajustar nada. Los
-escenarios son múltiplos del `c_FP` calibrado: `0.5×`, `1×` y `2×`, con `c_R` de
-0.5, 1 y 2. Estrés del analista: `r_H=0.80`, `f_H=0.05`. Las acciones se calculan
-una sola vez con la economía congelada y no se recalculan por escenario.
+La sensibilidad económica recalcula el costo de predicciones guardadas con las
+acciones congeladas: `c_FP` a 0,5×, 1× y 2× del calibrado con `c_R` de 0,5, 1 y 2, y
+un escenario de analista con `r_H = 0,80` y `f_H = 0,05`.
 
-**Revisar no siempre gana.** Con montos bajos, el costo fijo `c_R` supera la
-pérdida esperada: la política prefiere una acción automática. Esa es la razón de
-que exista una acción de revisión y no una decisión binaria.
-
----
+Con montos bajos el costo fijo de revisar supera la pérdida esperada y la política
+prefiere una acción automática; por eso la revisión es una tercera acción y la
+decisión no es binaria.
 
 ## 4. Política de tres acciones y cola
 
-**La acción sale del costo esperado**, caso por caso, sujeta al cupo diario. No hay
-umbrales que decidan.
+La acción se decide caso por caso con los costos esperados y el cupo:
 
-    accion = revisar            si min(E[aprobar], E[bloquear]) - E[revisar] > lambda
-             la más barata      en otro caso
-             entre aprobar y bloquear
+```
+accion = revisar                      si min(E[aprobar], E[bloquear]) − E[revisar] > λ
+         la más barata entre          en otro caso
+         aprobar y bloquear
+```
 
-`lambda` es el precio sombra del cupo, el multiplicador de Lagrange de la
-restricción de capacidad. Sin él, la regla propone 704 revisiones diarias frente a
-un cupo de 150 y las plazas se las llevan los casos que llegan primero. Se calibra
-por bisección como el menor valor que deja la demanda dentro del cupo, sin usar
-etiquetas.
+`λ` es el precio sombra del cupo, el multiplicador de Lagrange de la restricción de
+capacidad. Sin él la regla pedía 704 revisiones diarias para 150 plazas y el cupo se
+llenaba por orden de llegada. Se calibra por bisección, sin etiquetas, como el menor
+valor que ajusta la demanda al cupo, y resulta 7,86 UM.
 
-Un corte global sobre `p` no puede ser óptimo bajo este modelo de costos, porque el
-punto de indiferencia entre aprobar y bloquear es `p* = c_FP / (m + c_FP)` y
-depende del monto. Un corte fijo bloquea de más en los montos bajos y de menos en
-los altos. Medido sobre los cuatro bloques de test con la misma economía y el mismo
-cupo, la regla de umbrales cuesta 1,9696 UM/tx frente a 1,5895 de la regla
-económica, y eso que los umbrales se eligen minimizando sobre esa misma ventana
-mientras la regla económica no se ajusta a ella.
+El punto de indiferencia entre aprobar y bloquear es `p* = c_FP / (m + c_FP)`, de
+modo que un corte global sobre `p` bloquea de más en montos bajos y de menos en
+montos altos. Sobre la reserva de política de desarrollo, el mejor par de umbrales
+cuesta 1,9696 UM/tx y la regla económica 1,5895, aunque los umbrales se eligieron
+minimizando el costo en esa misma reserva. Los umbrales se siguen calculando para
+medir esa diferencia y para las métricas diagnósticas; `implied_thresholds` describe
+en términos de `p` el umbral que la regla induce para cada monto.
 
-Los umbrales se siguen eligiendo sobre `[76, 83)` y se congelan, pero cumplen dos
-funciones de reporte y no deciden: cuantificar lo que cuesta ignorar el monto, y
-dar un corte binario a las métricas de diagnóstico. `implied_thresholds` calcula el
-umbral que la regla económica induce en cada monto, para poder describir la
-política en términos de `p` sin cambiar la decisión.
-
-**Causalidad de la cola (C12).** El cupo se reserva al **admitir**, de forma
-irrevocable y por `event_id`. No se ordena el día completo por `p × monto` para
-quedarse con los 150 mejores: eso exigiría conocer transacciones que aún no
-ocurrieron. La prioridad ordena el **servicio** entre los ya admitidos. Agotado el
-cupo, el caso cae a la más barata entre aprobar y bloquear.
-
-Un top-150 retrospectivo solo puede figurar como **cota oracle** en una tabla
-aparte, nunca como política.
-
----
+El cupo se reserva al admitir cada caso, de forma irrevocable y por `event_id`.
+Ordenar el día completo por `p × monto` exigiría conocer transacciones futuras; la
+prioridad ordena solo el servicio entre los casos ya admitidos. Agotado el cupo, el
+caso recibe la acción automática más barata. Un top-150 retrospectivo solo puede
+aparecer como cota de referencia en una tabla aparte.
 
 ## 5. Autonomía y supervisión humana
 
-| Automático dentro del experimento | Requiere autorización humana |
+| Automático | Requiere autorización humana |
 |---|---|
 | Adquisición, preparación y features | Cada reentrenamiento |
 | Scoring y aplicación de la política | Cada promoción de versión |
 | Ledger, cupo y registro de decisiones | Cualquier despliegue remoto |
 | Métricas, monitores y alertas | Activación inicial del sistema |
 
-**No existe la cadena alerta → deploy.** Una señal genera, como máximo, una
-recomendación dirigida a una persona. La corrida offline opera bajo un manifest de
-autorización previa que enumera sus tareas, y sus promociones quedan rotuladas
-`simuladas`: la aprobación instantánea de un script no representa el tiempo ni el
-juicio de una revisión humana real.
+Una señal de drift genera una recomendación dirigida a una persona. La corrida
+offline opera con un manifiesto de autorización previa que enumera sus tareas, y sus
+promociones quedan rotuladas como simuladas.
 
-**Contingencia (C21).** Si no hay ninguna versión válida, el sistema responde
-`model_unavailable` (HTTP 503) y pausa. No decide el pago por defecto y **no**
-degrada a S0 o E15, que son referencias no desplegables.
+Si no hay ninguna versión válida, el servicio responde `model_unavailable` (HTTP
+503) y la operación se pausa. El sistema no decide pagos por defecto ni recurre a un
+modelo de respaldo.
 
----
+## 6. Decisiones vedadas
 
-## 6. Límites de autonomía heredados del avance
-
-El sistema no cierra cuentas, no mantiene listas negras, no bloquea sin
-apelación, no emite explicaciones causales y no se reentrena de forma autónoma.
-Toda aprobación o bloqueo en esta entrega es **simulado**: no hay pagos reales.
+El sistema no cierra ni suspende cuentas, no reporta a centrales de riesgo, no
+bloquea sin canal de apelación, no se reentrena ni promueve versiones sin
+autorización humana y no da explicaciones causales basadas en variables anónimas.
+Todas las aprobaciones y bloqueos de esta entrega son simulados.

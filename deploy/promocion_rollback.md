@@ -1,86 +1,74 @@
 # Política de promoción y rollback
 
-**Escrito para:** el responsable que autoriza cambios de versión (rol A) y quien
-ejecuta el despliegue (rol E).
+Guía para quien autoriza cambios de versión y para quien ejecuta el despliegue.
 
-Regla que gobierna todo el documento: **ninguna señal automática promueve ni
-despliega**. El sistema produce evidencia y una recomendación; la decisión es de
-una persona y queda registrada.
+Las señales automáticas producen evidencia y una recomendación. Promover o desplegar
+una versión es una decisión de una persona y queda registrada.
 
----
+## 1. Dos tipos de cambio
 
-## 1. Dos tipos de cambio, dos reglas distintas
-
-No se deben confundir. Uno se decide en minutos; el otro no puede decidirse antes
-de 30 días.
-
-| | **Rollback técnico** | **Cambio por deterioro de negocio** |
+| | Rollback técnico | Cambio por deterioro de negocio |
 |---|---|---|
-| Qué lo dispara | Errores HTTP o latencia | Costo observado, AP, Brier |
-| Cuándo se observa | Al instante | Solo con etiquetas maduras (L=30 días) |
-| Quién decide | Regla preautorizada, ejecución automática permitida | Revisión humana explícita, siempre |
+| Qué lo dispara | Errores HTTP o latencia | Costo observado, AP o Brier |
+| Cuándo se observa | De inmediato | Con etiquetas maduras, 30 días después |
+| Quién decide | Regla preautorizada; puede ejecutarse de forma automática | Revisión humana explícita |
 | Acción | Volver al paquete anterior | Evaluar, documentar y decidir |
 
-Motivo de la separación: un error 500 es un hecho verificable ahora. Una subida
-del costo observado hoy habla de decisiones tomadas hace un mes, y actuar sobre
-ella de inmediato sería reaccionar a ruido.
-
----
+Un error HTTP 500 se verifica en el momento. Un aumento del costo observado hoy
+refleja decisiones tomadas hace un mes, y reaccionar de inmediato a esa señal sería
+reaccionar a ruido.
 
 ## 2. Gates de promoción
 
-Se evalúan sobre **H = [c−7, c)**: el tramo más reciente ya maduro, posterior al
+Se evalúan sobre H = `[c−7, c)`, el tramo maduro más reciente, posterior al
 predictor y al calibrador.
 
-### Gate 0 — Integridad (bloqueante)
+### Integridad (bloqueante)
 
-- Los cuatro roles no comparten ningún `TransactionID`.
-- H no fue visto por el ajuste, la calibración ni la política **del challenger ni
-  del champion**.
-- Soporte mínimo: fit ≥ 200 fraudes / 2 000 legítimas; calibración y H ≥ 50 / 500.
+- Los roles de la versión no comparten ningún `TransactionID`.
+- H no participó en el ajuste ni en la calibración de la versión candidata ni de la
+  vigente.
+- Soporte mínimo: fit con 200 fraudes y 2 000 legítimas; calibración y H con 50 y 500.
 - Artefactos completos y esquema de features compatible.
-- El cupo nunca superó 150/día en la evaluación.
+- El cupo no superó 150 casos diarios en la evaluación.
 
-Una falla aquí **bloquea la versión**. No se negocia.
+Una falla de integridad bloquea la versión.
 
-### Gate 1 — Arranque (solo la primera activación)
+### Arranque (primera activación)
 
-Costo en H ≤ costo de "aprobar todo". Si no lo supera, no hay razón económica para
-activar el sistema.
+El costo en H debe ser inferior al de aprobar todo; si no lo es, activar el sistema
+no tiene justificación económica.
 
-### Gate 2 — No inferioridad (promociones posteriores)
+### No inferioridad (promociones posteriores)
 
 | Criterio | Umbral |
 |---|---|
-| Costo en H | ≤ 1.01 × costo del champion |
-| ΔAP | ≥ −0.01 absoluto |
-| ΔBrier | ≤ +0.005 |
+| Costo en H | ≤ 1,01 × costo de la versión vigente |
+| ΔAP | ≥ −0,01 absoluto |
+| ΔBrier | ≤ +0,005 |
 
-Es una regla de **no inferioridad tolerante a ruido**, no de superioridad. Exigir
-una mejora en cada ciclo llevaría a no actualizar nunca bajo ruido, o a ir
-ajustando la tolerancia hasta que pase. El precio declarado: se admite hasta un 1 %
-de costo mayor en validación.
+Exigir una mejora estricta en cada ciclo llevaría a no actualizar casi nunca, o a
+relajar la tolerancia hasta que pase. A cambio, se admite hasta 1 % más de costo en
+validación.
 
-### Gate 3 — Social
+### Social
 
-En segmentos con soporte suficiente (≥ 1 000 legítimas), el bloqueo de legítimas
-no puede crecer más de 2 pp frente al champion sobre el mismo H. Si crece, se
-genera alerta y **revisión humana explícita**.
+En segmentos con al menos 1 000 legítimas, el bloqueo de legítimas no puede crecer
+más de 2 pp frente a la versión vigente sobre el mismo H. Si crece, se genera una
+alerta y la promoción pasa a revisión humana explícita.
 
-### Gate 4 — Humano (siempre)
+### Autorización humana
 
-Aunque los cuatro anteriores pasen, la promoción exige autorización registrada
-con identidad, fecha, versión, hash del paquete y la evidencia consultada.
-
----
+Aunque los gates anteriores pasen, la promoción exige una autorización registrada con
+responsable, fecha, versión, hash del paquete y evidencia consultada.
 
 ## 3. Registro de una autorización
 
 ```json
 {
   "tipo": "promocion",
-  "version_nueva": "W30_T165",
-  "version_anterior": "W30_T150",
+  "version_nueva": "E15_T165",
+  "version_anterior": "E15_T150",
   "package_hash": "<sha256>",
   "autorizado_por": "<nombre del responsable>",
   "fecha": "<ISO-8601>",
@@ -94,12 +82,9 @@ con identidad, fecha, versión, hash del paquete y la evidencia consultada.
 }
 ```
 
-**`naturaleza` importa.** Las promociones dentro del benchmark son `simulada`:
-solo habilitan el replay académico, nunca una activación remota. La aprobación
-instantánea de un script no representa el tiempo ni el juicio de una revisión
-humana real.
-
----
+Las promociones del backtest se registran como `simulada` y solo habilitan el replay
+académico. Una aprobación automática dentro de un script no reemplaza el tiempo ni el
+criterio de una revisión humana.
 
 ## 4. Rollback técnico
 
@@ -111,45 +96,33 @@ Regla preautorizada, evaluada por lotes de 100 peticiones:
 | Latencia p95 | > 300 ms |
 | Lotes consecutivos en falla | 2 |
 
-Al cumplirse: pausar, alertar y volver al paquete anterior. Se conservan siempre
-**dos** paquetes elegibles (activo y anterior), cada uno con su propio
-preprocesador, calibrador, política y esquema. Un paquete nunca se mezcla con
-piezas de otro.
+Cuando se cumple, el sistema se pausa, alerta y vuelve al paquete anterior. Se
+conservan dos paquetes elegibles, el activo y el anterior, cada uno con su propio
+preprocesador, calibrador, política y esquema; las piezas de paquetes distintos no se
+mezclan. Un error de esquema rechaza la activación antes de que la versión reciba
+tráfico.
 
-Un error de esquema implica **rechazo de la activación**, no rollback: la versión
-nunca llega a recibir tráfico.
+## 5. Sin versión válida
 
----
-
-## 5. Contingencia sin versión válida (C21)
-
-Si ninguna versión de ventana deslizante es válida:
+Si ninguna versión es válida:
 
 1. El servicio responde `model_unavailable` (HTTP 503).
 2. El replay se pausa.
-3. **No** se decide el pago por defecto ni se envían todos los casos a revisión.
-4. **No** se degrada a S0 ni a E15: son referencias no desplegables por diseño.
+3. El sistema no decide pagos por defecto ni envía todos los casos a revisión.
 
-Si ya existe un champion válido, conservarlo es la contingencia ante un ajuste o
-una promoción fallidos. El rollback solo puede ir a otra ventana válida.
-
-Un gate fallido puede impedir la demo. Eso se documenta como resultado, no se
-resuelve inventando un éxito.
-
----
+Si ya hay una versión vigente válida, se conserva ante un ajuste o una promoción
+fallidos. Un gate fallido que impida la demo se documenta como resultado.
 
 ## 6. Cadencia y cooldown
 
-- Reentrenamiento cada **15 días** de evento, con autorización por acto.
-- Cooldown de promoción: **15 días**, salvo rollback técnico.
-- Las alertas **no** disparan retuning: recomiendan revisión humana.
+- Reentrenamiento cada 15 días de evento, con una autorización por cada uno.
+- Cooldown de promoción de 15 días, salvo rollback técnico.
+- Las alertas recomiendan revisión humana y no disparan reajustes.
 
----
+## 7. Alcance de la demo
 
-## 7. Qué no puede concluirse de la demo
-
-- Que el sistema funcione en producción distribuida: el cupo solo está garantizado
-  para un orquestador secuencial.
-- Que la latencia medida represente una región cloud.
-- Que exista un ahorro causal: los costos son simulados bajo supuestos declarados.
-- Que el analista simulado represente a un analista real.
+- El cupo está garantizado para un orquestador secuencial; la demo no prueba una
+  operación distribuida.
+- La latencia medida es local.
+- Los costos son simulados con supuestos declarados.
+- El analista es simulado.

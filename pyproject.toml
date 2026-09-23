@@ -1,7 +1,7 @@
 [project]
 name = "fraud-adaptive"
 version = "1.0.0"
-description = "Sistema adaptativo de decision ante fraude transaccional con olvido por ventanas fijas (UTEC, Planificacion y Toma de Decisiones en IA)"
+description = "Sistema adaptativo de decision ante fraude transaccional (UTEC, Planificacion y Toma de Decisiones en IA)"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }
@@ -31,6 +31,7 @@ dev = [
     "nbformat>=5.10",
     "nbclient>=0.10",
     "httpx>=0.27",
+    "markdown>=3.6",
 ]
 
 [project.scripts]

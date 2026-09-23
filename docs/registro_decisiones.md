@@ -1,94 +1,74 @@
-# Registro de decisiones resueltas (C1–C28)
+# Registro de decisiones
 
-> **Sobre el nombre del archivo.** Se conserva `decisiones_pendientes.md` como ruta
-> de compatibilidad con el plan. Su contenido son decisiones **resueltas**: no hay
-> preguntas técnicas abiertas ni aprobaciones pendientes.
-
-Cada fila registra una contradicción o ambigüedad detectada entre el enunciado, el
-avance y las guías del curso; qué se decidió; y **dónde se puede comprobar en el
-código** que se implementó así.
-
----
+Ambigüedades encontradas entre el enunciado, la propuesta del avance y el material del
+curso, con la decisión tomada y el lugar del código donde se verifica.
 
 ## Adaptación y protocolo temporal
 
-| ID | Ambigüedad | Decisión implementada | Dónde se verifica |
-|---|---|---|---|
-| **C1** | El avance contrapone lotes periódicos y modelo incremental; el enunciado prioriza olvido por ventanas fijas | W ∈ {30, 60, 90} con cadencia 15. S0 y E15 son **solo referencias no desplegables**. W14 e incremental quedan fuera | `configs/adaptation.yaml` · `test_adaptation_windows.py` |
-| **C4** | No se especifica si un modelo nuevo conserva el calibrador anterior | Platt **propio por versión** en `[c−21, c−14)`, ajustado después del predictor. Método y umbrales congelados | `adaptation.build_package` · `test_temporal_integrity.py` |
-| **C5** | L ≥ 60 usaría una política construida con etiquetas no disponibles en T=120 | Solo **L = 30**. Otros retrasos quedan como extensión sin ejecutar | `configs/temporal.yaml` |
-| **C6** | El avance dice «no se puede monitorear F1» pero L principal es 30 días | F1 y costo se monitorean **solo al madurar** `y`. Al cerrar, se avanza únicamente el reloj de disponibilidad | `backtest.run_backtest` (cierre de madurez) |
-| **C19** | El arranque 90–119 pretendía alimentar S2, pero la política usa etiquetas hasta el día 89 | Warmup **solo de estado X**: sin scores, sin acciones, sin modelo provisional. El sistema arranca en T=120 | `configs/temporal.yaml` · `backtest` empieza en `test_start` |
-| **C20** | No quedaba un holdout maduro posterior a la calibración | H = `[c−7, c)`, posterior a predictor y a Platt. Sin shadow deployment | `test_promotion_holdout.py` |
-| **C21** | Faltaba definir la contingencia si ninguna ventana es válida | `model_unavailable` (HTTP 503) y pausa. **Nunca** se degrada a S0 o E15 | `serving.py` · `test_sin_paquete_valido_responde_503` |
-| **C22** | Elegir W con resultados finales contaminaría la evaluación | Dos folds en `[0,60)`, calibración `[69,76)`, política `[76,83)`, validación `[83,90)`. El test nunca elige | `docs/protocolo_experimental.md` |
-| **C17** | La selección previa del dataset ya examinó periodos tardíos | Prerregistro con hash verificado; la exposición exploratoria se **declara** como limitación | `pipeline.run_adaptation` aborta si cambia el hash |
-
----
+| Ambigüedad | Decisión | Dónde se verifica |
+|---|---|---|
+| El avance contraponía lotes periódicos y modelo incremental; el enunciado prioriza el olvido con ventanas fijas | Se evalúan W30, W60 y W90 con cadencia de 15 días, junto a S0 estático y E15 expansivo. Los modelos incrementales y W14 quedan fuera | `configs/adaptation.yaml`, `test_adaptation_windows.py` |
+| Qué estrategia recomendar si ninguna ventana supera al estático | Se recomienda E15, reentrenamiento periódico que el enunciado incluye entre las estrategias de adaptación, declarando que la recomendación surge del test | `reports/informe_final.md`, sección 5 |
+| Si un modelo nuevo conserva el calibrador anterior | Cada versión ajusta su propio Platt después del predictor, sobre datos que este no vio | `adaptation.build_package`, `test_temporal_integrity.py` |
+| Con L ≥ 60 la política usaría etiquetas no disponibles en T = 120 | Se evalúa L = 30; otros retrasos quedan como extensión | `configs/temporal.yaml` |
+| El avance decía que F1 no se podía monitorear, pero con L = 30 sí es posible | F1 y costo se calculan solo con etiquetas maduras | `backtest.run_backtest` |
+| El periodo 90–119 no puede alimentar métricas si la política usa etiquetas hasta el día 89 | El warmup solo calienta el historial de features; el sistema arranca en T = 120 | `configs/temporal.yaml` |
+| Faltaba una validación madura posterior a la calibración | H = `[c−7, c)`, posterior al predictor y a Platt | `test_promotion_holdout.py` |
+| Qué hacer si ninguna versión es válida | HTTP 503 y pausa, sin decisión por defecto | `serving.py`, `test_sin_paquete_valido_responde_503` |
+| Elegir W con resultados de test contaminaría la evaluación | Folds en `[0,60)`, calibración `[69,76)`, política `[76,83)` y validación `[83,90)` | `docs/protocolo_experimental.md` |
+| La selección del dataset ya había examinado periodos tardíos | Prerregistro con hash y declaración del trabajo como backtest retrospectivo | `pipeline.run_adaptation` |
 
 ## Datos y causalidad
 
-| ID | Ambigüedad | Decisión implementada | Dónde se verifica |
-|---|---|---|---|
-| **C2** | «Ventana móvil» y «ventana expansiva» se usaban como equivalentes | Se distingue la ventana de **historial de features** (1 h, 24 h, 7 d) de la ventana que limita el **fit del predictor** | `features.HISTORY_WINDOWS` vs `splits.VersionRoles` |
-| **C7** | Dos tablas tabulares frente a «fuentes multimodales» | Integración real de transacciones + identidad. Texto y señales de sesión se **dibujan** como adaptadores futuros, sin implementar | `docs/arquitectura.mmd` |
-| **C9** | Las guías muestran holdout aleatorio e interpolación con futuro | Splits forward, preprocesamiento por fold, solo pasado. Nunca se traslada el holdout aleatorio del ejemplo | `test_preprocesamiento_no_cambia_al_alterar_filas_futuras` |
-| **C10** | Las instrucciones decían que no hacía falta la API de Kaggle | Se documenta la descarga reproducible; credenciales **fuera del repo**. Los `test_*` se rechazan explícitamente | `data.kaggle_download_instructions` · `assert_no_forbidden_files` |
-| **C16** | El benchmark histórico ajustaba categorías sobre toda la ventana | Se **cita con su limitación**, no se repara retroactivamente. Todo pipeline nuevo ajusta dentro del fit/fold | `models.FeaturePipeline.fit` |
-
----
+| Ambigüedad | Decisión | Dónde se verifica |
+|---|---|---|
+| «Ventana móvil» se usaba tanto para el historial de features como para el entrenamiento | Se distinguen las ventanas de historial (1 h, 24 h, 7 d) de la ventana de fit del predictor | `features.HISTORY_WINDOWS` y `splits.VersionRoles` |
+| El enunciado pide considerar fuentes multimodales y el dataset tiene dos tablas | Se integran transacciones e identidad; texto y sesión aparecen como adaptadores futuros en la arquitectura | `docs/arquitectura.dot` |
+| Las guías del curso muestran holdout aleatorio | Particiones temporales y preprocesamiento por fit | `test_preprocesamiento_no_cambia_al_alterar_filas_futuras` |
+| Cómo obtener los datos sin exponer credenciales | Descarga documentada, token fuera del repositorio y rechazo explícito de los `test_*` | `data.kaggle_download_instructions`, `assert_no_forbidden_files` |
+| El benchmark de selección ajustaba categorías sobre toda la ventana | Se cita con esa limitación; el pipeline ajusta dentro de cada fit | `models.FeaturePipeline.fit` |
 
 ## Decisión, costos y equidad
 
-| ID | Ambigüedad | Decisión implementada | Dónde se verifica |
-|---|---|---|---|
-| **C8** | El avance fijaba recall a precisión fija; la solicitud pedía FPR fijo y F1 | Se reportan **ambos**, más AP, Brier y latencia. Y se reporta el nivel **realmente obtenido**, que puede incumplir el objetivo | `metrics.recall_at_constraint` |
-| **C12** | Ordenar el día completo por `p × monto` exigiría ver el futuro | Admisión **por llegada** mientras haya cupo; la prioridad ordena el servicio. Reserva atómica por `event_id` | `test_admision_es_causal_no_top_k_del_dia` |
-| **C13** | La auditoría aleatoria se describía como generadora de etiquetas no sesgadas | Full-information declarado. El analista simulado **no entrena** nada. Selective labels queda como limitación abierta | `decision.simulate_outcomes` · informe §8 |
-| **C14** | 150 casos/día se justificaba con 2×8×10 = 160 | 150 efectivos y 10 de holgura **declarada como convención**, no como medición | `configs/decision.yaml` |
-| **C18** | «Hasta 120 días» se presentaba como plazo regulatorio universal | L = 30 se describe como **supuesto de simulación**. Se eliminan afirmaciones legales sin sustento | `docs/contrato_sistema.md` |
-| **C28** | Un veredicto humano derivado de `isFraud` antes de `available_at` usaría una etiqueta inmadura | El veredicto se calcula **solo al madurar**, en el evaluador. La acción emitida no cambia | `test_el_veredicto_del_analista_no_altera_decisiones_previas` |
-
----
+| Ambigüedad | Decisión | Dónde se verifica |
+|---|---|---|
+| El avance fijaba recall a precisión fija; también se pedían FPR fijo y F1 | Se reportan recall a FPR 1 %, recall a precisión 80 %, F1, balanced accuracy, AP, Brier y latencia, con el nivel realmente obtenido | `metrics.recall_at_constraint` |
+| Ordenar el día completo por `p × monto` exigiría ver el futuro | Admisión por llegada con reserva atómica por `event_id` | `test_admision_es_causal_no_top_k_del_dia` |
+| La auditoría aleatoria se describía como fuente de etiquetas sin sesgo | Se usa información completa y el analista simulado no entrena el modelo; selective labels queda como limitación | `decision.simulate_outcomes` |
+| La capacidad de 150 se justificaba con 2 × 8 × 10 = 160 | 150 efectivos con 10 de holgura declarada | `configs/decision.yaml` |
+| «Hasta 120 días» se presentaba como plazo regulatorio universal | L = 30 se describe como supuesto de simulación | `docs/contrato_sistema.md` |
+| El veredicto del analista derivado de `isFraud` antes de `available_at` usaría una etiqueta inmadura | El veredicto se calcula al madurar la etiqueta, en el evaluador | `test_el_veredicto_del_analista_no_altera_decisiones_previas` |
 
 ## Evidencia, cómputo y despliegue
 
-| ID | Ambigüedad | Decisión implementada | Dónde se verifica |
-|---|---|---|---|
-| **C3** | El benchmark histórico llamaba al gap «prueba genuina» de concept drift | Se cita como evidencia **consistente**, no causal. ADWIN se prueba con dos streams sintéticos de cambio conocido | `drift.adwin_selftest` |
-| **C11** | El enunciado pone despliegue (3.4) antes de drift (3.5) | Se ejecuta drift primero: el paquete y la frecuencia usan resultados ya medidos | Orden de fases en `pipeline.py` |
-| **C15** | Cifras del benchmark con nombres ambiguos (raw vs corrected) | Los históricos se conservan intactos y se citan con nombres distintos | Informe, sección de referencias |
-| **C23** | Una corrida nocturna sin supervisión frente a la aprobación humana | Manifest de autorización **previa y enumerada**; promociones rotuladas `simulada`. Ningún script despliega | `runs/*/authorization.json` |
-| **C24** | Entrega cloud manual frente a cupo persistente | Endpoint sin estado de cupo; el replay es el único orquestador, con ledger transaccional | `test_replay_idempotency.py` |
-| **C25** | Exigir tres acciones y una alerta podría inducir a fabricar evidencia | Acciones reales cuando existen; **fixtures rotulados** para las ramas faltantes. Sin mover umbrales | `replay.contract_fixtures` |
-| **C26** | Repetir fits en notebooks excedería el presupuesto | Los notebooks **leen artefactos**; no reentrenan. Presupuesto persistente que no se reinicia al reanudar | `test_checkpoint_resume.py` |
-| **C27** | Tiempo y RAM desconocidos frente a tres modelos | Tres configuraciones por familia congeladas; cap de RF con muestreo estratificado por día y clase | `models.stratified_day_subsample` |
-
----
-
-## Decisiones tomadas durante la implementación
-
-Estas no estaban en el plan: surgieron al ejecutar y se registran por completitud.
-
-| Situación encontrada | Decisión | Motivo |
+| Ambigüedad | Decisión | Dónde se verifica |
 |---|---|---|
-| IEEE-CIS no disponible en la máquina (sin token de Kaggle) | Generar un **sustituto sintético** con el mismo esquema y drift conocido, rotulado en cada artefacto | Sin él, el pipeline quedaría sin ejecutar ni verificar. Los comandos son idénticos con los datos reales |
-| La madurez se comparaba contra `cutoff = T − L` en vez de contra `job_time = T` | Corregido: `VersionRoles.job_time` | Con el criterio anterior, las colas de calibración, política y validación quedaban **vacías** |
-| El rezago de monto dependía del orden de llegada entre eventos empatados | Incorporación al historial en orden canónico por `TransactionID` | El plan exige que permutar empatados deje las features iguales; ahora es propiedad de la función, no del llamador |
-| La latencia medida incluía solo el commit al ledger | Medición separada **una fila por petición**, con 100 de calentamiento y 1 000 medidas | El replay puntúa el lote por adelantado; mezclarlo daba 0,013 ms en vez de 66 ms |
-| El daemon de Docker no estaba activo | `Dockerfile` entregado **sin build verificado**; servicio verificado de forma nativa sobre HTTP | El plan prevé este caso: no se llama «imagen probada» a lo que no se probó |
-| La regla de umbrales globales es ciega al monto | Se **sustituye** por el argmin de los tres costos esperados | El punto de indiferencia depende del monto, de modo que ningún corte fijo sobre `p` puede ser óptimo. Medido: 1,5895 UM/tx frente a 1,9696 |
-| `c_FP = 5` bloquea al 11,17 % de las legítimas | Se **deriva** del objetivo de bloqueo declarado en lugar de fijarse a mano | El parámetro no es observable, pero la tasa que restringe sí. La relación se invierte y `c_FP` queda como precio sombra de la restricción |
-| Los 150 casos diarios de cupo no interactuaban con la regla de decisión | La revisión solo se propone si supera el **precio sombra** del cupo | Sin él la regla pide 704 revisiones diarias y el cupo se llena por orden de llegada. Con él, la demanda queda en 150,0 |
+| El benchmark llamaba «prueba» de concept drift a la brecha entre modelos | Se cita como evidencia consistente; ADWIN se valida con series sintéticas de cambio conocido | `drift.adwin_selftest` |
+| El enunciado presenta el despliegue (3.4) antes del drift (3.5) | Se ejecuta primero el experimento de drift, porque la frecuencia de actualización depende de él | Orden de fases en `pipeline.py` |
+| Cifras del benchmark con nombres ambiguos (sin corregir y corregidas) | Se conservan y se citan con nombres distintos | `docs/antecedentes/` |
+| Una corrida nocturna frente a la aprobación humana obligatoria | Manifiesto de autorización previa y promociones rotuladas como simuladas | `runs/<run_id>/authorization.json` |
+| Despliegue en la nube manual frente a cupo persistente | El endpoint no guarda el cupo; el replay es el único orquestador, con ledger transaccional | `test_replay_idempotency.py` |
+| Mostrar las tres acciones y una alerta podía inducir a fabricar evidencia | Se usan acciones reales y fixtures rotulados para las ramas que no aparecen | `replay.contract_fixtures` |
+| Repetir fits en los notebooks excedería el presupuesto | Los notebooks leen artefactos; el presupuesto se conserva al reanudar | `test_checkpoint_resume.py` |
+| Tiempo y memoria desconocidos para tres familias | Tres configuraciones por familia; Random Forest con muestreo estratificado por día y clase | `models.stratified_day_subsample` |
 
----
+## Ajustes surgidos al ejecutar
 
-## Consultas al docente (no bloqueantes)
+| Situación | Decisión | Motivo |
+|---|---|---|
+| La madurez se comparaba contra `cutoff = T − L` | Se compara contra `job_time = T` | Con el criterio anterior las colas de calibración y validación quedaban vacías |
+| El rezago de monto dependía del orden de llegada entre eventos empatados | Orden canónico por `TransactionID` | Permutar eventos empatados debe dejar las features iguales |
+| La latencia medida incluía solo el commit al ledger | Medición HTTP de una fila por petición, con 100 de calentamiento y 1 000 medidas | El replay puntúa el lote por adelantado y la cifra no representaba el servicio |
+| Los umbrales globales ignoran el monto | Regla por mínimo costo esperado | 1,5895 frente a 1,9696 UM/tx en la reserva de política |
+| `c_FP = 5` bloqueaba al 11,17 % de las legítimas | `c_FP` derivado del objetivo de 1 % | Resulta 25 UM, con 0,89 % |
+| El cupo no intervenía en la regla de decisión | Precio sombra `λ` del cupo | La demanda pasó de 704 a 150 revisiones diarias |
 
-Cada una tiene un valor por defecto ya aplicado. Ninguna detuvo la implementación.
+## Consultas al docente
 
-| Consulta | Valor por defecto aplicado |
+Cada consulta tiene un valor por defecto aplicado.
+
+| Consulta | Valor aplicado |
 |---|---|
-| ¿Basta considerar multimodalidad con adaptadores futuros junto a dos fuentes tabulares reales? | Sí: se documenta la consideración y su limitación, sin añadir modalidades ni datasets |
-| ¿Las referencias cuentan dentro del máximo de ocho páginas? | Sí. El PDF tiene 8 páginas **incluyendo** referencias, verificado automáticamente |
-| ¿Hay formato adicional para infografía o presentación? | SVG + PDF de infografía y guion de 18 minutos. Un PPTX derivado queda como extensión opcional |
+| ¿Basta tratar la multimodalidad como adaptadores futuros junto a dos fuentes tabulares? | Sí; se documenta la consideración y su límite |
+| ¿Las referencias cuentan dentro de las ocho páginas? | Sí; el PDF tiene 8 páginas con referencias |
+| ¿Hay un formato exigido para la infografía o la presentación? | Infografía en SVG y PDF, y guion de 18 minutos |
