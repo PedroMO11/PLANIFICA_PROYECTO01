@@ -37,6 +37,4 @@ models/
 # Documentacion y fuentes del informe: no aportan al runtime.
 docs/
 deploy/
-artifacts/
 *.pdf
-PLAN_IMPLEMENTACION.md
