@@ -158,10 +158,10 @@
     El costo simulado baja de 5,40 a 1,98 UM por transacción frente a aprobar todo. La distribución de entrada es estable (AUC 0,551)
   </text>
   <text class="resultado" x="48" y="975">
-    y la relación entre features y fraude cambia: 30 días más de antigüedad cuestan 0,106 UM/tx. Como perder datos cuesta más que ese drift,
+    y la relación entre features y fraude cambia: 16 días más de antigüedad cuestan 0,106 UM/tx. Las tres ventanas deslizantes
   </text>
   <text class="resultado" x="48" y="994">
-    la estrategia recomendada es reentrenar cada 15 días con todo el histórico.
+    cuestan más que E15, así que la estrategia recomendada es reentrenar cada 15 días con todo el histórico.
   </text>
   <text class="nota" x="48" y="1012">
     Límites: costos simulados · disparidad medida por segmentos operativos · cupo garantizado para un orquestador secuencial · backtest retrospectivo

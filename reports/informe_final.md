@@ -9,12 +9,11 @@ bloquear, con una política de costo esperado sujeta a un cupo de 150 revisiones
 diarias. Frente a aprobar todo, reduce el costo de 5,40 a 1,98 UM por transacción.
 Sobre IEEE-CIS la distribución de entrada se mantiene estable (AUC de 0,551 en el
 domain classifier), mientras que la relación entre features y fraude cambia con el
-tiempo: con el volumen de entrenamiento fijo en 46 días, retrasar 30 días el corte
+tiempo: con el volumen de entrenamiento fijo en 46 días, retrasar 16 días el corte
 de los datos encarece 0,106 UM/tx, y es la única comparación que resiste 18
-combinaciones de semilla y bloque. Ese efecto es menor que el costo de entrenar con
-menos datos. Por eso la estrategia más barata es el reentrenamiento periódico sobre
-todo el histórico (E15), y ninguna de las tres ventanas deslizantes evaluadas supera
-de forma estable al modelo estático.
+combinaciones de semilla y bloque. La estrategia más barata es el reentrenamiento
+periódico sobre todo el histórico (E15); las tres ventanas deslizantes cuestan más
+que E15 y ninguna supera de forma estable al modelo estático.
 
 ---
 
@@ -238,7 +237,8 @@ y mueve el corte.
 | Antigüedad variable | W60, R46_medio, R46_antiguo | punto de corte | 46 días de fit |
 | Referencias | S0 estático, E15 expansivo | reentrenamiento y olvido | misma política |
 
-R46_medio usa 46 días que terminan 30 días antes que los de W60. R46_antiguo se
+R46_medio usa 46 días que terminan 30 días antes del corte `c`, es decir 16 días
+antes que los de W60, cuyo fit ya termina en `c−14`. R46_antiguo se
 entrena una vez sobre los días 0 a 46 y se usa hasta el día 182.
 
 ### Madurez de las etiquetas y orden de construcción
@@ -352,15 +352,15 @@ cero en la corrida base.
 | Comparación | Factor aislado | Efecto UM/tx | Combinaciones que cruzan cero | Veredicto |
 |---|---|---|---|---|
 | R46_antiguo frente a W60 | frescura, corte al inicio del histórico | 0,0084 | 18 de 18 | no concluyente |
-| W60 frente a W90 | volumen, 46 frente a 76 días | 0,0514 | 18 de 18 | no concluyente |
-| W30 frente a W60 | volumen, 16 frente a 46 días | 0,0742 | 4 de 18 | no concluyente |
-| R46_medio frente a W60 | frescura, corte 30 días más antiguo | 0,1059 | 0 de 18 | concluyente |
-| W30 frente a W90 | volumen, 16 frente a 76 días | 0,1257 | 1 de 18 | no concluyente |
+| W60 frente a W90 | volumen y antigüedad, 46 frente a 76 días | 0,0514 | 18 de 18 | no concluyente |
+| W30 frente a W60 | volumen y antigüedad, 16 frente a 46 días | 0,0742 | 4 de 18 | no concluyente |
+| R46_medio frente a W60 | frescura, corte 16 días más antiguo | 0,1059 | 0 de 18 | concluyente |
+| W30 frente a W90 | volumen y antigüedad, 16 frente a 76 días | 0,1257 | 1 de 18 | no concluyente |
 
 ### Qué muestra la evidencia sobre el drift
 
 El cambio está en P(y|X) y la distribución de entrada permanece estable. Con el
-volumen fijo, retrasar el corte 30 días encarece 0,1059 UM/tx en las 18
+volumen fijo, retrasar el corte 16 días encarece 0,1059 UM/tx en las 18
 combinaciones, y como las covariables no se desplazan, ese efecto solo puede venir de
 la relación entre features y fraude. ADWIN, que observa el error individual con las
 etiquetas maduras, registra 49 detecciones entre las siete estrategias. Esas
@@ -371,9 +371,11 @@ modelo que caduca. El efecto de
 antigüedad no es monótono: el modelo entrenado sobre los días 0 a 46 conserva su AP
 (0,5077 en B1 y 0,5103 en B4) y cuesta casi lo mismo que la ventana más fresca.
 
-La magnitud del drift, 0,106 UM/tx por 30 días de antigüedad, es menor que lo que
-cuesta perder volumen (0,126 UM/tx entre 16 y 76 días; correlación entre días de fit
-y costo de −0,74). Por eso reentrenar con todo el histórico rinde más que olvidar.
+Por eso 0,106 UM/tx describe ese contraste de 16 días y no una tasa por día de
+antigüedad. Perder volumen apunta en la misma dirección (0,126 UM/tx entre 16 y 76
+días), pero con ventanas que terminan en el mismo corte más volumen implica datos más
+antiguos, y esa comparación no resiste el control de robustez. La evidencia directa
+para reentrenar con todo el histórico es que las tres ventanas cuestan más que E15.
 
 El benchmark del avance estimaba una degradación de 19 % comparando un modelo antiguo
 con otro entrenado en la misma ventana que se evalúa, sin retraso de etiqueta. Con
@@ -495,7 +497,7 @@ personas identificadas.
 El sistema reduce el costo simulado de 5,40 a 1,98 UM por transacción frente a aprobar
 todo, una mejora de 63,2 % que proviene del modelo calibrado y de la política
 económica. El concept drift de IEEE-CIS es real pero pequeño: el efecto de frescura es
-de 0,106 UM/tx por 30 días y el rango completo de las siete estrategias va de 1,98 a
+de 0,106 UM/tx al retrasar 16 días el corte, y el rango completo de las siete estrategias va de 1,98 a
 2,21 UM/tx. Con un retraso de etiqueta de 30 días, la adaptación que mejor responde a
 ese drift es reentrenar cada 15 días sobre todo el histórico, con monitoreo continuo
 y promoción aprobada por una persona. Evaluar retrasos y cadencias menores que 30 y 15

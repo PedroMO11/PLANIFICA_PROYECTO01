@@ -130,15 +130,15 @@ La ventana se eligió en desarrollo sin mirar el test: W60 con 2,2527 UM/tx, W90
 
 El diseño separa volumen y frescura. W30, W60 y W90 cambian los días de fit con el
 mismo corte. W60, R46_medio y R46_antiguo mantienen 46 días y mueven el corte. Con el
-volumen fijo, retrasar el corte 30 días encarece 0,1059 UM/tx, y es la única
+volumen fijo, retrasar el corte 16 días encarece 0,1059 UM/tx, y es la única
 comparación que no cruza el cero en ninguna de las 18 combinaciones de semilla y
-bloque. Pasar de 76 a 16 días de fit cuesta 0,1257, con una combinación que cruza el
-cero.
+bloque. Pasar de 76 a 16 días de fit cuesta 0,1257, pero esa comparación mezcla
+volumen con antigüedad y una combinación cruza el cero.
 
 La lectura es que el drift está en P(y|X) y es pequeño. Las covariables son estables,
-ADWIN registra deriva del error y el efecto de frescura es robusto, pero su tamaño es
-menor que lo que se pierde al entrenar con menos datos. Por eso E15, que reentrena
-sin descartar histórico, es la más barata.
+ADWIN registra deriva del error y el efecto de frescura es robusto, pero pequeño.
+E15, que reentrena sin descartar histórico, es la más barata, y las tres ventanas
+deslizantes cuestan más que ella.
 
 Sobre los umbrales diagnósticos: S0 y R46_antiguo cumplen FPR ≤ 1 % y precisión ≥ 80 %
 en test. Las estrategias que se reentrenan aplican el mismo umbral a versiones nuevas
@@ -190,8 +190,8 @@ aprobación humana de versiones son obligatorias.
 El costo simulado baja de 5,40 a 1,98 UM por transacción frente a aprobar todo, una
 mejora de 63,2 % que viene del modelo calibrado y de la política económica.
 
-El concept drift de IEEE-CIS existe y cuesta 0,106 UM/tx por cada 30 días de
-antigüedad del modelo. Con un retraso de etiqueta de 30 días, la mejor respuesta es
+El concept drift de IEEE-CIS existe pero es moderado: retrasar 16 días el corte de
+entrenamiento cuesta 0,106 UM/tx. Con un retraso de etiqueta de 30 días, la mejor respuesta es
 reentrenar cada 15 días con todo el histórico, con monitoreo continuo y promoción
 aprobada por una persona. El paso siguiente es evaluar retrasos y cadencias menores.
 
@@ -205,8 +205,8 @@ Sí, con la estrategia que el experimento señala. El enunciado lista el
 reentrenamiento periódico entre las estrategias de adaptación. E15 reentrena cada 15
 días y es la más barata de las siete, 5,2 % por debajo del estático. Las ventanas
 deslizantes se evaluaron como pide el enunciado y el resultado muestra por qué
-descartar datos no conviene aquí: el drift medido es menor que el costo de perder
-volumen. La ventaja de E15 sobre el estático tiene un intervalo que toca el cero,
+descartar datos no conviene aquí: las tres ventanas cuestan más que E15, y perder
+volumen apunta en la misma dirección. La ventaja de E15 sobre el estático tiene un intervalo que toca el cero,
 y el informe lo declara.
 
 ### ¿Cómo saben que no hay fuga temporal?
@@ -220,7 +220,8 @@ cada versión no comparten ningún `TransactionID`.
 
 Porque entrena con 16 días y 2 191 fraudes, frente a 76 días y 9 169 fraudes de W90.
 El bloque de antigüedad variable muestra que la frescura sí importa cuando el volumen
-se mantiene, pero su efecto es menor que el del volumen.
+se mantiene. Comparar W30 con W90 no separa ambos factores, porque los días extra de
+W90 son más antiguos, pero en ese contraste gana W90.
 
 ### ¿No sobreajustaron al elegir la ventana?
 

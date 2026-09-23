@@ -70,22 +70,23 @@ volumen y mueve el corte.
 | Volumen variable | W30, W60, W90 | 16, 46 y 76 días de fit | Corte en `c−14` |
 | Antigüedad variable | W60, R46_medio, R46_antiguo | Punto de corte | 46 días de fit |
 
-`R46_medio` es de tipo `lagged`: 46 días que terminan 30 días antes del corte de W60.
-`R46_antiguo` toma los primeros 46 días del histórico. Al compartir el tamaño del
-conjunto de entrenamiento, la diferencia entre las tres solo puede venir de la
-antigüedad. `build_version_roles` rechaza una combinación de `lag_days` y `fit_days`
+`R46_medio` es de tipo `lagged`: 46 días que terminan 30 días antes del corte `c`, es
+decir 16 días antes que los de W60, cuyo fit ya termina en `c−14`. `R46_antiguo` toma
+los primeros 46 días del histórico y no se reentrena. Al compartir el tamaño del
+conjunto de entrenamiento, la diferencia entre W60 y R46_medio solo puede venir de la
+antigüedad; la de R46_antiguo combina antigüedad y ausencia de reentrenamiento. `build_version_roles` rechaza una combinación de `lag_days` y `fit_days`
 que no quepa antes del corte.
 
 | Comparación | Qué aísla | Efecto UM/tx | Cruzan cero | Veredicto |
 |---|---|---|---|---|
-| R46_medio frente a W60 | Frescura, corte 30 días más antiguo | +0,1059 | 0 de 18 | Concluyente |
+| R46_medio frente a W60 | Frescura, corte 16 días más antiguo | +0,1059 | 0 de 18 | Concluyente |
 | R46_antiguo frente a W60 | Frescura, corte al inicio del histórico | +0,0084 | 18 de 18 | No concluyente |
-| W30 frente a W90 | Volumen, 16 frente a 76 días | +0,1257 | 1 de 18 | No concluyente |
-| W30 frente a W60 | Volumen, 16 frente a 46 días | +0,0742 | 4 de 18 | No concluyente |
-| W60 frente a W90 | Volumen, 46 frente a 76 días | +0,0514 | 18 de 18 | No concluyente |
+| W30 frente a W90 | Volumen y antigüedad, 16 frente a 76 días | +0,1257 | 1 de 18 | No concluyente |
+| W30 frente a W60 | Volumen y antigüedad, 16 frente a 46 días | +0,0742 | 4 de 18 | No concluyente |
+| W60 frente a W90 | Volumen y antigüedad, 46 frente a 76 días | +0,0514 | 18 de 18 | No concluyente |
 
 La única comparación que resiste el control de robustez es la de frescura: con 46
-días de fit, retrasar el corte 30 días encarece la decisión. Variando solo `W`, la
+días de fit, retrasar el corte 16 días encarece la decisión. Variando solo `W`, la
 correlación entre días de fit y costo era de −0,9916 y sugería que únicamente
 importaba el volumen; con el diseño controlado baja a −0,7412.
 

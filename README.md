@@ -27,7 +27,7 @@ cada 15 días con autorización humana.
 | E15 frente al modelo estático | −0,108 UM/tx, intervalo de 95 % [−0,205; 0,002] |
 | Ventanas deslizantes W30, W60 y W90 | entre 2,06 y 2,18 UM/tx; ninguna supera al estático de forma estable |
 | Drift en P(X) | domain classifier con AUC de 0,551 (alerta en 0,75) |
-| Drift en P(y\|X) | 30 días más de antigüedad cuestan 0,106 UM/tx con el volumen fijo, en las 18 combinaciones de robustez |
+| Drift en P(y\|X) | 16 días más de antigüedad cuestan 0,106 UM/tx con el volumen fijo, en las 18 combinaciones de robustez |
 | Cupo de revisión | 150 casos diarios respetados los 62 días del test |
 | Latencia sobre HTTP | p95 de 90,1 ms |
 
